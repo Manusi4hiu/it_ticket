@@ -1,0 +1,202 @@
+.section {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 20px;
+  padding: 0;
+  margin-bottom: var(--space-8);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+}
+
+.tableWrapper {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.customTable {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.customTable th {
+  padding: var(--space-4) var(--space-6);
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.customTable td {
+  padding: var(--space-4) var(--space-6);
+  color: white;
+  vertical-align: middle;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.customTable tr:last-child td {
+  border-bottom: none;
+}
+
+.userCell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.userAvatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.userName {
+  font-weight: 700;
+  color: white;
+  font-size: 0.95rem;
+}
+
+.userEmail {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.badge {
+  display: inline-flex;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.roleBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 14px;
+  border-radius: 10px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: white;
+}
+
+.roleAdmin {
+  background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+}
+
+.roleManagement {
+  background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+}
+
+.roleStaff {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+.infoSection {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 20px;
+  padding: var(--space-8);
+  margin-bottom: var(--space-8);
+}
+
+.infoTitle {
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: white;
+  margin: 0 0 var(--space-8);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  text-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+
+.infoTitle::before {
+  content: '';
+  width: 6px;
+  height: 32px;
+  background: linear-gradient(to bottom, #fff, #a5b4fc);
+  border-radius: 4px;
+  box-shadow: 0 0 15px rgba(255, 255, 255, 0.4);
+}
+
+.roleDescriptions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--space-6);
+}
+
+.roleDescription {
+  padding: var(--space-6);
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 18px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.roleDescription:hover {
+  background: rgba(255, 255, 255, 0.12);
+  transform: translateY(-5px);
+  border-color: rgba(255, 255, 255, 0.3);
+  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
+}
+
+.roleLabel {
+  display: inline-flex;
+  padding: 6px 14px;
+  border-radius: 10px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  margin-bottom: var(--space-4);
+  color: white;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+}
+
+.permissionList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.permissionList li {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.85);
+  padding: 8px 0;
+  padding-left: 24px;
+  position: relative;
+  line-height: 1.4;
+}
+
+.permissionList li::before {
+  content: "✦";
+  position: absolute;
+  left: 0;
+  color: #fff;
+  font-size: 0.8rem;
+  opacity: 0.7;
+  top: 10px;
+}
+
+@media (max-width: 768px) {
+  .roleDescriptions {
+    grid-template-columns: 1fr;
+  }
+}

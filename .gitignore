@@ -1,0 +1,20 @@
+# General
+.DS_Store
+.env
+
+# Frontend
+node_modules/
+.react-router/
+build/
+.netlify/
+.dazl/
+
+# Backend
+venv/
+.venv/
+venv_win/
+__pycache__/
+*.pyc
+instance/
+.pytest_cache/
+backend/app/static/uploads/

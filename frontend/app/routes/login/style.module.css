@@ -1,0 +1,308 @@
+/* Login Page - Dark Mode */
+.container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(180deg, #0a0a1a 0%, #1a1a2e 50%, #16213e 100%);
+  padding: 24px;
+  position: relative;
+  overflow: hidden;
+}
+
+.container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background:
+    radial-gradient(ellipse at 30% 30%, rgba(99, 102, 241, 0.15) 0%, transparent 50%),
+    radial-gradient(ellipse at 70% 70%, rgba(139, 92, 246, 0.15) 0%, transparent 50%);
+  pointer-events: none;
+}
+
+/* Floating Orbs */
+.container::after {
+  content: '';
+  position: absolute;
+  width: 400px;
+  height: 400px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.1) 0%, transparent 70%);
+  top: -100px;
+  right: -100px;
+  animation: float 10s ease-in-out infinite;
+}
+
+@keyframes float {
+
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+
+  50% {
+    transform: translateY(-30px) scale(1.05);
+  }
+}
+
+/* Login Card */
+.loginCard {
+  width: 100%;
+  max-width: 420px;
+  background: rgba(17, 24, 39, 0.8) !important;
+  backdrop-filter: blur(24px) !important;
+  border: 1px solid rgba(99, 102, 241, 0.3) !important;
+  border-radius: 24px !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(99, 102, 241, 0.1) inset !important;
+  position: relative;
+  z-index: 10;
+  animation: scaleIn 0.4s ease-out;
+}
+
+.loginCard::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #6366f1, #8b5cf6, #6366f1);
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Back Link */
+.cardHeaderAction {
+  padding: 16px 24px;
+  border-bottom: 1px solid rgba(99, 102, 241, 0.15);
+  background: rgba(99, 102, 241, 0.05);
+}
+
+.backLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #9ca3af;
+  text-decoration: none;
+  font-size: 0.875rem;
+  font-weight: 600;
+  transition: color 0.2s ease;
+}
+
+.backLink:hover {
+  color: #818cf8;
+}
+
+.backIcon {
+  width: 18px;
+  height: 18px;
+}
+
+/* Header */
+.header {
+  text-align: center;
+  padding: 32px 24px 24px;
+}
+
+.iconWrapper {
+  width: 72px;
+  height: 72px;
+  margin: 0 auto 20px;
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow:
+    0 8px 24px rgba(99, 102, 241, 0.4),
+    0 0 40px rgba(99, 102, 241, 0.2);
+  animation: pulse 3s ease-in-out infinite;
+}
+
+@keyframes pulse {
+
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow:
+      0 8px 24px rgba(99, 102, 241, 0.4),
+      0 0 40px rgba(99, 102, 241, 0.2);
+  }
+
+  50% {
+    transform: scale(1.05);
+    box-shadow:
+      0 12px 32px rgba(99, 102, 241, 0.5),
+      0 0 60px rgba(99, 102, 241, 0.3);
+  }
+}
+
+.icon {
+  width: 36px;
+  height: 36px;
+  color: white;
+}
+
+.title {
+  font-size: 1.75rem;
+  font-weight: 800;
+  margin: 0 0 8px;
+  background: linear-gradient(135deg, #f3f4f6 0%, #818cf8 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.subtitle {
+  font-size: 0.9375rem;
+  color: #9ca3af;
+  margin: 0;
+  font-weight: 500;
+}
+
+/* Form */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 0 32px 32px;
+}
+
+.formGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.formGroup label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #d1d5db;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.formGroup input {
+  background: rgba(17, 24, 39, 0.6) !important;
+  border: 1.5px solid rgba(99, 102, 241, 0.25) !important;
+  border-radius: 12px !important;
+  color: #f3f4f6 !important;
+  padding: 14px 16px !important;
+  font-size: 1rem !important;
+  transition: all 0.3s ease !important;
+}
+
+.formGroup input::placeholder {
+  color: #6b7280 !important;
+}
+
+.formGroup input:focus {
+  border-color: rgba(99, 102, 241, 0.6) !important;
+  box-shadow:
+    0 0 0 3px rgba(99, 102, 241, 0.1),
+    0 0 20px rgba(99, 102, 241, 0.15) !important;
+  outline: none !important;
+}
+
+/* Password Wrapper */
+.passwordWrapper {
+  position: relative;
+}
+
+.passwordInput {
+  padding-right: 48px !important;
+}
+
+.toggleButton {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  padding: 8px;
+  cursor: pointer;
+  color: #6b7280;
+  transition: color 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.toggleButton:hover {
+  color: #818cf8;
+}
+
+/* Login Button */
+.loginButton {
+  margin-top: 8px;
+  padding: 16px 24px !important;
+  font-size: 1rem !important;
+  font-weight: 700 !important;
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%) !important;
+  border: none !important;
+  border-radius: 14px !important;
+  color: white !important;
+  box-shadow: 0 4px 20px rgba(99, 102, 241, 0.4) !important;
+  transition: all 0.3s ease !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.loginButton:hover {
+  transform: translateY(-2px) !important;
+  box-shadow:
+    0 8px 30px rgba(99, 102, 241, 0.5),
+    0 0 40px rgba(99, 102, 241, 0.2) !important;
+}
+
+.loginButton:active {
+  transform: translateY(0) !important;
+}
+
+/* Alert */
+.alert {
+  background: rgba(239, 68, 68, 0.1) !important;
+  border: 1px solid rgba(239, 68, 68, 0.3) !important;
+  border-radius: 12px !important;
+  padding: 14px 16px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  color: #fca5a5 !important;
+  animation: shake 0.5s ease;
+}
+
+@keyframes shake {
+
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  25% {
+    transform: translateX(-8px);
+  }
+
+  75% {
+    transform: translateX(8px);
+  }
+}
