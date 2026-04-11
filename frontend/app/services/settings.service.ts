@@ -18,6 +18,14 @@ export interface Priority {
     isActive: boolean;
 }
 
+export interface Status {
+    id: string | number;
+    name: string;
+    color: string;
+    order: number;
+    isDefault: boolean;
+}
+
 export interface SLAPolicy {
     id: string;
     priorityId?: string;
@@ -107,6 +115,25 @@ export const settingsApi = {
     },
     deleteDepartment: async (id: string) => {
         return apiRequest(`/settings/departments/${id}`, { method: 'DELETE' });
+    },
+    // Statuses
+    getStatuses: async () => {
+        return apiRequest<{ success: boolean; data: Status[] }>('/settings/statuses');
+    },
+    createStatus: async (data: Partial<Status>) => {
+        return apiRequest<{ success: boolean; data: Status }>('/settings/statuses', {
+            method: 'POST',
+            body: JSON.stringify(data)
+        });
+    },
+    updateStatus: async (id: string, data: Partial<Status>) => {
+        return apiRequest<{ success: boolean; data: Status }>(`/settings/statuses/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(data)
+        });
+    },
+    deleteStatus: async (id: string) => {
+        return apiRequest<{ success: boolean; error?: string }>(`/settings/statuses/${id}`, { method: 'DELETE' });
     },
     // System Logs
     getLogs: async () => {

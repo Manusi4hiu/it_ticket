@@ -7,6 +7,17 @@ from app.services.file_service import FileService
 
 tickets_bp = Blueprint('tickets', __name__)
 
+def get_ticket_or_404(ticket_id):
+    """Helper to handle both numeric ID and Ticket Code"""
+    ticket = None
+    if str(ticket_id).isdigit():
+        ticket = Ticket.query.get(int(ticket_id))
+    
+    if not ticket:
+        ticket = Ticket.query.filter(Ticket.ticket_code.ilike(ticket_id)).first()
+        
+    return ticket
+
 @tickets_bp.route('', methods=['GET'])
 def get_tickets():
     """Get all tickets with optional filters"""
@@ -34,7 +45,7 @@ def get_tickets():
                 Ticket.title.ilike(search_term),
                 Ticket.description.ilike(search_term),
                 Ticket.submitter_name.ilike(search_term),
-                Ticket.id.ilike(search_term)
+                Ticket.ticket_code.ilike(search_term)
             )
         )
     
@@ -70,9 +81,9 @@ def get_tickets():
 
 @tickets_bp.route('/<ticket_id>', methods=['GET'])
 def get_ticket(ticket_id):
-    """Get a single ticket by ID"""
-    ticket = Ticket.query.get(ticket_id)
-    
+    """Get a single ticket by ID or ticket_code"""
+    ticket = get_ticket_or_404(ticket_id)
+   
     if not ticket:
         return jsonify({'success': False, 'error': 'Ticket tidak ditemukan'}), 404
     
@@ -121,15 +132,23 @@ def create_ticket():
     # Image handling
     image_url = FileService.save_file(image_file, 'tickets')
     
-    # Create ticket via service
-    ticket = TicketService.create_ticket(data, image_url)
+    # Get idempotency key from headers (ACID principle - Isolation/Durability)
+    idempotency_key = request.headers.get('X-Idempotency-Key')
     
-    return jsonify({
-        'success': True,
-        'ticket': ticket.to_dict(),
-        'message': 'Ticket berhasil dibuat'
-    }), 201
-
+    # Create ticket via service
+    try:
+        ticket = TicketService.create_ticket(data, image_url, idempotency_key)
+        return jsonify({
+            'success': True,
+            'ticket': ticket.to_dict(),
+            'message': 'Ticket berhasil dibuat'
+        }), 201
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'Gagal membuat ticket: {str(e)}'
+        }), 500
+    
 
 @tickets_bp.route('/<ticket_id>', methods=['PUT'])
 @jwt_required()
@@ -139,7 +158,11 @@ def update_ticket(ticket_id):
     if not data:
         return jsonify({'success': False, 'error': 'No data provided'}), 400
         
-    ticket = TicketService.update_ticket(ticket_id, data)
+    ticket = get_ticket_or_404(ticket_id)
+    if not ticket:
+        return jsonify({'success': False, 'error': 'Ticket tidak ditemukan'}), 404
+        
+    ticket = TicketService.update_ticket(ticket.id, data)
     
     if not ticket:
         return jsonify({'success': False, 'error': 'Ticket tidak ditemukan'}), 404
@@ -155,7 +178,10 @@ def update_ticket(ticket_id):
 @jwt_required()
 def delete_ticket(ticket_id):
     """Delete a ticket"""
-    success = TicketService.delete_ticket(ticket_id)
+    ticket = get_ticket_or_404(ticket_id)
+    if not ticket:
+        return jsonify({'success': False, 'error': 'Ticket tidak ditemukan'}), 404
+    success = TicketService.delete_ticket(ticket.id)
     
     if not success:
         return jsonify({'success': False, 'error': 'Ticket tidak ditemukan'}), 404
@@ -173,7 +199,10 @@ def assign_ticket(ticket_id):
     data = request.get_json()
     user_id = data.get('userId')
     
-    ticket, error = TicketService.assign_ticket(ticket_id, user_id)
+    ticket = get_ticket_or_404(ticket_id)
+    if not ticket:
+        return jsonify({'success': False, 'error': 'Ticket tidak ditemukan'}), 404
+    ticket, error = TicketService.assign_ticket(ticket.id, user_id)
     
     if error:
         return jsonify({'success': False, 'error': error}), 404
@@ -192,13 +221,23 @@ def update_ticket_status(ticket_id):
     data = request.get_json()
     status = data.get('status')
     
-    valid_statuses = ['new', 'triaged', 'assigned', 'in-progress', 'resolved', 'closed']
-    if status not in valid_statuses:
-        return jsonify({'success': False, 'error': 'Status tidak valid'}), 400
+    # Validate against master data
+    from app.models.master_data import Status
+    valid_status = Status.query.filter_by(name=status).first()
+    if not valid_status:
+        # Fallback for case-insensitive check if exact match fails
+        valid_status = Status.query.filter(Status.name.ilike(status)).first()
+        if valid_status:
+            status = valid_status.name # Use the canonical name
+        else:
+            return jsonify({'success': False, 'error': 'Status tidak valid'}), 400
         
     resolution_summary = data.get('resolutionSummary')
     
-    ticket = TicketService.update_ticket_status(ticket_id, status, resolution_summary)
+    ticket = get_ticket_or_404(ticket_id)
+    if not ticket:
+        return jsonify({'success': False, 'error': 'Ticket tidak ditemukan'}), 404
+    ticket = TicketService.update_ticket_status(ticket.id, status, resolution_summary)
     
     if not ticket:
         return jsonify({'success': False, 'error': 'Ticket tidak ditemukan'}), 404
@@ -231,7 +270,10 @@ def add_ticket_note(ticket_id):
     user_id = get_jwt_identity()
     image_url = FileService.save_file(image_file, 'notes')
     
-    note = TicketService.add_note(ticket_id, content, user_id, is_internal, image_url)
+    ticket = get_ticket_or_404(ticket_id)
+    if not ticket:
+        return jsonify({'success': False, 'error': 'Ticket tidak ditemukan'}), 404
+    note = TicketService.add_note(ticket.id, content, user_id, is_internal, image_url)
     
     if not note:
         return jsonify({'success': False, 'error': 'Ticket tidak ditemukan'}), 404

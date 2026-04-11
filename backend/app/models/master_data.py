@@ -5,7 +5,7 @@ class Category(db.Model):
     """Category master data"""
     __tablename__ = 'categories'
 
-    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     name = db.Column(db.String(50), unique=True, nullable=False)
     description = db.Column(db.String(255), nullable=True)
     is_active = db.Column(db.Boolean, default=True)
@@ -22,7 +22,7 @@ class Priority(db.Model):
     """Priority master data"""
     __tablename__ = 'priorities'
 
-    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     name = db.Column(db.String(20), unique=True, nullable=False) # e.g. Low, Medium, High, Critical
     level = db.Column(db.Integer, nullable=False) # 1=Critical, 4=Low. Used for sorting.
     color = db.Column(db.String(20), nullable=True) # e.g. #FF0000
@@ -47,7 +47,7 @@ class SLAConfig(db.Model):
     """SLA Configuration (global overrides or specific settings)"""
     __tablename__ = 'sla_configs'
 
-    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     name = db.Column(db.String(50), nullable=False) # e.g. "Default", "Weekend"
     config_json = db.Column(db.JSON, nullable=False) # Store flexible config here if needed
     is_active = db.Column(db.Boolean, default=True)
@@ -63,9 +63,9 @@ class SLAPolicy(db.Model):
     """SLA Policy mapping Priority and/or Category to limits"""
     __tablename__ = 'sla_policies'
     
-    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    priority_id = db.Column(db.String(36), db.ForeignKey('priorities.id'), nullable=True)
-    category_id = db.Column(db.String(36), db.ForeignKey('categories.id'), nullable=True)
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    priority_id = db.Column(db.Integer, db.ForeignKey('priorities.id'), nullable=True)
+    category_id = db.Column(db.Integer, db.ForeignKey('categories.id'), nullable=True)
     
     response_time_minutes = db.Column(db.Integer, default=60) # Time to first response
     resolution_time_hours = db.Column(db.Integer, default=24) # Time to resolve
@@ -88,7 +88,7 @@ class Department(db.Model):
     """Department master data"""
     __tablename__ = 'departments'
 
-    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     name = db.Column(db.String(100), unique=True, nullable=False)
     code = db.Column(db.String(10), unique=True, nullable=True) # e.g., IT, HR, FIN
     description = db.Column(db.String(255), nullable=True)
@@ -101,4 +101,23 @@ class Department(db.Model):
             'code': self.code,
             'description': self.description,
             'isActive': self.is_active
+        }
+
+class Status(db.Model):
+    """Status master data"""
+    __tablename__ = 'statuses'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    name = db.Column(db.String(50), unique=True, nullable=False)
+    color = db.Column(db.String(20), nullable=True, default='#6B7280') # Default gray
+    order = db.Column(db.Integer, default=0) # For custom ordering in UI
+    is_default = db.Column(db.Boolean, default=False) # Only one should be true
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'color': self.color,
+            'order': self.order,
+            'isDefault': self.is_default
         }

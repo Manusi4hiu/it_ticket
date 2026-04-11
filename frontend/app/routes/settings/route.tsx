@@ -68,6 +68,14 @@ export default function SettingsLayout() {
                     </NavLink>
 
                     <NavLink
+                        to="/settings/statuses"
+                        className={({ isActive }) => `${styles.navItem} ${isActive ? styles.navItemActive : ''}`}
+                    >
+                        <ClipboardList size={18} />
+                        Ticket Statuses
+                    </NavLink>
+
+                    <NavLink
                         to="/settings/logs"
                         className={({ isActive }) => `${styles.navItem} ${isActive ? styles.navItemActive : ''}`}
                     >

@@ -7,12 +7,12 @@ class SystemLog(db.Model):
     """SystemLog model for tracking user activities and system events"""
     __tablename__ = 'system_logs'
     
-    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
     action = db.Column(db.String(100), nullable=False)  # e.g., "Ticket Created", "User Login", "Ticket Updated"
     details = db.Column(db.Text, nullable=True)
     ip_address = db.Column(db.String(45), nullable=True)  # IPv6 can be up to 45 chars
-    user_id = db.Column(db.String(36), db.ForeignKey('users.id'), nullable=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     target_id = db.Column(db.String(100), nullable=True)  # ID of the object being acted upon (e.g., ticket ID)
     
     # Optional metadata (as JSON string)

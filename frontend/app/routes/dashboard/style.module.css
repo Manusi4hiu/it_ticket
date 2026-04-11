@@ -364,6 +364,9 @@
   padding: var(--space-5) var(--space-6);
   border-bottom: 1px solid rgba(99, 102, 241, 0.2);
   background: rgba(17, 24, 39, 0.4);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .tableTitle {
@@ -372,6 +375,24 @@
   margin: 0;
   font-size: 1.5rem;
   font-weight: 700;
+}
+
+.createTicketBtn {
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%) !important;
+  color: white !important;
+  border: none !important;
+  font-weight: 700 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  transition: all 0.3s ease !important;
+  box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4) !important;
+}
+
+.createTicketBtn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(99, 102, 241, 0.6) !important;
+  filter: brightness(1.1);
 }
 
 .tableWrapper {

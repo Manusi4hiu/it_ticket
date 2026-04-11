@@ -166,6 +166,47 @@ def delete_department(id):
         return jsonify({'success': False, 'error': 'Department not found'}), 404
     return jsonify({'success': True})
 
+# --- STATUSES ---
+
+@settings_bp.route('/statuses', methods=['GET'])
+def get_statuses():
+    statuses = MasterDataService.get_statuses()
+    return jsonify({'success': True, 'data': [s.to_dict() for s in statuses]})
+
+@settings_bp.route('/statuses', methods=['POST'])
+@admin_required
+def create_status():
+    data = request.get_json()
+    if not data:
+         return jsonify({'success': False, 'error': 'No data provided'}), 400
+         
+    status, error = MasterDataService.create_status(data)
+    if error:
+        return jsonify({'success': False, 'error': error}), 400
+        
+    return jsonify({'success': True, 'data': status.to_dict()})
+
+@settings_bp.route('/statuses/<id>', methods=['PUT'])
+@admin_required
+def update_status(id):
+    data = request.get_json()
+    if not data:
+         return jsonify({'success': False, 'error': 'No data provided'}), 400
+         
+    status, error = MasterDataService.update_status(id, data)
+    if error:
+        return jsonify({'success': False, 'error': error}), 400 if error != 'Status not found' else 404
+        
+    return jsonify({'success': True, 'data': status.to_dict()})
+
+@settings_bp.route('/statuses/<id>', methods=['DELETE'])
+@admin_required
+def delete_status(id):
+    success, error = MasterDataService.delete_status(id)
+    if not success:
+        return jsonify({'success': False, 'error': error or 'Status not found'}), 404 if error != 'Cannot delete status that is currently in use by tickets' else 400
+    return jsonify({'success': True})
+
 # --- SYSTEM LOGS ---
 
 @settings_bp.route('/logs', methods=['GET'])

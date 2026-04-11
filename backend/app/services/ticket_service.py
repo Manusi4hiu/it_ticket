@@ -1,31 +1,14 @@
 from app import db
 from app.models.ticket import Ticket, TicketNote
 from app.models.user import User
-from app.models.master_data import Department
+from app.models.master_data import Department, Status
 from app.utils.logging import log_activity
+from app.utils.security import sanitize_html
 from datetime import datetime, timedelta
 import uuid
 
 class TicketService:
-    @staticmethod
-    def get_next_ticket_id(dept_code="TKT"):
-        """Generate the next ticket ID with department prefix"""
-        prefix = dept_code.upper() if dept_code else "TKT"
-        
-        # Simple logic: find last ticket with this prefix
-        last_ticket = Ticket.query.filter(Ticket.id.like(f"{prefix}-%")).order_by(Ticket.id.desc()).first()
-        
-        if last_ticket:
-            try:
-                # Extract number from PREFIX-XXX
-                parts = last_ticket.id.split('-')
-                if len(parts) > 1:
-                    num = int(parts[-1])
-                    return f"{prefix}-{num + 1:03d}"
-            except (ValueError, IndexError):
-                pass
-                
-        return f"{prefix}-001"
+    # Removed get_next_ticket_id as IDs are now auto-incrementing integers
 
     @staticmethod
     def calculate_sla_status(sla_deadline, resolved_at=None):
@@ -45,57 +28,109 @@ class TicketService:
             return 'good'
 
     @staticmethod
-    def create_ticket(data, image_url=None):
+    def create_ticket(data, image_url=None, idempotency_key=None):
         """
         Create a new ticket using the provided data and optional image URL.
+        Implements ACID principles:
+        - Atomicity: All operations (ticket + log) succeed or fail together.
+        - Consistency: Validates data and uses transactions.
+        - Isolation: Prevents duplicate creations via idempotency key.
+        - Durability: Committed data is persistent.
         """
-        # Calculate SLA deadline based on priority
-        priority = data.get('priority', 'medium')
-        sla_hours = {'critical': 4, 'high': 8, 'medium': 24, 'low': 48}
-        sla_deadline = datetime.utcnow() + timedelta(hours=sla_hours.get(priority, 24))
-        
-        # Fetch department code if available
-        dept_code = "TKT"
-        dept_name = data.get('submitterDepartment')
-        if dept_name:
-            dept = Department.query.filter_by(name=dept_name).first()
-            if dept and dept.code:
-                dept_code = dept.code
-        
-        ticket = Ticket(
-            id=TicketService.get_next_ticket_id(dept_code),
-            title=data['title'],
-            description=data['description'],
-            status='new',
-            priority=priority,
-            category=data['category'],
-            submitter_name=data['submitterName'],
-            submitter_email=data.get('submitterEmail'),
-            submitter_phone=data.get('submitterPhone'),
-            submitter_department=data.get('submitterDepartment'),
-            image_url=image_url,
-            sla_deadline=sla_deadline,
-            sla_status='good'
-        )
-        
-        db.session.add(ticket)
-        db.session.commit()
-        
-        # Log the activity
-        log_activity(
-            action="Ticket Created",
-            details=f"Ticket {ticket.id} created by {ticket.submitter_name}",
-            target_id=ticket.id,
-            metadata={
-                "title": ticket.title,
-                "category": ticket.category,
-                "priority": ticket.priority,
-                "submitter": ticket.submitter_name
-            }
-        )
-        
-        return ticket
+        # 1. Isolation: Check for existing ticket with same idempotency key
+        if idempotency_key:
+            existing = Ticket.query.filter_by(idempotency_key=idempotency_key).first()
+            if existing:
+                return existing
 
+        # 2. Transaction for Atomicity
+        try:
+            # Calculate SLA deadline based on priority
+            priority = data.get('priority', 'medium')
+            sla_hours = {'critical': 4, 'high': 8, 'medium': 24, 'low': 48}
+            sla_deadline = datetime.utcnow() + timedelta(hours=sla_hours.get(priority, 24))
+            
+            # Fetch department info
+            dept_code = "TKT"
+            dept_name = data.get('submitterDepartment')
+            if dept_name:
+                dept = Department.query.filter_by(name=dept_name).first()
+                if dept and dept.code:
+                    dept_code = dept.code
+            
+            # Generate ticket code (per department counter)
+            # Find the latest ticket for this specific department
+            last_ticket = Ticket.query.filter(Ticket.ticket_code.like(f"{dept_code}-%"))\
+                .order_by(Ticket.code_counter.desc())\
+                .first()
+            
+            new_counter = 1
+            if last_ticket and last_ticket.code_counter:
+                new_counter = last_ticket.code_counter + 1
+            
+            ticket_code = f"{dept_code}-{str(new_counter).zfill(3)}"
+
+            # Fetch default status from master data
+            default_status = Status.query.filter_by(is_default=True).first()
+            status_name = default_status.name if default_status else 'New'
+
+            ticket = Ticket(
+                title=sanitize_html(data['title']),
+                description=sanitize_html(data['description']),
+                status=status_name,
+                priority=priority,
+                category=data['category'],
+                submitter_name=sanitize_html(data['submitterName']),
+                submitter_email=sanitize_html(data.get('submitterEmail')),
+                submitter_phone=sanitize_html(data.get('submitterPhone')),
+                submitter_department=sanitize_html(data.get('submitterDepartment')),
+                image_url=image_url,
+                idempotency_key=idempotency_key,
+                sla_deadline=sla_deadline,
+                sla_status='good',
+                ticket_code=ticket_code,
+                code_counter=new_counter
+            )
+            
+            db.session.add(ticket)
+            
+            # Note: We need to flush to get the ticket ID for the log, 
+            # but we don't commit yet to maintain Atomicity.
+            db.session.flush()
+
+            # Log the activity (using a version that doesn't commit internally)
+            from app.utils.logging import log_activity
+            log_activity(
+                action="Ticket Created",
+                details=f"Ticket {ticket.id} created by {ticket.submitter_name}",
+                target_id=ticket.id,
+                metadata={
+                    "title": ticket.title,
+                    "category": ticket.category,
+                    "priority": ticket.priority,
+                    "submitter": ticket.submitter_name
+                },
+                auto_commit=False
+            )
+            
+            # If everything succeeded, commit the whole transaction
+            db.session.commit()
+            return ticket
+
+        except Exception as e:
+            db.session.rollback()
+            # Handle specific database constraint errors
+            error_msg = str(e).lower()
+            if 'unique' in error_msg or 'duplicate' in error_msg:
+                # If it's a duplicate, check if the ticket was actually created by a parallel request
+                if idempotency_key:
+                    existing = Ticket.query.filter_by(idempotency_key=idempotency_key).first()
+                    if existing:
+                        return existing
+                print(f"Duplicate entry detected: {error_msg}")
+            
+            print(f"Transaction failed: {str(e)}")
+            raise e
     @staticmethod
     def update_ticket(ticket_id, data):
         """Update a ticket's details"""
@@ -105,19 +140,19 @@ class TicketService:
         
         # Update fields if provided
         if 'title' in data:
-            ticket.title = data['title']
+            ticket.title = sanitize_html(data['title'])
         if 'description' in data:
-            ticket.description = data['description']
+            ticket.description = sanitize_html(data['description'])
         if 'status' in data:
             ticket.status = data['status']
-            if data['status'] == 'resolved':
+            if data['status'].lower() in ['resolved', 'closed']:
                 ticket.resolved_at = datetime.utcnow()
         if 'priority' in data:
             ticket.priority = data['priority']
         if 'category' in data:
             ticket.category = data['category']
         if 'resolutionSummary' in data:
-            ticket.resolution_summary = data['resolutionSummary']
+            ticket.resolution_summary = sanitize_html(data['resolutionSummary'])
         if 'assignedToId' in data:
             ticket.assigned_to_id = data['assignedToId']
             # If assigned, change status from 'new' to 'assigned'
@@ -158,10 +193,17 @@ class TicketService:
             if not user:
                 return None, 'User tidak ditemukan'
             ticket.assigned_to_id = user_id
-            ticket.status = 'assigned'
+            # Try to find an "Assigned" status in master data, otherwise use 'Assigned'
+            assigned_status = Status.query.filter(Status.name.ilike('%assigned%')).first()
+            if assigned_status:
+                ticket.status = assigned_status.name
+            else:
+                ticket.status = 'Assigned'
         else:
             ticket.assigned_to_id = None
-            ticket.status = 'new'
+            # Revert to default status
+            default_status = Status.query.filter_by(is_default=True).first()
+            ticket.status = default_status.name if default_status else 'New'
         
         ticket.updated_at = datetime.utcnow()
         db.session.commit()
@@ -193,7 +235,7 @@ class TicketService:
             
         note = TicketNote(
             ticket_id=ticket_id,
-            content=content,
+            content=sanitize_html(content),
             author_id=author_id,
             image_url=image_url,
             is_internal=is_internal
@@ -208,10 +250,16 @@ class TicketService:
     def get_stats():
         """Get ticket statistics for dashboard"""
         total = Ticket.query.count()
-        new = Ticket.query.filter_by(status='new').count()
-        assigned = Ticket.query.filter(Ticket.status.in_(['assigned', 'in-progress'])).count()
-        resolved = Ticket.query.filter(Ticket.status.in_(['resolved', 'closed'])).count()
-        worked_on = Ticket.query.filter(Ticket.status != 'new').count()
+        # To make it dynamic, we use the master data if possible
+        all_statuses = Status.query.all()
+        
+        new_status_names = [s.name.lower() for s in all_statuses if s.is_default] or ['new']
+        resolved_status_names = [s.name.lower() for s in all_statuses if 'resolve' in s.name.lower() or 'close' in s.name.lower()] or ['resolved', 'closed']
+        
+        new = Ticket.query.filter(db.func.lower(Ticket.status).in_(new_status_names)).count()
+        resolved = Ticket.query.filter(db.func.lower(Ticket.status).in_(resolved_status_names)).count()
+        assigned = total - new - resolved
+        worked_on = total - new
         
         # SLA stats
         breached = Ticket.query.filter_by(sla_status='breached').count()
@@ -219,10 +267,10 @@ class TicketService:
         
         # Priority breakdown
         by_priority = {
-            'critical': Ticket.query.filter(db.func.lower(Ticket.priority) == 'critical').filter(Ticket.status.notin_(['resolved', 'closed'])).count(),
-            'high': Ticket.query.filter(db.func.lower(Ticket.priority) == 'high').filter(Ticket.status.notin_(['resolved', 'closed'])).count(),
-            'medium': Ticket.query.filter(db.func.lower(Ticket.priority) == 'medium').filter(Ticket.status.notin_(['resolved', 'closed'])).count(),
-            'low': Ticket.query.filter(db.func.lower(Ticket.priority) == 'low').filter(Ticket.status.notin_(['resolved', 'closed'])).count(),
+            'critical': Ticket.query.filter(db.func.lower(Ticket.priority) == 'critical').filter(db.func.lower(Ticket.status).notin_(['resolved', 'closed', 'completed'])).count(),
+            'high': Ticket.query.filter(db.func.lower(Ticket.priority) == 'high').filter(db.func.lower(Ticket.status).notin_(['resolved', 'closed', 'completed'])).count(),
+            'medium': Ticket.query.filter(db.func.lower(Ticket.priority) == 'medium').filter(db.func.lower(Ticket.status).notin_(['resolved', 'closed', 'completed'])).count(),
+            'low': Ticket.query.filter(db.func.lower(Ticket.priority) == 'low').filter(db.func.lower(Ticket.status).notin_(['resolved', 'closed', 'completed'])).count(),
         }
         
         # Category breakdown
@@ -250,8 +298,10 @@ class TicketService:
                 'resolved': resolved_on_day
             })
         
-        # Average resolution time
-        resolved_all = Ticket.query.filter(Ticket.status.in_(['resolved', 'closed'])).all()
+        avg_res_time = sum(res_times) / len(res_times) if res_times else 0
+        
+        # All resolved tickets (for compliance)
+        resolved_all = Ticket.query.filter(db.func.lower(Ticket.status).in_(['resolved', 'closed', 'completed'])).all()
         res_times = []
         for t in resolved_all:
             if t.resolved_at and t.created_at:

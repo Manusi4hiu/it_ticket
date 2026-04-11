@@ -15,6 +15,7 @@ export default [
     route("categories", "routes/settings/categories/route.tsx"),
     route("priorities", "routes/settings/priorities/route.tsx"),
     route("departments", "routes/settings/departments/route.tsx"),
+    route("statuses", "routes/settings/statuses/route.tsx"),
     route("logs", "routes/settings/logs/route.tsx"),
   ]),
   route("unauthorized", "routes/unauthorized/route.tsx"),

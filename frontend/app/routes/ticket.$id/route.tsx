@@ -51,23 +51,31 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   const ticketId = params.id;
 
   // Fetch ticket and agents (agents needed for staff profile modal in public view)
-  const ticketPromise = getTicketById(ticketId!);
+  const ticketId_val = params.id!;
+  const ticketPromise = getTicketById(ticketId_val);
   const agentsPromise = getAgents();
   const prioritiesPromise = session ? settingsApi.getPriorities() : Promise.resolve({ success: true, data: { data: [] } });
+  const statusesPromise = settingsApi.getStatuses();
 
-  const [ticket, agents, prioritiesRes] = await Promise.all([ticketPromise, agentsPromise, prioritiesPromise]);
+  const [ticket, agents, prioritiesRes, statusesRes] = await Promise.all([
+    ticketPromise, 
+    agentsPromise, 
+    prioritiesPromise,
+    statusesPromise
+  ]);
 
   return {
     session,
     ticket,
     agents,
     priorities: (prioritiesRes.data?.data || []) as Priority[],
+    statuses: (statusesRes.data?.data || []) as Status[]
   };
 }
 
 export default function TicketDetail({ loaderData }: Route.ComponentProps) {
   const navigate = useNavigate();
-  const { session, ticket: initialTicket, agents, priorities } = loaderData;
+  const { session, ticket: initialTicket, agents, priorities, statuses } = loaderData;
 
   // Determine view mode
   const isPublic = !session;
@@ -85,7 +93,7 @@ export default function TicketDetail({ loaderData }: Route.ComponentProps) {
 
   const { toast } = useToast();
   const [ticket, setTicket] = useState(initialTicket);
-  const [status, setStatus] = useState<TicketStatus>(initialTicket?.status || "new");
+  const [status, setStatus] = useState<string>(initialTicket?.status || "New");
   const [priority, setPriority] = useState(initialTicket?.priority || "medium");
   const [assignedTo, setAssignedTo] = useState(initialTicket?.assignedTo || "");
   const [collaborators, setCollaborators] = useState<string[]>(initialTicket?.collaborators || []);
@@ -391,16 +399,20 @@ export default function TicketDetail({ loaderData }: Route.ComponentProps) {
     }
   };
 
-  const getStatusIconDetail = (status: string) => {
-    switch (status) {
-      case "new": return <Inbox style={{ width: "16px", height: "16px" }} />;
-      case "triaged": return <Eye style={{ width: "16px", height: "16px" }} />;
-      case "assigned": return <UserCheck style={{ width: "16px", height: "16px" }} />;
-      case "in-progress": return <Clock style={{ width: "16px", height: "16px" }} />;
-      case "resolved": return <CheckCircle style={{ width: "16px", height: "16px" }} />;
-      case "closed": return <XCircle style={{ width: "16px", height: "16px" }} />;
-      default: return <Clock style={{ width: "16px", height: "16px" }} />;
-    }
+  const getStatusColor = (statusName: string) => {
+    const statusObj = statuses.find(s => s.name.toLowerCase() === statusName.toLowerCase());
+    return statusObj?.color || 'var(--color-neutral-8)';
+  };
+
+  const getStatusIconDetail = (statusName: string) => {
+    const lower = statusName.toLowerCase();
+    if (lower.includes('new')) return <Inbox style={{ width: "16px", height: "16px" }} />;
+    if (lower.includes('triaged')) return <Eye style={{ width: "16px", height: "16px" }} />;
+    if (lower.includes('assigned')) return <UserCheck style={{ width: "16px", height: "16px" }} />;
+    if (lower.includes('progress')) return <Clock style={{ width: "16px", height: "16px" }} />;
+    if (lower.includes('resolve')) return <CheckCircle style={{ width: "16px", height: "16px" }} />;
+    if (lower.includes('close')) return <XCircle style={{ width: "16px", height: "16px" }} />;
+    return <Circle style={{ width: "16px", height: "16px" }} />;
   };
 
   // --- Render ---
@@ -437,16 +449,27 @@ export default function TicketDetail({ loaderData }: Route.ComponentProps) {
               </div>
               <div className={styles.sectionContent}>
                 <div className={styles.ticketHeader}>
-                  <div className={styles.ticketId}>{ticket.id}</div>
+                  <div className={styles.ticketId}>{ticket.ticketCode || ticket.id}</div>
                   <h1 className={styles.ticketTitle}>{ticket.title}</h1>
                   <div className={styles.ticketMeta}>
                     <span
-                      className={`${styles.statusBadge} ${styles[
-                        `status${ticket.status.replace("-", "")}`
-                      ]}`}
+                      className={styles.statusBadge}
+                      style={{ 
+                        backgroundColor: `${getStatusColor(ticket.status)}15`, 
+                        color: getStatusColor(ticket.status),
+                        borderColor: `${getStatusColor(ticket.status)}30`,
+                        border: '1px solid',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '4px 10px',
+                        borderRadius: '100px',
+                        fontSize: '0.85rem',
+                        fontWeight: 600
+                      }}
                     >
                       {getStatusIconDetail(ticket.status)}
-                      {ticket.status.replace("-", " ")}
+                      {ticket.status}
                     </span>
                     {!isPublic && (
                       <span
@@ -724,19 +747,16 @@ export default function TicketDetail({ loaderData }: Route.ComponentProps) {
                       <Label htmlFor="status">Update Status</Label>
                       <Select
                         value={status}
-                        onValueChange={(value) => setStatus(value as TicketStatus)}
+                        onValueChange={(value) => setStatus(value)}
                         disabled={isManagement}
                       >
                         <SelectTrigger id="status">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="new">New</SelectItem>
-                          <SelectItem value="triaged">Triaged</SelectItem>
-                          <SelectItem value="assigned">Assigned</SelectItem>
-                          <SelectItem value="in-progress">In Progress</SelectItem>
-                          <SelectItem value="resolved">Resolved</SelectItem>
-                          <SelectItem value="closed">Closed</SelectItem>
+                          {statuses.map(s => (
+                            <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                       {isManagement && (

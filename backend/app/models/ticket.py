@@ -6,8 +6,8 @@ from app import db
 # Association table for ticket collaborators (many-to-many)
 ticket_collaborators = db.Table(
     'ticket_collaborators',
-    db.Column('ticket_id', db.String(20), db.ForeignKey('tickets.id'), primary_key=True),
-    db.Column('user_id', db.String(36), db.ForeignKey('users.id'), primary_key=True)
+    db.Column('ticket_id', db.Integer, db.ForeignKey('tickets.id'), primary_key=True),
+    db.Column('user_id', db.Integer, db.ForeignKey('users.id'), primary_key=True)
 )
 
 
@@ -15,13 +15,16 @@ class Ticket(db.Model):
     """Ticket model for IT support tickets"""
     __tablename__ = 'tickets'
     
-    id = db.Column(db.String(20), primary_key=True)  # e.g., "TKT-001"
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    ticket_code = db.Column(db.String(20), unique=True, nullable=True) # e.g., FIN-001
+    code_counter = db.Column(db.Integer, nullable=True) # Per department sequence
     title = db.Column(db.String(255), nullable=False)
     description = db.Column(db.Text, nullable=False)
     status = db.Column(db.String(20), nullable=False, default='new')  # new, triaged, assigned, in-progress, resolved, closed
     priority = db.Column(db.String(20), nullable=False, default='medium')  # low, medium, high, critical
     category = db.Column(db.String(50), nullable=False)  # Hardware, Software, Network, Other
     image_url = db.Column(db.String(255), nullable=True)
+    idempotency_key = db.Column(db.String(36), unique=True, nullable=True)
     
     # Submitter info
     submitter_name = db.Column(db.String(255), nullable=False)
@@ -30,7 +33,7 @@ class Ticket(db.Model):
     submitter_department = db.Column(db.String(100), nullable=True)
     
     # Assignment
-    assigned_to_id = db.Column(db.String(36), db.ForeignKey('users.id'), nullable=True)
+    assigned_to_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     assigned_user = db.relationship('User', back_populates='assigned_tickets', foreign_keys=[assigned_to_id])
     
     # Collaborators (many-to-many)
@@ -56,6 +59,7 @@ class Ticket(db.Model):
         """Convert ticket to dictionary"""
         data = {
             'id': self.id,
+            'ticketCode': self.ticket_code,
             'title': self.title,
             'description': self.description,
             'status': self.status,
@@ -91,10 +95,10 @@ class TicketNote(db.Model):
     """TicketNote model for ticket notes/comments"""
     __tablename__ = 'ticket_notes'
     
-    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    ticket_id = db.Column(db.String(20), db.ForeignKey('tickets.id'), nullable=False)
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    ticket_id = db.Column(db.Integer, db.ForeignKey('tickets.id'), nullable=False)
     content = db.Column(db.Text, nullable=False)
-    author_id = db.Column(db.String(36), db.ForeignKey('users.id'), nullable=False)
+    author_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     image_url = db.Column(db.String(255), nullable=True)
     is_internal = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)

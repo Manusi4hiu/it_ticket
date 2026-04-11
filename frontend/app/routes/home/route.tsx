@@ -188,7 +188,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
               <Label htmlFor="ticket-id" className={styles.label}>Ticket ID</Label>
               <Input
                 id="ticket-id"
-                placeholder="e.g. abc123-def456"
+                placeholder="e.g. FIN-001"
                 value={trackId}
                 onChange={(e) => setTrackId(e.target.value)}
                 className={styles.input}

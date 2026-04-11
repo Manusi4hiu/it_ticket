@@ -1,5 +1,6 @@
 from app import db
-from app.models.master_data import Category, Priority, SLAPolicy, Department
+from app.models.master_data import Category, Priority, SLAPolicy, Department, Status
+from app.models.ticket import Ticket
 
 class MasterDataService:
     # --- Categories ---
@@ -195,3 +196,70 @@ class MasterDataService:
         db.session.delete(department)
         db.session.commit()
         return True
+
+    # --- Statuses ---
+    @staticmethod
+    def get_statuses():
+        return Status.query.order_by(Status.order).all()
+
+    @staticmethod
+    def create_status(data):
+        if not data.get('name'):
+            return None, 'Name is required'
+        
+        if Status.query.filter_by(name=data['name']).first():
+            return None, 'Status name already exists'
+            
+        # If this is set as default, unset others
+        if data.get('isDefault'):
+            Status.query.update({Status.is_default: False})
+
+        status = Status(
+            name=data['name'],
+            color=data.get('color', '#6B7280'),
+            order=data.get('order', 0),
+            is_default=data.get('isDefault', False)
+        )
+        db.session.add(status)
+        db.session.commit()
+        return status, None
+
+    @staticmethod
+    def update_status(id, data):
+        status = Status.query.get(id)
+        if not status:
+            return None, 'Status not found'
+        
+        if 'name' in data:
+            existing = Status.query.filter_by(name=data['name']).first()
+            if existing and existing.id != id:
+                return None, 'Status name already exists'
+            status.name = data['name']
+            
+        if 'color' in data: status.color = data['color']
+        if 'order' in data: status.order = data['order']
+        
+        if 'isDefault' in data and data['isDefault']:
+            Status.query.update({Status.is_default: False})
+            status.is_default = True
+        elif 'isDefault' in data:
+            status.is_default = False
+            
+        
+        db.session.commit()
+        return status, None
+
+    @staticmethod
+    def delete_status(id):
+        status = Status.query.get(id)
+        if not status:
+            return False, 'Status not found'
+        
+        # Check if status is in use by tickets
+        in_use = Ticket.query.filter_by(status=status.name).first()
+        if in_use:
+            return False, 'Cannot delete status that is currently in use by tickets'
+            
+        db.session.delete(status)
+        db.session.commit()
+        return True, None

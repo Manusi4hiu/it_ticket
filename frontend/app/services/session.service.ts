@@ -40,7 +40,7 @@ export async function getUserSession(request: Request) {
   const userName = session.get('userName');
   const authToken = session.get('authToken');
 
-  if (!userId || typeof userId !== 'string') {
+  if (!userId || (typeof userId !== 'string' && typeof userId !== 'number')) {
     return null;
   }
 

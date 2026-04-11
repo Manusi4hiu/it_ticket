@@ -17,12 +17,15 @@ import {
   UserCheck,
   Settings,
   CircleDot,
+  Circle,
+  Plus,
 } from "lucide-react";
 import { NotificationBell } from "~/components/notification-bell";
 import { Button } from "~/components/ui/button/button";
 import { Badge } from "~/components/ui/badge/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "~/components/ui/select/select";
 import { getTickets, getAgents, assignTicket, updateTicketPriority, type Ticket, type Agent } from "~/services/ticket.service";
+import { settingsApi, type Status } from "~/services/settings.service";
 import { requireAuth, logout } from "~/services/session.service";
 import { setAuthToken } from "~/services/api.service";
 import styles from "./style.module.css";
@@ -31,15 +34,17 @@ export async function loader({ request }: Route.LoaderArgs) {
   const session = await requireAuth(request);
 
   // Parallel fetch
-  const [tickets, agents] = await Promise.all([
+  const [tickets, agents, statusResponse] = await Promise.all([
     getTickets(),
-    getAgents()
+    getAgents(),
+    settingsApi.getStatuses()
   ]);
 
   return {
     session,
     tickets,
     agents,
+    statuses: statusResponse.data?.data || []
   };
 }
 
@@ -59,7 +64,7 @@ export async function action({ request }: Route.ActionArgs) {
 }
 
 export default function Dashboard({ loaderData }: Route.ComponentProps) {
-  const { session, tickets: initialTickets, agents } = loaderData;
+  const { session, tickets: initialTickets, agents, statuses } = loaderData;
   const navigate = useNavigate();
   const [tickets, setTickets] = useState(initialTickets);
 
@@ -72,18 +77,33 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
   const isAdministrator = session.userRole === 'Administrator';
 
   const metrics = useMemo(() => ({
-    new: tickets.filter((t) => t.status === 'new').length,
-    inProgress: tickets.filter((t) => t.status === 'in-progress').length,
-    resolved: tickets.filter((t) => t.status === 'resolved' || t.status === 'closed').length,
-    critical: tickets.filter((t) => t.priority === 'critical' && t.status !== 'resolved' && t.status !== 'closed').length,
+    new: tickets.filter((t) => {
+      const s = t.status.toLowerCase();
+      return s === 'new' || s === 'triaged';
+    }).length,
+    inProgress: tickets.filter((t) => {
+      const s = t.status.toLowerCase();
+      return s === 'in progress' || s === 'in-progress' || s === 'assigned';
+    }).length,
+    resolved: tickets.filter((t) => {
+      const s = t.status.toLowerCase();
+      return s === 'resolved' || s === 'closed';
+    }).length,
+    critical: tickets.filter((t) => {
+      const s = t.status.toLowerCase();
+      const p = t.priority.toLowerCase();
+      return p === 'critical' && s !== 'resolved' && s !== 'closed';
+    }).length,
   }), [tickets]);
 
   const getStatusIcon = (status: string) => {
-    switch (status) {
+    const s = status.toLowerCase();
+    switch (s) {
       case 'new':
       case 'triaged':
       case 'assigned':
         return <Inbox className={styles.slaIcon} />;
+      case 'in progress':
       case 'in-progress':
         return <Clock className={styles.slaIcon} />;
       case 'resolved':
@@ -95,7 +115,8 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
   };
 
   const getPriorityClass = (priority: string) => {
-    switch (priority) {
+    const p = priority.toLowerCase();
+    switch (p) {
       case 'critical':
         return styles.priorityCritical;
       case 'high':
@@ -110,11 +131,13 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
   };
 
   const getStatusClass = (status: string) => {
-    switch (status) {
+    const s = status.toLowerCase();
+    switch (s) {
       case 'new':
       case 'triaged':
       case 'assigned':
         return styles.statusNew;
+      case 'in progress':
       case 'in-progress':
         return styles.statusInprogress;
       case 'resolved':
@@ -125,8 +148,13 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
     }
   };
 
-  const formatStatus = (status: string) => {
-    return status.replace('-', ' ').replace(/^\w/, c => c.toUpperCase());
+  const formatStatus = (statusName: string) => {
+    return statusName.charAt(0).toUpperCase() + statusName.slice(1);
+  };
+
+  const getStatusColor = (statusName: string) => {
+    const status = statuses.find(s => s.name.toLowerCase() === statusName.toLowerCase());
+    return status?.color || 'var(--color-neutral-8)';
   };
 
   return (
@@ -232,6 +260,14 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
         <div className={styles.tableSection}>
           <div className={styles.tableHeader}>
             <h2 className={styles.tableTitle}>Support Tickets</h2>
+            <Button 
+              size="sm" 
+              onClick={() => navigate("/submit-ticket")}
+              className={styles.createTicketBtn}
+            >
+              <Plus size={16} />
+              Manual Ticket
+            </Button>
           </div>
 
           {tickets.length === 0 ? (
@@ -258,7 +294,7 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
                   {tickets.map((ticket) => (
                     <tr key={ticket.id} className={styles.tableRow}>
                       <td onClick={() => navigate(`/ticket/${ticket.id}`)}>
-                        <span className={styles.ticketId}>{ticket.id}</span>
+                        <span className={styles.ticketId}>{ticket.ticketCode || ticket.id}</span>
                       </td>
                       <td onClick={() => navigate(`/ticket/${ticket.id}`)}>
                         <span className={styles.ticketTitle}>{ticket.title}</span>
@@ -270,8 +306,23 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
                         </Badge>
                       </td>
                       <td>
-                        <span className={`${styles.statusBadge} ${getStatusClass(ticket.status)}`}>
-                          {getStatusIcon(ticket.status)}
+                        <span 
+                          className={styles.statusBadge} 
+                          style={{ 
+                            backgroundColor: `${getStatusColor(ticket.status)}15`, 
+                            color: getStatusColor(ticket.status),
+                            borderColor: `${getStatusColor(ticket.status)}30`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '4px 10px',
+                            borderRadius: '100px',
+                            fontSize: '0.8rem',
+                            fontWeight: 600,
+                            border: '1px solid'
+                          }}
+                        >
+                          <Circle size={10} fill={getStatusColor(ticket.status)} stroke={getStatusColor(ticket.status)} />
                           {formatStatus(ticket.status)}
                         </span>
                       </td>

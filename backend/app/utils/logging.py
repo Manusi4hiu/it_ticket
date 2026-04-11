@@ -3,7 +3,7 @@ from app import db
 from app.models.system_log import SystemLog
 import json
 
-def log_activity(action, details=None, user_id=None, target_id=None, metadata=None):
+def log_activity(action, details=None, user_id=None, target_id=None, metadata=None, auto_commit=True):
     """
     Log a system activity
     :param action: Name of the action (e.g., "Ticket Created")
@@ -31,7 +31,10 @@ def log_activity(action, details=None, user_id=None, target_id=None, metadata=No
         )
         
         db.session.add(log)
-        db.session.commit()
+        if auto_commit:
+            db.session.commit()
+        else:
+            db.session.flush()
     except Exception as e:
         # Don't let logging failures crash the main process
         print(f"Failed to log activity: {str(e)}")

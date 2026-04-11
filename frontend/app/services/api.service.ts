@@ -41,51 +41,84 @@ interface ApiResponse<T = unknown> {
     error?: string;
 }
 
+interface ApiRequestOptions extends RequestInit {
+    idempotencyKey?: string;
+    maxRetries?: number;
+}
+
 export async function apiRequest<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: ApiRequestOptions = {}
 ): Promise<ApiResponse<T>> {
+    const { idempotencyKey, maxRetries = 0, ...fetchOptions } = options;
     const token = getAuthToken();
 
-    const headers: HeadersInit = {
+    const headers: Record<string, string> = {
         'Content-Type': 'application/json',
-        ...options.headers,
+        ...(fetchOptions.headers as Record<string, string>),
     };
 
-    if (options.body instanceof FormData) {
-        delete (headers as Record<string, string>)['Content-Type'];
+    if (fetchOptions.body instanceof FormData) {
+        delete headers['Content-Type'];
     }
 
     if (token) {
-        (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
+        headers['Authorization'] = `Bearer ${token}`;
     }
 
-    try {
-        const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-            ...options,
-            headers,
-        });
+    if (idempotencyKey) {
+        headers['X-Idempotency-Key'] = idempotencyKey;
+    }
 
-        const data = await response.json();
+    let retries = 0;
+    const executeRequest = async (): Promise<ApiResponse<T>> => {
+        try {
+            const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+                ...fetchOptions,
+                headers,
+            });
 
-        if (!response.ok) {
+            // Handle server errors that might be worthy of a retry (502, 503, 504)
+            if ([502, 503, 504].includes(response.status) && retries < maxRetries) {
+                retries++;
+                const delay = Math.pow(2, retries) * 1000;
+                await new Promise(resolve => setTimeout(resolve, delay));
+                return executeRequest();
+            }
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                return {
+                    success: false,
+                    error: data.error || data.msg || `HTTP error ${response.status}`,
+                };
+            }
+
+            return {
+                success: true,
+                data,
+            };
+        } catch (error) {
+            console.error('API request error:', error);
+            
+            // Network errors (connection drops) are candidates for retry
+            if (retries < maxRetries) {
+                retries++;
+                const delay = Math.pow(2, retries) * 1000;
+                console.log(`Retrying request (${retries}/${maxRetries}) in ${delay}ms...`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+                return executeRequest();
+            }
+
             return {
                 success: false,
-                error: data.error || data.msg || `HTTP error ${response.status}`,
+                error: 'Network error. Please check your connection.',
             };
         }
+    };
 
-        return {
-            success: true,
-            data,
-        };
-    } catch (error) {
-        console.error('API request error:', error);
-        return {
-            success: false,
-            error: 'Network error. Please check your connection.',
-        };
-    }
+    return executeRequest();
 }
 
 // Auth API
@@ -224,7 +257,7 @@ export const ticketsApi = {
         submitterEmail: string;
         submitterPhone?: string;
         submitterDepartment?: string;
-    }, image?: File) => {
+    }, image?: File, idempotencyKey?: string) => {
         if (image) {
             const formData = new FormData();
             Object.entries(ticket).forEach(([key, value]) => {
@@ -236,12 +269,16 @@ export const ticketsApi = {
                 method: 'POST',
                 body: formData,
                 headers: {}, // Let fetch set Content-Type
+                idempotencyKey,
+                maxRetries: 3, // Enable retry for ticket creation
             });
         }
 
         return apiRequest('/tickets', {
             method: 'POST',
             body: JSON.stringify(ticket),
+            idempotencyKey,
+            maxRetries: 3, // Enable retry for ticket creation
         });
     },
 

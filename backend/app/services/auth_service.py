@@ -18,7 +18,7 @@ class AuthService:
             return None, 'Username atau password salah. Silakan coba lagi.'
         
         # Create JWT token
-        access_token = create_access_token(identity=user.id)
+        access_token = create_access_token(identity=str(user.id))
         
         return {
             'token': access_token,

@@ -1,5 +1,5 @@
 import React from "react";
-import { Form, Link, useNavigate } from "react-router";
+import { Form, Link, useNavigate, useNavigation } from "react-router";
 import type { Route } from "./+types/route";
 import { Button } from "~/components/ui/button/button";
 import { Input } from "~/components/ui/input/input";
@@ -37,6 +37,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 
     return {
         categories: (categoriesRes.data?.data || []) as Category[],
+        priorities: (prioritiesRes.data?.data || []) as Priority[],
         departments: (departmentsRes.data?.data || []) as Department[]
     };
 }
@@ -48,9 +49,12 @@ export async function action({ request }: Route.ActionArgs) {
     const phone = formData.get("phone") as string;
     const department = formData.get("department") as string;
     const category = formData.get("category") as string;
+    const priority = formData.get("priority") as string || 'medium';
     const subject = formData.get("subject") as string;
     const description = formData.get("description") as string;
     const image = formData.get("image") as File | null;
+
+    const idempotencyKey = formData.get("idempotencyKey") as string;
 
     if (!name || !department || !category || !subject || !description) {
         return { error: "All required fields must be filled" };
@@ -60,19 +64,19 @@ export async function action({ request }: Route.ActionArgs) {
         const newTicket = await createTicket({
             title: subject,
             description: description,
-            priority: 'medium', // Default priority, to be set by admin later
+            priority: priority,
             category: category,
             submitterName: name,
             submitterEmail: email,
             submitterPhone: phone,
             submitterDepartment: department,
-        }, image && image.size > 0 ? image : undefined);
+        }, image && image.size > 0 ? image : undefined, idempotencyKey);
 
         if (!newTicket) {
             return { error: "Failed to create ticket." };
         }
 
-        return { success: true, ticketId: newTicket.id };
+        return { success: true, ticketId: newTicket.id, ticketCode: newTicket.ticketCode };
     } catch (error) {
         console.error("Failed to create ticket:", error);
         return { error: "Failed to create ticket. Please try again later." };
@@ -80,9 +84,12 @@ export async function action({ request }: Route.ActionArgs) {
 }
 
 export default function SubmitTicket({ actionData, loaderData }: Route.ComponentProps) {
-    const { categories, departments } = loaderData;
+    const { categories, priorities, departments } = loaderData;
     const navigate = useNavigate();
+    const navigation = useNavigation();
+    const isSubmitting = navigation.state !== "idle";
     const [imagePreview, setImagePreview] = React.useState<string | null>(null);
+    const idempotencyKey = React.useMemo(() => crypto.randomUUID(), []);
 
     const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -124,7 +131,7 @@ export default function SubmitTicket({ actionData, loaderData }: Route.Component
                             <p className={styles.successMessage}>
                                 Your ticket number is:
                             </p>
-                            <div className={styles.ticketId}>{actionData.ticketId}</div>
+                            <div className={styles.ticketId}>{actionData.ticketCode || actionData.ticketId}</div>
                             <p className={styles.successHint}>
                                 Please save this ID to track your ticket status. We've also sent a confirmation to your email.
                             </p>
@@ -150,6 +157,7 @@ export default function SubmitTicket({ actionData, loaderData }: Route.Component
                             </CardHeader>
                             <CardContent>
                                 <Form method="post" encType="multipart/form-data" className={styles.form}>
+                                    <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
                                     {actionData?.error && (
                                         <Alert variant="destructive" className={styles.errorAlert}>
                                             <AlertDescription>{actionData.error}</AlertDescription>
@@ -250,6 +258,28 @@ export default function SubmitTicket({ actionData, loaderData }: Route.Component
                                                 </SelectContent>
                                             </Select>
                                         </div>
+ 
+                                        <div className={styles.formGroup}>
+                                            <Label htmlFor="priority" className={styles.label}>
+                                                <Flag size={14} />
+                                                Priority *
+                                            </Label>
+                                            <Select name="priority" defaultValue="medium" required>
+                                                <SelectTrigger className={styles.select}>
+                                                    <SelectValue placeholder="Select Priority" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {priorities.filter(p => p.isActive).map((p) => (
+                                                        <SelectItem key={p.id} value={p.name.toLowerCase()}>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                                <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: p.color }} />
+                                                                {p.name}
+                                                            </div>
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
 
                                         <div className={styles.formGroup}>
                                             <Label htmlFor="subject" className={styles.label}>
@@ -338,12 +368,16 @@ export default function SubmitTicket({ actionData, loaderData }: Route.Component
                                     </div>
 
                                     <div className={styles.formActions}>
-                                        <Button type="button" variant="outline" onClick={() => navigate("/")}>
+                                        <Button type="button" variant="outline" onClick={() => navigate("/")} disabled={isSubmitting}>
                                             Cancel
                                         </Button>
-                                        <Button type="submit" className={styles.submitButton}>
-                                            <TicketPlus size={18} />
-                                            Submit Ticket
+                                        <Button type="submit" className={styles.submitButton} disabled={isSubmitting}>
+                                            {isSubmitting ? (
+                                                <>Wait...</>
+                                            ) : (
+                                                <TicketPlus size={18} />
+                                            )}
+                                            {isSubmitting ? "Submitting..." : "Submit Ticket"}
                                         </Button>
                                     </div>
                                 </Form>

@@ -4,13 +4,13 @@
 
 import { ticketsApi, usersApi } from './api.service';
 
-export type TicketStatus = "new" | "triaged" | "assigned" | "in-progress" | "resolved" | "closed";
+export type TicketStatus = string;
 export type TicketPriority = string;
 export type SLAStatus = "good" | "warning" | "breached";
 export type TicketCategory = string;
 
 export interface TicketNote {
-    id: string;
+    id: number;
     content: string;
     author: string;
     createdAt: Date;
@@ -19,7 +19,8 @@ export interface TicketNote {
 }
 
 export interface Ticket {
-    id: string;
+    id: number;
+    ticketCode?: string;
     title: string;
     description: string;
     status: TicketStatus;
@@ -30,9 +31,9 @@ export interface Ticket {
     submitterPhone?: string;
     submitterDepartment?: string;
     assignedTo?: string;
-    assignedToId?: string;
+    assignedToId?: number;
     collaborators: string[];
-    collaboratorIds: string[];
+    collaboratorIds: number[];
     createdAt: Date;
     updatedAt: Date;
     resolvedAt?: Date;
@@ -44,7 +45,7 @@ export interface Ticket {
 }
 
 export interface Agent {
-    id: string;
+    id: number;
     name: string;
     username: string;
     email: string;
@@ -54,7 +55,8 @@ export interface Agent {
 // Convert API response to Ticket interface
 function mapApiTicket(apiTicket: Record<string, unknown>): Ticket {
     return {
-        id: apiTicket.id as string,
+        id: apiTicket.id as number,
+        ticketCode: apiTicket.ticketCode as string | undefined,
         title: apiTicket.title as string,
         description: apiTicket.description as string,
         status: apiTicket.status as TicketStatus,
@@ -65,16 +67,16 @@ function mapApiTicket(apiTicket: Record<string, unknown>): Ticket {
         submitterPhone: apiTicket.submitterPhone as string | undefined,
         submitterDepartment: apiTicket.submitterDepartment as string | undefined,
         assignedTo: apiTicket.assignedTo as string | undefined,
-        assignedToId: apiTicket.assignedToId as string | undefined,
+        assignedToId: apiTicket.assignedToId as number | undefined,
         collaborators: (apiTicket.collaborators as string[]) || [],
-        collaboratorIds: (apiTicket.collaboratorIds as string[]) || [],
+        collaboratorIds: (apiTicket.collaboratorIds as number[]) || [],
         createdAt: new Date(apiTicket.createdAt as string),
         updatedAt: new Date(apiTicket.updatedAt as string),
         resolvedAt: apiTicket.resolvedAt ? new Date(apiTicket.resolvedAt as string) : undefined,
         slaDeadline: new Date(apiTicket.slaDeadline as string),
         slaStatus: apiTicket.slaStatus as SLAStatus,
         notes: ((apiTicket.notes as Array<Record<string, unknown>>) || []).map(note => ({
-            id: note.id as string,
+            id: note.id as number,
             content: note.content as string,
             author: note.author as string,
             createdAt: new Date(note.createdAt as string),
@@ -123,8 +125,8 @@ export async function createTicket(ticket: {
     submitterEmail: string;
     submitterPhone?: string;
     submitterDepartment?: string;
-}, image?: File): Promise<Ticket | null> {
-    const response = await ticketsApi.create(ticket, image);
+}, image?: File, idempotencyKey?: string): Promise<Ticket | null> {
+    const response = await ticketsApi.create(ticket, image, idempotencyKey);
 
     if (!response.success || !response.data) {
         console.error('Failed to create ticket:', response.error);
