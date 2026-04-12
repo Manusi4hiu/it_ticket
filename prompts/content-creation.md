@@ -1,4 +1,0 @@
-- When creating different site sections, create routes for them in the \`app/routes\` directory.
-- Change \`app/routes.ts\` AFTER all other changes.
-- Use kebab-case for file and folder names.
-- Google Fonts are specified in the \`links\` export in \`app/root.tsx\`. Avoid using \`@import\` in CSS files to import new ones.
