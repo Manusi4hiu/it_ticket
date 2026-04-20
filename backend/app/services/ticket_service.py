@@ -298,8 +298,6 @@ class TicketService:
                 'resolved': resolved_on_day
             })
         
-        avg_res_time = sum(res_times) / len(res_times) if res_times else 0
-        
         # All resolved tickets (for compliance)
         resolved_all = Ticket.query.filter(db.func.lower(Ticket.status).in_(['resolved', 'closed', 'completed'])).all()
         res_times = []

@@ -2,7 +2,14 @@
  * API Service - Centralized API client for backend communication
  */
 
-const API_BASE_URL = 'http://127.0.0.1:5000/api';
+const isServer = typeof window === 'undefined';
+
+// Get API URL from environment variables or use defaults
+// Server side uses process.env.API_URL (Node.js)
+// Client side uses import.meta.env.VITE_API_URL (Vite)
+const API_BASE_URL = isServer 
+    ? (typeof process !== 'undefined' && process.env.API_URL) || 'http://127.0.0.1:5000/api'
+    : (import.meta.env.VITE_API_URL as string) || '/api';
 
 // Token storage
 let authToken: string | null = null;
