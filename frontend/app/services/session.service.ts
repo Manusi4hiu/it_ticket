@@ -28,7 +28,6 @@ export async function createUserSession(user: AuthUser, redirectTo: string, toke
 
   return {
     'Set-Cookie': await sessionStorage.commitSession(session),
-    Location: redirectTo,
   };
 }
 
@@ -87,7 +86,6 @@ export async function logout(request: Request) {
   const session = await sessionStorage.getSession(request.headers.get('Cookie'));
   return {
     'Set-Cookie': await sessionStorage.destroySession(session),
-    Location: '/login',
   };
 }
 

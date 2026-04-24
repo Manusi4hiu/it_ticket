@@ -8,6 +8,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
 
   return {
+    base: mode === "production" ? "/it_ticket/frontend/" : "/",
     plugins: [reactRouter(), tsconfigPaths()],
     server: {
       proxy: {

@@ -28,8 +28,12 @@ export async function action({ request }: Route.ActionArgs) {
     };
   }
 
+  const sessionHeaders = await createUserSession(result.user!, '/dashboard', result.token);
+  
   return redirect('/dashboard', {
-    headers: await createUserSession(result.user!, '/dashboard', result.token),
+    headers: {
+      'Set-Cookie': sessionHeaders['Set-Cookie']
+    },
   });
 }
 
