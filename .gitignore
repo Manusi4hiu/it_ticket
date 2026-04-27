@@ -1,20 +1,49 @@
+# ======================
 # General
+# ======================
 .DS_Store
 .env
+*.log
+*.pid
 
-# Frontend
+# ======================
+# Frontend (Vite / React)
+# ======================
 node_modules/
-.react-router/
+dist/
 build/
+.vite/
+.react-router/
 .netlify/
 .dazl/
 
-# Backend
+# ======================
+# Backend (Python)
+# ======================
 venv/
 .venv/
 venv_win/
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
 instance/
 .pytest_cache/
+
+# Uploads (kalau tidak ingin disimpan di git)
 backend/app/static/uploads/
+
+# ======================
+# Server / Deployment
+# ======================
+*.pid
+*.sock
+*.ini
+*.htaccess
+.user.ini
+
+# ======================
+# Editor / OS
+# ======================
+.vscode/
+.idea/
