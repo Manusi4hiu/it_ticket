@@ -26,17 +26,24 @@ export interface LoginResult {
 
 export async function login(credentials: LoginCredentials): Promise<LoginResult> {
   try {
-    console.log('[Auth Service] Calling authApi.login for:', credentials.username);
+    console.log(`[Auth Service] START login for: ${credentials.username}`);
 
+    if (!credentials.username || !credentials.password) {
+      console.warn('[Auth Service] Missing credentials');
+      return { success: false, error: 'Username and password are required' };
+    }
+
+    console.log('[Auth Service] Calling authApi.login...');
     const response = await authApi.login(credentials.username, credentials.password);
 
-    console.log('[Auth Service] authApi.login response:', {
+    console.log('[Auth Service] authApi.login response status:', {
       success: response.success,
       hasData: !!response.data,
       error: response.error,
     });
 
     if (!response.success || !response.data) {
+      console.warn('[Auth Service] Login failed or no data returned:', response.error);
       return {
         success: false,
         error: response.error || 'Username atau password salah. Silakan coba lagi.',
@@ -44,12 +51,10 @@ export async function login(credentials: LoginCredentials): Promise<LoginResult>
     }
 
     const { token, user } = response.data;
+    console.log('[Auth Service] Extracting user data:', { hasToken: !!token, hasUser: !!user });
 
     if (!token || !user) {
-      console.error('[Auth Service] Response data missing token or user:', {
-        hasToken: !!token,
-        hasUser: !!user,
-      });
+      console.error('[Auth Service] Missing token or user in response data');
       return {
         success: false,
         error: 'Server response tidak valid. Silakan coba lagi.',
@@ -58,9 +63,11 @@ export async function login(credentials: LoginCredentials): Promise<LoginResult>
 
     // Only store the token on the client side; on the server, session handles it
     if (typeof window !== 'undefined') {
+      console.log('[Auth Service] Client-side: storing token');
       setAuthToken(token);
     }
 
+    console.log('[Auth Service] Login successful for:', user.username);
     return {
       success: true,
       token,
@@ -76,10 +83,10 @@ export async function login(credentials: LoginCredentials): Promise<LoginResult>
       },
     };
   } catch (error) {
-    console.error('[Auth Service] Login error:', error);
+    console.error('[Auth Service] CRITICAL UNHANDLED ERROR in login():', error);
     return {
       success: false,
-      error: 'Terjadi kesalahan. Silakan coba lagi.',
+      error: 'Terjadi kesalahan sistem. Silakan coba lagi.',
     };
   }
 }

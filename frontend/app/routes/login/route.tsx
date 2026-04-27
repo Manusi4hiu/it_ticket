@@ -12,52 +12,89 @@ import { createUserSession } from "~/services/session.service";
 import styles from "./style.module.css";
 
 export async function action({ request }: Route.ActionArgs) {
+  const startTime = Date.now();
+  console.log(`[Login Action] START - ${new Date().toISOString()}`);
+
   try {
-    const formData = await request.formData();
+    // 1. Safe FormData Extraction
+    console.log('[Login Action] Step 1: Extracting formData');
+    let formData: FormData;
+    try {
+      if (!request.body) {
+        console.error('[Login Action] Request body is null');
+        return { error: 'Request body kosong' };
+      }
+      formData = await request.formData();
+      console.log('[Login Action] formData extracted successfully');
+    } catch (fdError) {
+      console.error('[Login Action] CRITICAL: Failed to extract formData:', fdError);
+      return { error: 'Gagal memproses data form. Silakan coba lagi.' };
+    }
+
     const username = formData.get('username');
     const password = formData.get('password');
 
-    // Validate that form fields are present and are strings
+    // 2. Validation
+    console.log('[Login Action] Step 2: Validating fields');
     if (!username || !password || typeof username !== 'string' || typeof password !== 'string') {
-      console.warn('[Login Action] Missing or invalid form fields:', {
-        hasUsername: !!username,
-        hasPassword: !!password,
-        usernameType: typeof username,
-        passwordType: typeof password,
-      });
+      console.warn('[Login Action] Validation failed: Missing or invalid fields');
       return { error: 'Username dan password harus diisi' };
     }
 
-    console.log('[Login Action] Attempting login for user:', username);
-
-    const result = await login({ username, password });
+    // 3. Login Service Call
+    console.log(`[Login Action] Step 3: Calling login() for user: ${username}`);
+    let result;
+    try {
+      result = await login({ username, password });
+      console.log('[Login Action] login() returned:', { 
+        success: result?.success, 
+        hasUser: !!result?.user, 
+        hasToken: !!result?.token 
+      });
+    } catch (loginError) {
+      console.error('[Login Action] CRITICAL: login() service threw an exception:', loginError);
+      return { error: 'Gagal menghubungi server otentikasi.' };
+    }
 
     if (!result.success) {
-      console.warn('[Login Action] Login failed:', result.error);
-      return { error: result.error };
+      console.warn('[Login Action] Login unsuccessful:', result.error);
+      return { error: result.error || 'Login gagal' };
     }
 
-    // Verify we received valid user data and token
     if (!result.user || !result.token) {
-      console.error('[Login Action] Login succeeded but missing user/token:', {
-        hasUser: !!result.user,
-        hasToken: !!result.token,
-      });
-      return { error: 'Login response tidak valid. Silakan coba lagi.' };
+      console.error('[Login Action] Login succeeded but missing user/token data');
+      return { error: 'Response data tidak lengkap dari server.' };
     }
 
-    console.log('[Login Action] Login successful, creating session for user:', result.user.username);
+    // 4. Session Creation
+    console.log('[Login Action] Step 4: Creating user session');
+    let sessionHeaders;
+    try {
+      sessionHeaders = await createUserSession(result.user, '/dashboard', result.token);
+      console.log('[Login Action] Session created successfully');
+    } catch (sessionError) {
+      console.error('[Login Action] CRITICAL: createUserSession() threw an exception:', sessionError);
+      return { error: 'Gagal membuat sesi login. Silakan coba lagi.' };
+    }
 
-    const sessionHeaders = await createUserSession(result.user, '/dashboard', result.token);
+    // 5. Final Redirect
+    console.log('[Login Action] Step 5: Returning redirect');
+    const cookie = sessionHeaders?.['Set-Cookie'];
+    if (!cookie) {
+      console.error('[Login Action] Missing Set-Cookie header from session creation');
+      return { error: 'Gagal mengatur cookie sesi.' };
+    }
 
+    console.log(`[Login Action] END - Success - Total time: ${Date.now() - startTime}ms`);
     return redirect('/dashboard', {
       headers: {
-        'Set-Cookie': sessionHeaders['Set-Cookie'],
+        'Set-Cookie': cookie,
       },
     });
+
   } catch (error) {
-    console.error('[Login Action] Unexpected error:', error);
-    return { error: 'Terjadi kesalahan pada server. Silakan coba lagi.' };
+    console.error('[Login Action] UNHANDLED EXCEPTION:', error);
+    return { error: 'Terjadi kesalahan internal yang tidak terduga.' };
   }
 }
 

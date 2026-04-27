@@ -17,18 +17,33 @@ const sessionStorage = createCookieSessionStorage({
 });
 
 export async function createUserSession(user: AuthUser, redirectTo: string, token?: string) {
-  const session = await sessionStorage.getSession();
-  session.set('userId', user.id);
-  session.set('userEmail', user.email);
-  session.set('userRole', user.role);
-  session.set('userName', user.full_name);
-  if (token) {
-    session.set('authToken', token);
-  }
+  try {
+    console.log(`[Session Service] Creating session for user: ${user.username} (ID: ${user.id})`);
+    
+    const session = await sessionStorage.getSession();
+    console.log('[Session Service] New session object obtained');
+    
+    session.set('userId', user.id);
+    session.set('userEmail', user.email);
+    session.set('userRole', user.role);
+    session.set('userName', user.full_name);
+    
+    if (token) {
+      console.log('[Session Service] Setting authToken in session');
+      session.set('authToken', token);
+    }
 
-  return {
-    'Set-Cookie': await sessionStorage.commitSession(session),
-  };
+    console.log('[Session Service] Committing session...');
+    const cookie = await sessionStorage.commitSession(session);
+    console.log('[Session Service] Session committed, cookie generated');
+
+    return {
+      'Set-Cookie': cookie,
+    };
+  } catch (error) {
+    console.error('[Session Service] CRITICAL ERROR in createUserSession:', error);
+    throw error; // Re-throw to be caught by the action
+  }
 }
 
 export async function getUserSession(request: Request) {
