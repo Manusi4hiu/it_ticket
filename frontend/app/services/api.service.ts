@@ -7,9 +7,16 @@ const isServer = typeof window === 'undefined';
 // Get API URL from environment variables or use defaults
 // Server side uses process.env.API_URL (Node.js)
 // Client side uses import.meta.env.VITE_API_URL (Vite)
-const API_BASE_URL = isServer 
-    ? (typeof process !== 'undefined' && process.env.API_URL) || 'http://127.0.0.1:5000/api'
-    : (import.meta.env.VITE_API_URL as string) || '/api';
+const getApiBaseUrl = () => {
+    if (isServer) {
+        const envUrl = typeof process !== 'undefined' ? process.env.API_URL : null;
+        const baseUrl = envUrl || 'http://127.0.0.1:5000/api';
+        return baseUrl.trim().replace(/\/$/, '');
+    }
+    return ((import.meta.env.VITE_API_URL as string) || '/api').trim().replace(/\/$/, '');
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 // Token storage
 let authToken: string | null = null;
@@ -77,48 +84,63 @@ export async function apiRequest<T>(
         headers['X-Idempotency-Key'] = idempotencyKey;
     }
 
-    const fullUrl = `${API_BASE_URL}${endpoint}`;
+    // Ensure endpoint starts with /
+    const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    const fullUrl = `${API_BASE_URL}${normalizedEndpoint}`;
     const isServerSide = typeof window === 'undefined';
 
     if (isServerSide) {
-        console.log(`[API Request] Server-side ${fetchOptions.method || 'GET'} ${fullUrl}`);
+        console.log(`[API Request] SERVER-SIDE FETCH: ${fetchOptions.method || 'GET'} ${fullUrl}`);
     }
 
     let retries = 0;
     const executeRequest = async (): Promise<ApiResponse<T>> => {
         try {
+            console.log(`[API Request] Executing fetch to: ${fullUrl}`);
             const response = await fetch(fullUrl, {
                 ...fetchOptions,
                 headers,
             });
 
             if (isServerSide) {
-                console.log(`[API Request] Response: ${response.status} ${response.statusText}`);
+                console.log(`[API Request] Server response: ${response.status} ${response.statusText}`);
             }
 
             // Handle server errors that might be worthy of a retry (502, 503, 504)
             if ([502, 503, 504].includes(response.status) && retries < maxRetries) {
                 retries++;
                 const delay = Math.pow(2, retries) * 1000;
+                console.log(`[API Request] Retry ${retries} in ${delay}ms...`);
                 await new Promise(resolve => setTimeout(resolve, delay));
                 return executeRequest();
             }
 
-            let data: Record<string, unknown>;
-            try {
-                data = await response.json();
-            } catch (parseError) {
-                console.error('[API Request] Failed to parse JSON response:', parseError);
+            let data: any;
+            const contentType = response.headers.get('content-type');
+            if (contentType && contentType.includes('application/json')) {
+                try {
+                    data = await response.json();
+                } catch (parseError) {
+                    console.error('[API Request] JSON parse error:', parseError);
+                    return {
+                        success: false,
+                        error: 'Invalid JSON response from server',
+                    };
+                }
+            } else {
+                const text = await response.text();
+                console.warn('[API Request] Non-JSON response:', text.substring(0, 100));
                 return {
                     success: false,
-                    error: `Server returned ${response.status} with non-JSON response`,
+                    error: `Server returned ${response.status} (Non-JSON)`,
                 };
             }
 
             if (!response.ok) {
+                console.warn('[API Request] Request failed with status:', response.status);
                 return {
                     success: false,
-                    error: (data.error || data.msg || `HTTP error ${response.status}`) as string,
+                    error: (data?.error || data?.msg || `HTTP error ${response.status}`) as string,
                 };
             }
 
@@ -127,20 +149,19 @@ export async function apiRequest<T>(
                 data: data as T,
             };
         } catch (error) {
-            console.error(`[API Request] Fetch error for ${fullUrl}:`, error);
+            console.error(`[API Request] CRITICAL FETCH ERROR for ${fullUrl}:`, error);
             
-            // Network errors (connection drops) are candidates for retry
             if (retries < maxRetries) {
                 retries++;
                 const delay = Math.pow(2, retries) * 1000;
-                console.log(`[API Request] Retrying (${retries}/${maxRetries}) in ${delay}ms...`);
+                console.log(`[API Request] Network retry ${retries}...`);
                 await new Promise(resolve => setTimeout(resolve, delay));
                 return executeRequest();
             }
 
             return {
                 success: false,
-                error: 'Network error. Please check your connection.',
+                error: error instanceof Error ? `Network error: ${error.message}` : 'Network error',
             };
         }
     };

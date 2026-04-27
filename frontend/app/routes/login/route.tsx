@@ -13,22 +13,19 @@ import styles from "./style.module.css";
 
 export async function action({ request }: Route.ActionArgs) {
   const startTime = Date.now();
-  console.log(`[Login Action] START - ${new Date().toISOString()}`);
+  console.log(`[Login Action] START - Method: ${request.method} - URL: ${request.url}`);
 
   try {
     // 1. Safe FormData Extraction
     console.log('[Login Action] Step 1: Extracting formData');
     let formData: FormData;
     try {
-      if (!request.body) {
-        console.error('[Login Action] Request body is null');
-        return { error: 'Request body kosong' };
-      }
       formData = await request.formData();
-      console.log('[Login Action] formData extracted successfully');
-    } catch (fdError) {
-      console.error('[Login Action] CRITICAL: Failed to extract formData:', fdError);
-      return { error: 'Gagal memproses data form. Silakan coba lagi.' };
+      console.log('[Login Action] formData extracted successfully. Keys:', Array.from(formData.keys()));
+    } catch (fdError: any) {
+      console.error('[Login Action] CRITICAL: request.formData() failed:', fdError);
+      // This is a common source of 400 in React Router if the body is malformed
+      return { error: `Gagal memproses data form: ${fdError?.message || 'Unknown error'}` };
     }
 
     const username = formData.get('username');
@@ -37,64 +34,67 @@ export async function action({ request }: Route.ActionArgs) {
     // 2. Validation
     console.log('[Login Action] Step 2: Validating fields');
     if (!username || !password || typeof username !== 'string' || typeof password !== 'string') {
-      console.warn('[Login Action] Validation failed: Missing or invalid fields');
-      return { error: 'Username dan password harus diisi' };
+      console.warn('[Login Action] Validation failed: username or password missing/invalid');
+      return { error: 'Username dan password harus diisi dengan benar' };
     }
 
     // 3. Login Service Call
-    console.log(`[Login Action] Step 3: Calling login() for user: ${username}`);
-    let result;
+    console.log(`[Login Action] Step 3: Calling login() for: ${username}`);
+    let loginResult;
     try {
-      result = await login({ username, password });
-      console.log('[Login Action] login() returned:', { 
-        success: result?.success, 
-        hasUser: !!result?.user, 
-        hasToken: !!result?.token 
+      loginResult = await login({ username, password });
+      console.log('[Login Action] login() result:', { 
+        success: loginResult?.success, 
+        hasUser: !!loginResult?.user,
+        error: loginResult?.error
       });
-    } catch (loginError) {
-      console.error('[Login Action] CRITICAL: login() service threw an exception:', loginError);
-      return { error: 'Gagal menghubungi server otentikasi.' };
+    } catch (loginError: any) {
+      console.error('[Login Action] CRITICAL: login() service crashed:', loginError);
+      return { error: 'Terjadi kesalahan saat menghubungi server otentikasi.' };
     }
 
-    if (!result.success) {
-      console.warn('[Login Action] Login unsuccessful:', result.error);
-      return { error: result.error || 'Login gagal' };
+    if (!loginResult.success) {
+      return { error: loginResult.error || 'Login gagal. Silakan periksa kembali kredensial Anda.' };
     }
 
-    if (!result.user || !result.token) {
-      console.error('[Login Action] Login succeeded but missing user/token data');
-      return { error: 'Response data tidak lengkap dari server.' };
+    if (!loginResult.user || !loginResult.token) {
+      console.error('[Login Action] Login succeeded but user or token is missing');
+      return { error: 'Data login tidak lengkap. Silakan coba lagi.' };
     }
 
     // 4. Session Creation
     console.log('[Login Action] Step 4: Creating user session');
-    let sessionHeaders;
+    let cookie: string;
     try {
-      sessionHeaders = await createUserSession(result.user, '/dashboard', result.token);
-      console.log('[Login Action] Session created successfully');
-    } catch (sessionError) {
-      console.error('[Login Action] CRITICAL: createUserSession() threw an exception:', sessionError);
-      return { error: 'Gagal membuat sesi login. Silakan coba lagi.' };
+      const sessionHeaders = await createUserSession(loginResult.user, '/dashboard', loginResult.token);
+      cookie = sessionHeaders['Set-Cookie'];
+      console.log('[Login Action] Session cookie generated successfully');
+    } catch (sessionError: any) {
+      console.error('[Login Action] CRITICAL: createUserSession() crashed:', sessionError);
+      return { error: 'Gagal membuat sesi login di server.' };
+    }
+
+    if (!cookie) {
+      console.error('[Login Action] Cookie is empty after session creation');
+      return { error: 'Gagal menghasilkan cookie sesi.' };
     }
 
     // 5. Final Redirect
-    console.log('[Login Action] Step 5: Returning redirect');
-    const cookie = sessionHeaders?.['Set-Cookie'];
-    if (!cookie) {
-      console.error('[Login Action] Missing Set-Cookie header from session creation');
-      return { error: 'Gagal mengatur cookie sesi.' };
+    console.log('[Login Action] Step 5: Preparing redirect to /dashboard');
+    try {
+      const headers = new Headers();
+      headers.append('Set-Cookie', cookie);
+      
+      console.log('[Login Action] END - Success - Redirecting...');
+      return redirect('/dashboard', { headers });
+    } catch (redirectError: any) {
+      console.error('[Login Action] CRITICAL: redirect() logic failed:', redirectError);
+      return { error: 'Gagal melakukan navigasi setelah login.' };
     }
 
-    console.log(`[Login Action] END - Success - Total time: ${Date.now() - startTime}ms`);
-    return redirect('/dashboard', {
-      headers: {
-        'Set-Cookie': cookie,
-      },
-    });
-
-  } catch (error) {
-    console.error('[Login Action] UNHANDLED EXCEPTION:', error);
-    return { error: 'Terjadi kesalahan internal yang tidak terduga.' };
+  } catch (error: any) {
+    console.error('[Login Action] UNHANDLED FATAL ERROR:', error);
+    return { error: `Kesalahan sistem: ${error?.message || 'Unknown'}` };
   }
 }
 
