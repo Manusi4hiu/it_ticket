@@ -26,7 +26,15 @@ export interface LoginResult {
 
 export async function login(credentials: LoginCredentials): Promise<LoginResult> {
   try {
+    console.log('[Auth Service] Calling authApi.login for:', credentials.username);
+
     const response = await authApi.login(credentials.username, credentials.password);
+
+    console.log('[Auth Service] authApi.login response:', {
+      success: response.success,
+      hasData: !!response.data,
+      error: response.error,
+    });
 
     if (!response.success || !response.data) {
       return {
@@ -37,8 +45,21 @@ export async function login(credentials: LoginCredentials): Promise<LoginResult>
 
     const { token, user } = response.data;
 
-    // Store the token
-    setAuthToken(token);
+    if (!token || !user) {
+      console.error('[Auth Service] Response data missing token or user:', {
+        hasToken: !!token,
+        hasUser: !!user,
+      });
+      return {
+        success: false,
+        error: 'Server response tidak valid. Silakan coba lagi.',
+      };
+    }
+
+    // Only store the token on the client side; on the server, session handles it
+    if (typeof window !== 'undefined') {
+      setAuthToken(token);
+    }
 
     return {
       success: true,
@@ -55,7 +76,7 @@ export async function login(credentials: LoginCredentials): Promise<LoginResult>
       },
     };
   } catch (error) {
-    console.error('Login error:', error);
+    console.error('[Auth Service] Login error:', error);
     return {
       success: false,
       error: 'Terjadi kesalahan. Silakan coba lagi.',

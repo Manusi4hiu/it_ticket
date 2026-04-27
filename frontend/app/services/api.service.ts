@@ -77,13 +77,24 @@ export async function apiRequest<T>(
         headers['X-Idempotency-Key'] = idempotencyKey;
     }
 
+    const fullUrl = `${API_BASE_URL}${endpoint}`;
+    const isServerSide = typeof window === 'undefined';
+
+    if (isServerSide) {
+        console.log(`[API Request] Server-side ${fetchOptions.method || 'GET'} ${fullUrl}`);
+    }
+
     let retries = 0;
     const executeRequest = async (): Promise<ApiResponse<T>> => {
         try {
-            const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+            const response = await fetch(fullUrl, {
                 ...fetchOptions,
                 headers,
             });
+
+            if (isServerSide) {
+                console.log(`[API Request] Response: ${response.status} ${response.statusText}`);
+            }
 
             // Handle server errors that might be worthy of a retry (502, 503, 504)
             if ([502, 503, 504].includes(response.status) && retries < maxRetries) {
@@ -93,27 +104,36 @@ export async function apiRequest<T>(
                 return executeRequest();
             }
 
-            const data = await response.json();
+            let data: Record<string, unknown>;
+            try {
+                data = await response.json();
+            } catch (parseError) {
+                console.error('[API Request] Failed to parse JSON response:', parseError);
+                return {
+                    success: false,
+                    error: `Server returned ${response.status} with non-JSON response`,
+                };
+            }
 
             if (!response.ok) {
                 return {
                     success: false,
-                    error: data.error || data.msg || `HTTP error ${response.status}`,
+                    error: (data.error || data.msg || `HTTP error ${response.status}`) as string,
                 };
             }
 
             return {
                 success: true,
-                data,
+                data: data as T,
             };
         } catch (error) {
-            console.error('API request error:', error);
+            console.error(`[API Request] Fetch error for ${fullUrl}:`, error);
             
             // Network errors (connection drops) are candidates for retry
             if (retries < maxRetries) {
                 retries++;
                 const delay = Math.pow(2, retries) * 1000;
-                console.log(`Retrying request (${retries}/${maxRetries}) in ${delay}ms...`);
+                console.log(`[API Request] Retrying (${retries}/${maxRetries}) in ${delay}ms...`);
                 await new Promise(resolve => setTimeout(resolve, delay));
                 return executeRequest();
             }

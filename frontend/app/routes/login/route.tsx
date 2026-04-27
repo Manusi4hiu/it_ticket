@@ -12,29 +12,53 @@ import { createUserSession } from "~/services/session.service";
 import styles from "./style.module.css";
 
 export async function action({ request }: Route.ActionArgs) {
-  const formData = await request.formData();
-  const username = formData.get('username') as string;
-  const password = formData.get('password') as string;
+  try {
+    const formData = await request.formData();
+    const username = formData.get('username');
+    const password = formData.get('password');
 
-  if (!username || !password) {
-    return { error: 'Username dan password harus diisi' };
+    // Validate that form fields are present and are strings
+    if (!username || !password || typeof username !== 'string' || typeof password !== 'string') {
+      console.warn('[Login Action] Missing or invalid form fields:', {
+        hasUsername: !!username,
+        hasPassword: !!password,
+        usernameType: typeof username,
+        passwordType: typeof password,
+      });
+      return { error: 'Username dan password harus diisi' };
+    }
+
+    console.log('[Login Action] Attempting login for user:', username);
+
+    const result = await login({ username, password });
+
+    if (!result.success) {
+      console.warn('[Login Action] Login failed:', result.error);
+      return { error: result.error };
+    }
+
+    // Verify we received valid user data and token
+    if (!result.user || !result.token) {
+      console.error('[Login Action] Login succeeded but missing user/token:', {
+        hasUser: !!result.user,
+        hasToken: !!result.token,
+      });
+      return { error: 'Login response tidak valid. Silakan coba lagi.' };
+    }
+
+    console.log('[Login Action] Login successful, creating session for user:', result.user.username);
+
+    const sessionHeaders = await createUserSession(result.user, '/dashboard', result.token);
+
+    return redirect('/dashboard', {
+      headers: {
+        'Set-Cookie': sessionHeaders['Set-Cookie'],
+      },
+    });
+  } catch (error) {
+    console.error('[Login Action] Unexpected error:', error);
+    return { error: 'Terjadi kesalahan pada server. Silakan coba lagi.' };
   }
-
-  const result = await login({ username, password });
-
-  if (!result.success) {
-    return {
-      error: result.error,
-    };
-  }
-
-  const sessionHeaders = await createUserSession(result.user!, '/dashboard', result.token);
-  
-  return redirect('/dashboard', {
-    headers: {
-      'Set-Cookie': sessionHeaders['Set-Cookie']
-    },
-  });
 }
 
 export default function Login({ actionData }: Route.ComponentProps) {
