@@ -11,90 +11,79 @@ import { login } from "~/services/auth.service";
 import { createUserSession } from "~/services/session.service";
 import styles from "./style.module.css";
 
+// ISOLATION TEST: Change this number (1 to 5) to test each step
+// Step 1: Minimal Action (Return JSON) - Proves action is reached
+// Step 2: Add FormData Parsing - Proves request body is valid
+// Step 3: Add login() Service Call - Proves fetch is working
+// Step 4: Add Simple Redirect (No headers) - Proves redirect works
+// Step 5: Add Redirect with Session Cookie - Final integration
+const DEBUG_STEP = 5; 
+
 export async function action({ request }: Route.ActionArgs) {
-  const startTime = Date.now();
-  console.log(`[Login Action] START - Method: ${request.method} - URL: ${request.url}`);
+  console.log(`[DEBUG] Starting Login Action - Step ${DEBUG_STEP}`);
 
   try {
-    // 1. Safe FormData Extraction
-    console.log('[Login Action] Step 1: Extracting formData');
-    let formData: FormData;
-    try {
-      formData = await request.formData();
-      console.log('[Login Action] formData extracted successfully. Keys:', Array.from(formData.keys()));
-    } catch (fdError: any) {
-      console.error('[Login Action] CRITICAL: request.formData() failed:', fdError);
-      // This is a common source of 400 in React Router if the body is malformed
-      return { error: `Gagal memproses data form: ${fdError?.message || 'Unknown error'}` };
+    // --- STEP 1: Minimal Action ---
+    if (DEBUG_STEP === 1) {
+      console.log('[DEBUG] Step 1: Minimal success');
+      return { step: 1, success: true };
     }
 
-    const username = formData.get('username');
-    const password = formData.get('password');
-
-    // 2. Validation
-    console.log('[Login Action] Step 2: Validating fields');
-    if (!username || !password || typeof username !== 'string' || typeof password !== 'string') {
-      console.warn('[Login Action] Validation failed: username or password missing/invalid');
-      return { error: 'Username dan password harus diisi dengan benar' };
+    // --- STEP 2: FormData Parsing ---
+    console.log('[DEBUG] Step 2: Parsing FormData');
+    const formData = await request.formData();
+    const username = formData.get('username') as string;
+    const password = formData.get('password') as string;
+    
+    if (DEBUG_STEP === 2) {
+      console.log('[DEBUG] Step 2: Success', { username });
+      return { step: 2, username };
     }
 
-    // 3. Login Service Call
-    console.log(`[Login Action] Step 3: Calling login() for: ${username}`);
-    let loginResult;
-    try {
-      loginResult = await login({ username, password });
-      console.log('[Login Action] login() result:', { 
-        success: loginResult?.success, 
-        hasUser: !!loginResult?.user,
-        error: loginResult?.error
-      });
-    } catch (loginError: any) {
-      console.error('[Login Action] CRITICAL: login() service crashed:', loginError);
-      return { error: 'Terjadi kesalahan saat menghubungi server otentikasi.' };
+    // --- STEP 3: login() Service Call ---
+    console.log('[DEBUG] Step 3: Calling login() service');
+    const result = await login({ username, password });
+    
+    if (DEBUG_STEP === 3) {
+      console.log('[DEBUG] Step 3: Success', { success: result.success });
+      return { step: 3, result };
     }
 
-    if (!loginResult.success) {
-      return { error: loginResult.error || 'Login gagal. Silakan periksa kembali kredensial Anda.' };
+    if (!result.success || !result.user || !result.token) {
+      console.warn('[DEBUG] Login failed result', result);
+      return { error: result.error || 'Login failed' };
     }
 
-    if (!loginResult.user || !loginResult.token) {
-      console.error('[Login Action] Login succeeded but user or token is missing');
-      return { error: 'Data login tidak lengkap. Silakan coba lagi.' };
+    // --- STEP 4: Simple Redirect (No headers) ---
+    if (DEBUG_STEP === 4) {
+      console.log('[DEBUG] Step 4: Success - Attempting simple redirect');
+      return redirect('/dashboard');
     }
 
-    // 4. Session Creation
-    console.log('[Login Action] Step 4: Creating user session');
-    let cookie: string;
-    try {
-      const sessionHeaders = await createUserSession(loginResult.user, '/dashboard', loginResult.token);
-      cookie = sessionHeaders['Set-Cookie'];
-      console.log('[Login Action] Session cookie generated successfully');
-    } catch (sessionError: any) {
-      console.error('[Login Action] CRITICAL: createUserSession() crashed:', sessionError);
-      return { error: 'Gagal membuat sesi login di server.' };
-    }
+    // --- STEP 5: Redirect with Session Cookie ---
+    console.log('[DEBUG] Step 5: Creating session and redirecting with headers');
+    const sessionHeaders = await createUserSession(result.user, '/dashboard', result.token);
+    const cookie = sessionHeaders['Set-Cookie'];
 
     if (!cookie) {
-      console.error('[Login Action] Cookie is empty after session creation');
-      return { error: 'Gagal menghasilkan cookie sesi.' };
+      console.error('[DEBUG] Step 5: Missing cookie!');
+      return { error: 'Gagal membuat cookie' };
     }
 
-    // 5. Final Redirect
-    console.log('[Login Action] Step 5: Preparing redirect to /dashboard');
-    try {
-      const headers = new Headers();
-      headers.append('Set-Cookie', cookie);
-      
-      console.log('[Login Action] END - Success - Redirecting...');
-      return redirect('/dashboard', { headers });
-    } catch (redirectError: any) {
-      console.error('[Login Action] CRITICAL: redirect() logic failed:', redirectError);
-      return { error: 'Gagal melakukan navigasi setelah login.' };
-    }
+    console.log('[DEBUG] Step 5: Success - Redirecting with cookie');
+    // Using new Headers() for maximum compatibility
+    const headers = new Headers();
+    headers.append('Set-Cookie', cookie);
+    
+    return redirect('/dashboard', { headers });
 
   } catch (error: any) {
-    console.error('[Login Action] UNHANDLED FATAL ERROR:', error);
-    return { error: `Kesalahan sistem: ${error?.message || 'Unknown'}` };
+    console.error('[DEBUG] FATAL CRASH at step', DEBUG_STEP, error);
+    return { 
+      error: 'Crash isolated', 
+      step: DEBUG_STEP, 
+      message: error?.message || String(error) 
+    };
   }
 }
 
