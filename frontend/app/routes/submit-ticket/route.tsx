@@ -1,4 +1,5 @@
 import React from "react";
+import { v4 as uuidv4 } from "uuid";
 import { Form, Link, useNavigate, useNavigation } from "react-router";
 import type { Route } from "./+types/route";
 import { Button } from "~/components/ui/button/button";
@@ -89,7 +90,7 @@ export default function SubmitTicket({ actionData, loaderData }: Route.Component
     const navigation = useNavigation();
     const isSubmitting = navigation.state !== "idle";
     const [imagePreview, setImagePreview] = React.useState<string | null>(null);
-    const idempotencyKey = React.useMemo(() => crypto.randomUUID(), []);
+    const idempotencyKey = React.useMemo(() => uuidv4(), []);
 
     const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
