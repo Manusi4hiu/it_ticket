@@ -350,12 +350,12 @@ export default function RoleManagementSettings({ loaderData }: Route.ComponentPr
                     <table className={styles.customTable}>
                         <thead>
                             <tr>
-                                <th>User Information</th>
-                                <th>Username</th>
-                                <th>Email</th>
-                                <th>Current Role</th>
-                                <th>Change Role</th>
-                                <th>Actions</th>
+                                <th style={{ width: "20%" }}>User Information</th>
+                                <th style={{ width: "12%" }}>Username</th>
+                                <th style={{ width: "25%" }}>Email</th>
+                                <th style={{ width: "13%" }}>Current Role</th>
+                                <th style={{ width: "18%" }}>Change Role</th>
+                                <th style={{ width: "12%" }}>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -366,7 +366,7 @@ export default function RoleManagementSettings({ loaderData }: Route.ComponentPr
                                             <div className={styles.userAvatar}>
                                                 <User size={18} />
                                             </div>
-                                            <div style={{ display: "flex", flexDirection: "column" }}>
+                                            <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
                                                 <span className={styles.userName}>
                                                     {user.name}
                                                 </span>
@@ -379,7 +379,7 @@ export default function RoleManagementSettings({ loaderData }: Route.ComponentPr
                                         </div>
                                     </td>
                                     <td>
-                                        <span className={settingsStyles.code}>{user.username}</span>
+                                        <span className={`${settingsStyles.code} ${styles.usernameBadge}`}>{user.username}</span>
                                     </td>
                                     <td>
                                         <span className={styles.userEmail}>{user.email}</span>
@@ -397,7 +397,7 @@ export default function RoleManagementSettings({ loaderData }: Route.ComponentPr
                                                 value={user.role}
                                                 onValueChange={(value) => handleRoleChange(user.id, value as UserRole)}
                                             >
-                                                <SelectTrigger style={{ width: "160px", background: "rgba(255, 255, 255, 0.05)", border: "1px solid rgba(255, 255, 255, 0.1)", color: "white", height: "32px", borderRadius: "8px", fontSize: "0.85rem" }}>
+                                                <SelectTrigger style={{ width: "130px", background: "rgba(255, 255, 255, 0.05)", border: "1px solid rgba(255, 255, 255, 0.1)", color: "white", height: "32px", borderRadius: "8px", fontSize: "0.8rem" }}>
                                                     <SelectValue />
                                                 </SelectTrigger>
                                                 <SelectContent style={{ background: '#1e1b4b', border: '1px solid rgba(255, 255, 255, 0.2)', color: 'white' }}>
