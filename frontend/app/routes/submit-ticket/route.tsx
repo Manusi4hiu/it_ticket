@@ -106,22 +106,13 @@ export default function SubmitTicket({ actionData, loaderData }: Route.Component
     };
 
     return (
-        <div className={styles.container}>
-            {/* Header */}
-            <header className={styles.header}>
-                <div className={styles.headerContent}>
-                    <Link to="/" className={styles.backLink}>
-                        <ArrowLeft size={20} />
-                        Back to Home
-                    </Link>
-                    <div className={styles.headerTitle}>
-                        <TicketPlus size={28} className={styles.headerIcon} />
-                        <h1>Submit Support Request</h1>
-                    </div>
-                </div>
-            </header>
-
-            <main className={styles.main}>
+        <main className={styles.main}>
+            <div style={{ marginBottom: 'var(--space-6)' }}>
+                <Link to="/" className={styles.backLink}>
+                    <ArrowLeft size={20} />
+                    Back to Home
+                </Link>
+            </div>
                 <div className={styles.formContainer}>
                     {actionData?.success ? (
                         <div className={styles.successCard}>
@@ -387,6 +378,5 @@ export default function SubmitTicket({ actionData, loaderData }: Route.Component
                     )}
                 </div>
             </main>
-        </div>
     );
 }

@@ -158,57 +158,7 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
   };
 
   return (
-    <div className={styles.container}>
-      <header className={styles.header}>
-        <div className={styles.headerContent}>
-          <div className={styles.headerLeft} onClick={() => navigate("/dashboard")} style={{ cursor: "pointer" }}>
-            <div className={styles.logoContainer}>
-              <img src="/logo/logo itani.png" alt="Logo" className={styles.headerIcon} />
-              <div className={styles.logoCircle}></div>
-            </div>
-            <h1 className={styles.headerTitle}>IT Aero Support</h1>
-          </div>
-          <nav className={styles.navBar}>
-            <div className={styles.navGroup}>
-              <button className={styles.navLink} onClick={() => navigate(`/profile/${session.userId}`)}>
-                <User className={styles.navIcon} />
-                <span className={styles.navLabel}>Profile</span>
-              </button>
-              <button className={styles.navLink} onClick={() => navigate("/staff-performance")}>
-                <Users className={styles.navIcon} />
-                <span className={styles.navLabel}>Performance</span>
-              </button>
-              {(isAdministrator || session.userRole === 'Management') && (
-                <button className={styles.navLink} onClick={() => navigate("/analytics")}>
-                  <BarChart3 className={styles.navIcon} />
-                  <span className={styles.navLabel}>Analytics</span>
-                </button>
-              )}
-              {isAdministrator && (
-                <button className={styles.navLink} onClick={() => navigate("/settings/role-management")}>
-                  <Settings className={styles.navIcon} />
-                  <span className={styles.navLabel}>Settings</span>
-                </button>
-              )}
-            </div>
-
-            <div className={styles.navDivider}></div>
-
-            <div className={styles.navActionGroup}>
-              <NotificationBell userId={session.userId} />
-              <Form method="post">
-                <input type="hidden" name="intent" value="logout" />
-                <button className={styles.logoutBtn} type="submit">
-                  <LogOut className={styles.navIcon} />
-                  <span className={styles.navLabel}>Logout</span>
-                </button>
-              </Form>
-            </div>
-          </nav>
-        </div>
-      </header>
-
-      <main className={styles.main}>
+    <>
         {/* Welcome Section */}
         <div className={styles.welcomeSection}>
           <div className={styles.welcomeContent}>
@@ -426,7 +376,6 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
             </div>
           )}
         </div>
-      </main>
-    </div>
+    </>
   );
 }

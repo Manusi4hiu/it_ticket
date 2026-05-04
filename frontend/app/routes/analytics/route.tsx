@@ -108,30 +108,7 @@ export default function Analytics({ loaderData }: Route.ComponentProps) {
   const trendData = useMemo(() => stats.trend || [], [stats.trend]);
 
   return (
-    <div className={styles.container}>
-      <header className={styles.header}>
-        <div className={styles.headerContent}>
-          <div className={styles.headerLeft}>
-            <BarChart3 className={styles.headerIcon} />
-            <h1 className={styles.headerTitle}>Analytics & Reports</h1>
-          </div>
-          <Button
-            variant="outline"
-            onClick={() => navigate("/dashboard")}
-            style={{
-              borderColor: "rgba(129, 140, 248, 0.4)",
-              color: "#fff",
-              background: "rgba(255, 255, 255, 0.05)",
-              backdropFilter: "blur(10px)"
-            }}
-          >
-            <ArrowLeft style={{ width: "16px", height: "16px", marginRight: "8px" }} />
-            Back to Dashboard
-          </Button>
-        </div>
-      </header>
-
-      <main className={styles.main}>
+    <>
         <div className={styles.pageHeader}>
           <h2 className={styles.pageTitle}>Performance Overview</h2>
           <p className={styles.pageSubtitle}>Comprehensive analytics and insights for IT support operations</p>
@@ -421,7 +398,6 @@ export default function Analytics({ loaderData }: Route.ComponentProps) {
             </tbody>
           </table>
         </div>
-      </main>
-    </div>
+      </>
   );
 }

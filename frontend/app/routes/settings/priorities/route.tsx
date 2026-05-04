@@ -90,8 +90,8 @@ export default function PrioritiesSettings() {
                         <h1 className={styles.pageTitle}>Priorities & SLA</h1>
                         <p className={styles.pageDescription}>Manage priorities and their default Service Level Agreements (SLA).</p>
                     </div>
-                    <Button onClick={openCreateDialog}>
-                        <Plus size={16} style={{ marginRight: 8 }} />
+                    <Button onClick={openCreateDialog} className={styles.headerButton}>
+                        <Plus size={16} />
                         Add Priority
                     </Button>
                 </div>
@@ -126,31 +126,62 @@ export default function PrioritiesSettings() {
                                 {priorities.map((priority) => (
                                     <tr key={priority.id}>
                                         <td>{priority.level}</td>
-                                        <td style={{ fontWeight: 500 }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                <Flag size={14} color={priority.color} />
+                                        <td style={{ fontWeight: 600, color: 'white' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                                <div style={{ 
+                                                    display: 'flex', 
+                                                    alignItems: 'center', 
+                                                    justifyContent: 'center',
+                                                    width: 36, 
+                                                    height: 36, 
+                                                    borderRadius: 10, 
+                                                    background: `${priority.color}20`, 
+                                                    border: `1px solid ${priority.color}40`,
+                                                    boxShadow: `0 0 15px ${priority.color}15`
+                                                }}>
+                                                    <Flag size={18} color={priority.color} fill={`${priority.color}40`} />
+                                                </div>
                                                 {priority.name}
                                             </div>
                                         </td>
-                                        <td>{priority.slaHours}h</td>
-                                        <td>{priority.responseTimeMinutes}m</td>
                                         <td>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                            <span className={styles.badge} style={{ background: 'rgba(99, 102, 241, 0.1)', color: '#a5b4fc' }}>
+                                                {priority.slaHours}h
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span className={styles.badge} style={{ background: 'rgba(139, 92, 246, 0.1)', color: '#c4b5fd' }}>
+                                                {priority.responseTimeMinutes}m
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                                                 <div style={{
-                                                    width: 16,
-                                                    height: 16,
+                                                    width: 24,
+                                                    height: 24,
                                                     backgroundColor: priority.color,
-                                                    borderRadius: 4,
-                                                    border: '1px solid var(--color-neutral-6)'
+                                                    borderRadius: 6,
+                                                    border: '2px solid rgba(255, 255, 255, 0.1)',
+                                                    boxShadow: `0 0 10px ${priority.color}40`
                                                 }} />
-                                                <span style={{ fontSize: 12, fontFamily: 'monospace' }}>{priority.color}</span>
+                                                <code className={styles.code} style={{ fontSize: '0.75rem' }}>{priority.color.toUpperCase()}</code>
                                             </div>
                                         </td>
                                         <td>{priority.description || '-'}</td>
                                         <td>
-                                            <div style={{ display: 'flex', gap: 8 }}>
-                                                <Button variant="outline" size="sm" onClick={() => openEditDialog(priority)}>
-                                                    <Pencil size={14} />
+                                            <div style={{ display: 'flex', gap: 10 }}>
+                                                <Button 
+                                                    variant="outline" 
+                                                    size="sm" 
+                                                    onClick={() => openEditDialog(priority)}
+                                                    style={{ 
+                                                        borderColor: 'rgba(99, 102, 241, 0.3)',
+                                                        background: 'rgba(99, 102, 241, 0.05)',
+                                                        color: '#a5b4fc',
+                                                        padding: '8px'
+                                                    }}
+                                                >
+                                                    <Pencil size={16} />
                                                 </Button>
                                                 <Form method="post" onSubmit={(e) => {
                                                     if (!confirm('Are you sure you want to delete this priority?')) {
@@ -159,8 +190,17 @@ export default function PrioritiesSettings() {
                                                 }}>
                                                     <input type="hidden" name="intent" value="delete" />
                                                     <input type="hidden" name="id" value={priority.id} />
-                                                    <Button variant="outline" size="sm" style={{ color: 'var(--color-critical-9)' }}>
-                                                        <Trash2 size={14} />
+                                                    <Button 
+                                                        variant="outline" 
+                                                        size="sm" 
+                                                        style={{ 
+                                                            borderColor: 'rgba(239, 68, 68, 0.3)',
+                                                            background: 'rgba(239, 68, 68, 0.05)',
+                                                            color: '#f87171',
+                                                            padding: '8px'
+                                                        }}
+                                                    >
+                                                        <Trash2 size={16} />
                                                     </Button>
                                                 </Form>
                                             </div>
@@ -182,41 +222,40 @@ export default function PrioritiesSettings() {
                         <input type="hidden" name="intent" value={editingPriority ? "update" : "create"} />
                         {editingPriority && <input type="hidden" name="id" value={editingPriority.id} />}
 
-                        <div className="space-y-4 py-4">
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                                <div className="space-y-2">
-                                    <Label htmlFor="name">Name</Label>
-                                    <Input id="name" name="name" defaultValue={editingPriority?.name} required />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="level">Level (1=Critical)</Label>
-                                    <Input id="level" name="level" type="number" min="1" defaultValue={editingPriority?.level ?? 1} required />
-                                </div>
+                    <div className={styles.modalContent}>
+                        <div className={styles.formGrid}>
+                            <div className="space-y-2">
+                                <Label htmlFor="name">Name</Label>
+                                <Input id="name" name="name" defaultValue={editingPriority?.name} required />
                             </div>
-
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                                <div className="space-y-2">
-                                    <Label htmlFor="slaHours">SLA Resolution (Hours)</Label>
-                                    <Input id="slaHours" name="slaHours" type="number" min="1" defaultValue={editingPriority?.slaHours ?? 24} required />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="responseTimeMinutes">SLA Response (Minutes)</Label>
-                                    <Input id="responseTimeMinutes" name="responseTimeMinutes" type="number" min="1" defaultValue={editingPriority?.responseTimeMinutes ?? 60} required />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="color">Color Code (Hex)</Label>
-                                    <div style={{ display: 'flex', gap: 8 }}>
-                                        <Input id="color" name="color" type="color" defaultValue={editingPriority?.color ?? '#000000'} style={{ width: 60, padding: 2 }} />
-                                        <Input id="colorText" value={editingPriority?.color} placeholder="#000000" readOnly />
-                                    </div>
-                                </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="level">Level (1=Critical)</Label>
+                                <Input id="level" name="level" type="number" min="1" defaultValue={editingPriority?.level ?? 1} required />
                             </div>
 
                             <div className="space-y-2">
+                                <Label htmlFor="slaHours">SLA Resolution (Hours)</Label>
+                                <Input id="slaHours" name="slaHours" type="number" min="1" defaultValue={editingPriority?.slaHours ?? 24} required />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="responseTimeMinutes">SLA Response (Minutes)</Label>
+                                <Input id="responseTimeMinutes" name="responseTimeMinutes" type="number" min="1" defaultValue={editingPriority?.responseTimeMinutes ?? 60} required />
+                            </div>
+                            
+                            <div className={`${styles.formFullWidth} space-y-2`}>
+                                <Label htmlFor="color">Color Code (Hex)</Label>
+                                <div style={{ display: 'flex', gap: 8 }}>
+                                    <Input id="color" name="color" type="color" defaultValue={editingPriority?.color ?? '#000000'} style={{ width: 60, padding: 2, height: 40 }} />
+                                    <Input id="colorText" value={editingPriority?.color} placeholder="#000000" readOnly />
+                                </div>
+                            </div>
+
+                            <div className={`${styles.formFullWidth} space-y-2`}>
                                 <Label htmlFor="description">Description</Label>
                                 <Input id="description" name="description" defaultValue={editingPriority?.description} />
                             </div>
                         </div>
+                    </div>
 
                         <DialogFooter>
                             <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>

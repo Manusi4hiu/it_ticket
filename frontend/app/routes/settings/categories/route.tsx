@@ -159,8 +159,9 @@ export default function CategoriesSettings() {
                         {editingCategory && <input type="hidden" name="id" value={editingCategory.id} />}
                         {editingCategory && <input type="hidden" name="isActive" value={String(editingCategory.isActive)} />}
 
-                        <div className="space-y-4 py-4">
-                            <div className="space-y-2">
+                    <div className={styles.modalContent}>
+                        <div className={styles.formGrid}>
+                            <div className={`${styles.formFullWidth} space-y-2`}>
                                 <Label htmlFor="name">Name</Label>
                                 <Input
                                     id="name"
@@ -169,7 +170,7 @@ export default function CategoriesSettings() {
                                     required
                                 />
                             </div>
-                            <div className="space-y-2">
+                            <div className={`${styles.formFullWidth} space-y-2`}>
                                 <Label htmlFor="description">Description (Optional)</Label>
                                 <Input
                                     id="description"
@@ -178,6 +179,7 @@ export default function CategoriesSettings() {
                                 />
                             </div>
                         </div>
+                    </div>
 
                         <DialogFooter>
                             <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>

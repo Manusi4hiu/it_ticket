@@ -61,28 +61,19 @@ export default function SystemLogsSettings() {
                 </div>
             </div>
 
-            <div style={{
-                display: 'flex',
-                gap: '12px',
-                marginBottom: 'var(--space-6)',
-                background: 'rgba(255, 255, 255, 0.1)',
-                backdropFilter: 'blur(20px)',
-                padding: 'var(--space-4)',
-                borderRadius: '16px',
-                border: '1px solid rgba(255, 255, 255, 0.2)',
-                alignItems: 'center'
-            }}>
+            <div className={styles.filtersSection}>
                 <div style={{ position: 'relative', flex: 1 }}>
-                    <Search style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'rgba(255, 255, 255, 0.5)', width: 16, height: 16 }} />
+                    <Search style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'rgba(255, 255, 255, 0.4)', width: 16, height: 16 }} />
                     <Input
                         placeholder="Search logs by action, user, or IP..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         style={{
                             paddingLeft: 38,
-                            background: 'rgba(0, 0, 0, 0.2)',
+                            background: 'rgba(0, 0, 0, 0.25)',
                             border: '1px solid rgba(255, 255, 255, 0.1)',
-                            color: 'white'
+                            color: 'white',
+                            borderRadius: '12px'
                         }}
                     />
                     {searchQuery && (
@@ -96,12 +87,12 @@ export default function SystemLogsSettings() {
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'rgba(255, 255, 255, 0.8)', fontSize: '0.875rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'rgba(255, 255, 255, 0.6)', fontSize: '0.875rem', fontWeight: 600 }}>
                         <Filter size={14} />
                         Filter:
                     </div>
                     <Select value={actionFilter} onValueChange={setActionFilter}>
-                        <SelectTrigger style={{ width: 180, background: 'rgba(0, 0, 0, 0.2)', border: '1px solid rgba(255, 255, 255, 0.1)', color: 'white' }}>
+                        <SelectTrigger style={{ width: 180, background: 'rgba(0, 0, 0, 0.25)', border: '1px solid rgba(255, 255, 255, 0.1)', color: 'white', borderRadius: '12px' }}>
                             <SelectValue placeholder="Action" />
                         </SelectTrigger>
                         <SelectContent style={{ background: '#1e1b4b', border: '1px solid rgba(255, 255, 255, 0.2)', color: 'white' }}>
@@ -145,15 +136,7 @@ export default function SystemLogsSettings() {
                                             </td>
                                             <td>
                                                 <span
-                                                    style={{
-                                                        padding: '2px 8px',
-                                                        borderRadius: '4px',
-                                                        fontSize: '0.75rem',
-                                                        fontWeight: 600,
-                                                        backgroundColor: 'var(--color-primary-2)',
-                                                        color: 'var(--color-primary-9)',
-                                                        textTransform: 'uppercase'
-                                                    }}
+                                                    className={styles.badge}
                                                 >
                                                     {log.action}
                                                 </span>

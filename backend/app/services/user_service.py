@@ -49,6 +49,12 @@ class UserService:
 
     @staticmethod
     def update_user(user_id, data, current_user):
+        # Convert user_id to int if it's a string
+        try:
+            user_id = int(user_id)
+        except (ValueError, TypeError):
+            pass
+
         # Users can only update themselves, admins can update anyone
         if current_user.id != user_id and current_user.role != 'Administrator':
             return None, 'Unauthorized', 403
@@ -89,6 +95,11 @@ class UserService:
 
     @staticmethod
     def delete_user(user_id, current_user):
+        try:
+            user_id = int(user_id)
+        except (ValueError, TypeError):
+            pass
+
         if not current_user or current_user.role != 'Administrator':
             return False, 'Unauthorized. Admin only.', 403
         
@@ -130,9 +141,13 @@ class UserService:
             .limit(5)\
             .all()
         
+        # Calculate assists
+        assists_count = user_tickets_query.filter(Ticket.assigned_to_id != user_id).count()
+        
         return {
             'user': user.to_dict(),
             'totalAssigned': total_involved,
+            'totalAssists': assists_count,
             'resolved': resolved,
             'closed': closed,
             'inProgress': in_progress,
@@ -182,12 +197,16 @@ class UserService:
                 'low': len([t for t in resolved_tickets if t.priority.lower() == 'low']),
             }
             
+            # Calculate assists (tickets where user is collaborator but NOT primary assignee)
+            assists_count = len([t for t in involved_tickets if t.assigned_to_id != user.id])
+
             results.append({
                 'id': user.id,
                 'name': user.full_name,
                 'username': user.username,
                 'email': user.email,
                 'totalAssigned': total_involved,
+                'totalAssists': assists_count,
                 'resolved': resolved_count,
                 'inProgress': in_progress,
                 'pending': pending,

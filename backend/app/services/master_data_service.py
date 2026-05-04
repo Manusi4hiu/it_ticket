@@ -33,7 +33,7 @@ class MasterDataService:
         
         if 'name' in data:
             existing = Category.query.filter_by(name=data['name']).first()
-            if existing and existing.id != id:
+            if existing and existing.id != category.id:
                 return None, 'Category name already exists'
             category.name = data['name']
             
@@ -61,6 +61,9 @@ class MasterDataService:
     def create_priority(data):
         if not data.get('name'):
             return None, 'Name is required'
+        
+        if Priority.query.filter_by(name=data['name']).first():
+            return None, 'Priority name already exists'
             
         priority = Priority(
             name=data['name'],
@@ -81,7 +84,11 @@ class MasterDataService:
         if not priority:
             return None, 'Priority not found'
         
-        if 'name' in data: priority.name = data['name']
+        if 'name' in data:
+            existing = Priority.query.filter_by(name=data['name']).first()
+            if existing and existing.id != priority.id:
+                return None, 'Priority name already exists'
+            priority.name = data['name']
         if 'level' in data: priority.level = data['level']
         if 'color' in data: priority.color = data['color']
         if 'slaHours' in data: priority.sla_hours = data['slaHours']
@@ -152,7 +159,10 @@ class MasterDataService:
             return None, 'Name is required'
         
         if Department.query.filter_by(name=data['name']).first():
-            return None, 'Department already exists'
+            return None, 'Department name already exists'
+        
+        if data.get('code') and Department.query.filter_by(code=data['code']).first():
+            return None, 'Department code already exists'
             
         department = Department(
             name=data['name'],
@@ -172,13 +182,13 @@ class MasterDataService:
         
         if 'name' in data:
             existing = Department.query.filter_by(name=data['name']).first()
-            if existing and existing.id != id:
+            if existing and existing.id != department.id:
                 return None, 'Department name already exists'
             department.name = data['name']
         
         if 'code' in data:
             existing = Department.query.filter_by(code=data['code']).first()
-            if existing and existing.id != id:
+            if existing and existing.id != department.id:
                 return None, 'Department code already exists'
             department.code = data['code']
             
@@ -232,7 +242,7 @@ class MasterDataService:
         
         if 'name' in data:
             existing = Status.query.filter_by(name=data['name']).first()
-            if existing and existing.id != id:
+            if existing and existing.id != status.id:
                 return None, 'Status name already exists'
             status.name = data['name']
             

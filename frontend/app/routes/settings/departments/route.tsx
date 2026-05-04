@@ -121,13 +121,7 @@ export default function DepartmentsSettings() {
                                             </div>
                                         </td>
                                         <td>
-                                            <code style={{
-                                                backgroundColor: 'var(--color-primary-2)',
-                                                color: 'var(--color-primary-9)',
-                                                padding: '2px 6px',
-                                                borderRadius: '4px',
-                                                fontSize: '0.85rem'
-                                            }}>
+                                            <code className={styles.code}>
                                                 {department.code || '-'}
                                             </code>
                                         </td>
@@ -173,8 +167,9 @@ export default function DepartmentsSettings() {
                         {editingDepartment && <input type="hidden" name="id" value={editingDepartment.id} />}
                         {editingDepartment && <input type="hidden" name="isActive" value={String(editingDepartment.isActive)} />}
 
-                        <div className="space-y-4 py-4">
-                            <div className="space-y-2">
+                    <div className={styles.modalContent}>
+                        <div className={styles.formGrid}>
+                            <div className={`${styles.formFullWidth} space-y-2`}>
                                 <Label htmlFor="name">Name</Label>
                                 <Input
                                     id="name"
@@ -184,7 +179,7 @@ export default function DepartmentsSettings() {
                                     required
                                 />
                             </div>
-                            <div className="space-y-2">
+                            <div className={`${styles.formFullWidth} space-y-2`}>
                                 <Label htmlFor="code">Code (ID Prefix)</Label>
                                 <Input
                                     id="code"
@@ -197,7 +192,7 @@ export default function DepartmentsSettings() {
                                     This code will be used as a prefix for ticket IDs (e.g., IT-001).
                                 </p>
                             </div>
-                            <div className="space-y-2">
+                            <div className={`${styles.formFullWidth} space-y-2`}>
                                 <Label htmlFor="description">Description (Optional)</Label>
                                 <Input
                                     id="description"
@@ -206,6 +201,7 @@ export default function DepartmentsSettings() {
                                 />
                             </div>
                         </div>
+                    </div>
 
                         <DialogFooter>
                             <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>

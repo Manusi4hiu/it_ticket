@@ -385,9 +385,9 @@ export default function RoleManagementSettings({ loaderData }: Route.ComponentPr
                                         <span className={styles.userEmail}>{user.email}</span>
                                     </td>
                                     <td>
-                                        <span className={getRoleBadgeClass(user.role)}>
+                                        <div className={`${styles.roleBadge} ${getRoleBadgeClass(user.role)}`}>
                                             {user.role}
-                                        </span>
+                                        </div>
                                     </td>
                                     <td>
                                         {user.id === currentUser.id ? (
@@ -474,7 +474,7 @@ export default function RoleManagementSettings({ loaderData }: Route.ComponentPr
 
             {/* Create User Dialog */}
             <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-                <DialogContent style={{ maxWidth: "500px" }}>
+                <DialogContent style={{ maxWidth: "600px" }}>
                     <DialogHeader>
                         <DialogTitle style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                             <UserPlus style={{ width: "20px", height: "20px" }} />
@@ -485,98 +485,100 @@ export default function RoleManagementSettings({ loaderData }: Route.ComponentPr
                         </DialogDescription>
                     </DialogHeader>
 
-                    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)", padding: "var(--space-4) 0" }}>
-                        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-                            <Label htmlFor="fullName">Full Name *</Label>
-                            <Input
-                                id="fullName"
-                                placeholder="John Doe"
-                                value={newUserForm.full_name}
-                                onChange={(e) => setNewUserForm(prev => ({ ...prev, full_name: e.target.value }))}
-                                style={formErrors.full_name ? { borderColor: "var(--color-error-8)" } : {}}
-                            />
-                            {formErrors.full_name && (
-                                <span style={{ color: "var(--color-error-11)", fontSize: "var(--font-size-0)" }}>
-                                    {formErrors.full_name}
-                                </span>
-                            )}
-                        </div>
+                    <div className={styles.modalContent}>
+                        <div className={styles.formGrid}>
+                            <div className={`${styles.formFullWidth} space-y-2`}>
+                                <Label htmlFor="fullName">Full Name *</Label>
+                                <Input
+                                    id="fullName"
+                                    placeholder="John Doe"
+                                    value={newUserForm.full_name}
+                                    onChange={(e) => setNewUserForm(prev => ({ ...prev, full_name: e.target.value }))}
+                                    style={formErrors.full_name ? { borderColor: "var(--color-error-8)" } : {}}
+                                />
+                                {formErrors.full_name && (
+                                    <span style={{ color: "var(--color-error-11)", fontSize: "var(--font-size-0)" }}>
+                                        {formErrors.full_name}
+                                    </span>
+                                )}
+                            </div>
 
-                        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-                            <Label htmlFor="username">Username *</Label>
-                            <Input
-                                id="username"
-                                placeholder="johndoe"
-                                value={newUserForm.username}
-                                onChange={(e) => setNewUserForm(prev => ({ ...prev, username: e.target.value }))}
-                                style={formErrors.username ? { borderColor: "var(--color-error-8)" } : {}}
-                            />
-                            {formErrors.username && (
-                                <span style={{ color: "var(--color-error-11)", fontSize: "var(--font-size-0)" }}>
-                                    {formErrors.username}
-                                </span>
-                            )}
-                        </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="username">Username *</Label>
+                                <Input
+                                    id="username"
+                                    placeholder="johndoe"
+                                    value={newUserForm.username}
+                                    onChange={(e) => setNewUserForm(prev => ({ ...prev, username: e.target.value }))}
+                                    style={formErrors.username ? { borderColor: "var(--color-error-8)" } : {}}
+                                />
+                                {formErrors.username && (
+                                    <span style={{ color: "var(--color-error-11)", fontSize: "var(--font-size-0)" }}>
+                                        {formErrors.username}
+                                    </span>
+                                )}
+                            </div>
 
-                        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-                            <Label htmlFor="email">Email (Optional)</Label>
-                            <Input
-                                id="email"
-                                type="email"
-                                placeholder="john@company.com"
-                                value={newUserForm.email}
-                                onChange={(e) => setNewUserForm(prev => ({ ...prev, email: e.target.value }))}
-                                style={formErrors.email ? { borderColor: "var(--color-error-8)" } : {}}
-                            />
-                            {formErrors.email && (
-                                <span style={{ color: "var(--color-error-11)", fontSize: "var(--font-size-0)" }}>
-                                    {formErrors.email}
-                                </span>
-                            )}
-                        </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="role">Role *</Label>
+                                <Select
+                                    value={newUserForm.role}
+                                    onValueChange={(value) => setNewUserForm(prev => ({ ...prev, role: value as UserRole }))}
+                                >
+                                    <SelectTrigger id="role">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="Administrator">Administrator</SelectItem>
+                                        <SelectItem value="Management">Management</SelectItem>
+                                        <SelectItem value="Staff">Staff</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
 
-                        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-                            <Label htmlFor="phone">Phone Number (Optional)</Label>
-                            <Input
-                                id="phone"
-                                placeholder="+62..."
-                                value={newUserForm.phone}
-                                onChange={(e) => setNewUserForm(prev => ({ ...prev, phone: e.target.value }))}
-                            />
-                        </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="email">Email (Optional)</Label>
+                                <Input
+                                    id="email"
+                                    type="email"
+                                    placeholder="john@company.com"
+                                    value={newUserForm.email}
+                                    onChange={(e) => setNewUserForm(prev => ({ ...prev, email: e.target.value }))}
+                                    style={formErrors.email ? { borderColor: "var(--color-error-8)" } : {}}
+                                />
+                                {formErrors.email && (
+                                    <span style={{ color: "var(--color-error-11)", fontSize: "var(--font-size-0)" }}>
+                                        {formErrors.email}
+                                    </span>
+                                )}
+                            </div>
 
-                        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-                            <Label htmlFor="password">Password *</Label>
-                            <Input
-                                id="password"
-                                type="password"
-                                placeholder="Minimum 6 characters"
-                                value={newUserForm.password}
-                                onChange={(e) => setNewUserForm(prev => ({ ...prev, password: e.target.value }))}
-                                style={formErrors.password ? { borderColor: "var(--color-error-8)" } : {}}
-                            />
-                            {formErrors.password && (
-                                <span style={{ color: "var(--color-error-11)", fontSize: "var(--font-size-0)" }}>
-                                    {formErrors.password}
-                                </span>
-                            )}
-                        </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="phone">Phone Number (Optional)</Label>
+                                <Input
+                                    id="phone"
+                                    placeholder="+62..."
+                                    value={newUserForm.phone}
+                                    onChange={(e) => setNewUserForm(prev => ({ ...prev, phone: e.target.value }))}
+                                />
+                            </div>
 
-                        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-                            <Label htmlFor="role">Role *</Label>
-                            <Select
-                                value={newUserForm.role}
-                                onValueChange={(value) => setNewUserForm(prev => ({ ...prev, role: value as UserRole }))}
-                            >
-                                <SelectTrigger id="role">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="Administrator">Administrator</SelectItem>
-                                    <SelectItem value="Management">Management</SelectItem>
-                                    <SelectItem value="Staff">Staff</SelectItem>
-                                </SelectContent>
-                            </Select>
+                            <div className={`${styles.formFullWidth} space-y-2`}>
+                                <Label htmlFor="password">Password *</Label>
+                                <Input
+                                    id="password"
+                                    type="password"
+                                    placeholder="Minimum 6 characters"
+                                    value={newUserForm.password}
+                                    onChange={(e) => setNewUserForm(prev => ({ ...prev, password: e.target.value }))}
+                                    style={formErrors.password ? { borderColor: "var(--color-error-8)" } : {}}
+                                />
+                                {formErrors.password && (
+                                    <span style={{ color: "var(--color-error-11)", fontSize: "var(--font-size-0)" }}>
+                                        {formErrors.password}
+                                    </span>
+                                )}
+                            </div>
                         </div>
                     </div>
 
@@ -593,7 +595,7 @@ export default function RoleManagementSettings({ loaderData }: Route.ComponentPr
 
             {/* Edit User Dialog */}
             <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-                <DialogContent style={{ maxWidth: "500px" }}>
+                <DialogContent style={{ maxWidth: "600px" }}>
                     <DialogHeader>
                         <DialogTitle style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                             <Pencil style={{ width: "20px", height: "20px" }} />
@@ -604,81 +606,83 @@ export default function RoleManagementSettings({ loaderData }: Route.ComponentPr
                         </DialogDescription>
                     </DialogHeader>
 
-                    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)", padding: "var(--space-4) 0" }}>
-                        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-                            <Label htmlFor="editFullName">Full Name *</Label>
-                            <Input
-                                id="editFullName"
-                                placeholder="John Doe"
-                                value={editUserForm.full_name}
-                                onChange={(e) => setEditUserForm(prev => ({ ...prev, full_name: e.target.value }))}
-                                style={editFormErrors.full_name ? { borderColor: "var(--color-error-8)" } : {}}
-                            />
-                            {editFormErrors.full_name && (
-                                <span style={{ color: "var(--color-error-11)", fontSize: "var(--font-size-0)" }}>
-                                    {editFormErrors.full_name}
-                                </span>
-                            )}
-                        </div>
+                    <div className={styles.modalContent}>
+                        <div className={styles.formGrid}>
+                            <div className={`${styles.formFullWidth} space-y-2`}>
+                                <Label htmlFor="editFullName">Full Name *</Label>
+                                <Input
+                                    id="editFullName"
+                                    placeholder="John Doe"
+                                    value={editUserForm.full_name}
+                                    onChange={(e) => setEditUserForm(prev => ({ ...prev, full_name: e.target.value }))}
+                                    style={editFormErrors.full_name ? { borderColor: "var(--color-error-8)" } : {}}
+                                />
+                                {editFormErrors.full_name && (
+                                    <span style={{ color: "var(--color-error-11)", fontSize: "var(--font-size-0)" }}>
+                                        {editFormErrors.full_name}
+                                    </span>
+                                )}
+                            </div>
 
-                        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-                            <Label htmlFor="editUsername">Username *</Label>
-                            <Input
-                                id="editUsername"
-                                placeholder="johndoe"
-                                value={editUserForm.username}
-                                onChange={(e) => setEditUserForm(prev => ({ ...prev, username: e.target.value }))}
-                                style={editFormErrors.username ? { borderColor: "var(--color-error-8)" } : {}}
-                            />
-                            {editFormErrors.username && (
-                                <span style={{ color: "var(--color-error-11)", fontSize: "var(--font-size-0)" }}>
-                                    {editFormErrors.username}
-                                </span>
-                            )}
-                        </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="editUsername">Username *</Label>
+                                <Input
+                                    id="editUsername"
+                                    placeholder="johndoe"
+                                    value={editUserForm.username}
+                                    onChange={(e) => setEditUserForm(prev => ({ ...prev, username: e.target.value }))}
+                                    style={editFormErrors.username ? { borderColor: "var(--color-error-8)" } : {}}
+                                />
+                                {editFormErrors.username && (
+                                    <span style={{ color: "var(--color-error-11)", fontSize: "var(--font-size-0)" }}>
+                                        {editFormErrors.username}
+                                    </span>
+                                )}
+                            </div>
 
-                        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-                            <Label htmlFor="editEmail">Email (Optional)</Label>
-                            <Input
-                                id="editEmail"
-                                type="email"
-                                placeholder="john@company.com"
-                                value={editUserForm.email}
-                                onChange={(e) => setEditUserForm(prev => ({ ...prev, email: e.target.value }))}
-                                style={editFormErrors.email ? { borderColor: "var(--color-error-8)" } : {}}
-                            />
-                            {editFormErrors.email && (
-                                <span style={{ color: "var(--color-error-11)", fontSize: "var(--font-size-0)" }}>
-                                    {editFormErrors.email}
-                                </span>
-                            )}
-                        </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="editEmail">Email (Optional)</Label>
+                                <Input
+                                    id="editEmail"
+                                    type="email"
+                                    placeholder="john@company.com"
+                                    value={editUserForm.email}
+                                    onChange={(e) => setEditUserForm(prev => ({ ...prev, email: e.target.value }))}
+                                    style={editFormErrors.email ? { borderColor: "var(--color-error-8)" } : {}}
+                                />
+                                {editFormErrors.email && (
+                                    <span style={{ color: "var(--color-error-11)", fontSize: "var(--font-size-0)" }}>
+                                        {editFormErrors.email}
+                                    </span>
+                                )}
+                            </div>
 
-                        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-                            <Label htmlFor="editPhone">Phone Number (Optional)</Label>
-                            <Input
-                                id="editPhone"
-                                placeholder="+62..."
-                                value={editUserForm.phone}
-                                onChange={(e) => setEditUserForm(prev => ({ ...prev, phone: e.target.value }))}
-                            />
-                        </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="editPhone">Phone Number (Optional)</Label>
+                                <Input
+                                    id="editPhone"
+                                    placeholder="+62..."
+                                    value={editUserForm.phone}
+                                    onChange={(e) => setEditUserForm(prev => ({ ...prev, phone: e.target.value }))}
+                                />
+                            </div>
 
-                        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-                            <Label htmlFor="editPassword">New Password (Optional)</Label>
-                            <Input
-                                id="editPassword"
-                                type="password"
-                                placeholder="Leave blank to keep current password"
-                                value={editUserForm.password}
-                                onChange={(e) => setEditUserForm(prev => ({ ...prev, password: e.target.value }))}
-                                style={editFormErrors.password ? { borderColor: "var(--color-error-8)" } : {}}
-                            />
-                            {editFormErrors.password && (
-                                <span style={{ color: "var(--color-error-11)", fontSize: "var(--font-size-0)" }}>
-                                    {editFormErrors.password}
-                                </span>
-                            )}
+                            <div className="space-y-2">
+                                <Label htmlFor="editPassword">New Password (Optional)</Label>
+                                <Input
+                                    id="editPassword"
+                                    type="password"
+                                    placeholder="Leave blank to keep current password"
+                                    value={editUserForm.password}
+                                    onChange={(e) => setEditUserForm(prev => ({ ...prev, password: e.target.value }))}
+                                    style={editFormErrors.password ? { borderColor: "var(--color-error-8)" } : {}}
+                                />
+                                {editFormErrors.password && (
+                                    <span style={{ color: "var(--color-error-11)", fontSize: "var(--font-size-0)" }}>
+                                        {editFormErrors.password}
+                                    </span>
+                                )}
+                            </div>
                         </div>
                     </div>
 

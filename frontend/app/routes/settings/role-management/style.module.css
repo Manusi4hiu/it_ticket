@@ -1,11 +1,11 @@
 .section {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(17, 24, 39, 0.6);
   backdrop-filter: blur(24px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(99, 102, 241, 0.2);
   border-radius: 20px;
   padding: 0;
   margin-bottom: var(--space-8);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
   overflow: hidden;
 }
 
@@ -22,21 +22,21 @@
 }
 
 .customTable th {
-  padding: var(--space-3) var(--space-4);
-  background: rgba(255, 255, 255, 0.05);
-  color: rgba(255, 255, 255, 0.6);
-  font-size: 0.7rem;
+  padding: var(--space-4) var(--space-5);
+  background: rgba(17, 24, 39, 0.4);
+  color: #9ca3af;
+  font-size: 0.75rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  letter-spacing: 1px;
+  border-bottom: 1px solid rgba(99, 102, 241, 0.2);
 }
 
 .customTable td {
-  padding: var(--space-3) var(--space-4);
-  color: white;
+  padding: var(--space-4) var(--space-5);
+  color: #d1d5db;
   vertical-align: middle;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid rgba(99, 102, 241, 0.1);
 }
 
 .customTable tr:last-child td {
@@ -53,17 +53,17 @@
   width: 36px;
   height: 36px;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(99, 102, 241, 0.1);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #818cf8;
+  border: 1px solid rgba(99, 102, 241, 0.2);
 }
 
 .userName {
   font-weight: 700;
-  color: white;
+  color: #f3f4f6;
   font-size: 0.9rem;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -72,7 +72,7 @@
 
 .userEmail {
   font-size: 0.8rem;
-  color: rgba(255, 255, 255, 0.5);
+  color: #9ca3af;
   width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -92,37 +92,52 @@
 .roleBadge {
   display: inline-flex;
   align-items: center;
-  padding: 6px 14px;
-  border-radius: 10px;
+  justify-content: center;
+  padding: 6px 16px;
+  border-radius: 12px;
   font-size: 0.75rem;
   font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 1px;
   color: white;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(8px);
+  min-width: 110px;
+  transition: all 0.3s ease;
 }
 
 .roleAdmin {
-  background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);
-  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.8) 0%, rgba(185, 28, 28, 0.9) 100%);
+  box-shadow: 0 0 15px rgba(239, 68, 68, 0.3), inset 0 0 10px rgba(255, 255, 255, 0.1);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 .roleManagement {
-  background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
-  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.8) 0%, rgba(109, 40, 217, 0.9) 100%);
+  box-shadow: 0 0 15px rgba(139, 92, 246, 0.3), inset 0 0 10px rgba(255, 255, 255, 0.1);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 .roleStaff {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.8) 0%, rgba(5, 150, 105, 0.9) 100%);
+  box-shadow: 0 0 15px rgba(16, 185, 129, 0.3), inset 0 0 10px rgba(255, 255, 255, 0.1);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.roleBadge:hover {
+  transform: scale(1.05);
+  border-color: rgba(255, 255, 255, 0.4);
+  filter: brightness(1.1);
 }
 
 .infoSection {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(17, 24, 39, 0.6);
   backdrop-filter: blur(24px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(99, 102, 241, 0.2);
   border-radius: 20px;
   padding: var(--space-8);
   margin-bottom: var(--space-8);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
 }
 
 .infoTitle {
@@ -153,30 +168,34 @@
 
 .roleDescription {
   padding: var(--space-6);
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
   backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 18px;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .roleDescription:hover {
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
   transform: translateY(-5px);
-  border-color: rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.15);
   box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
 }
 
 .roleLabel {
   display: inline-flex;
-  padding: 6px 14px;
-  border-radius: 10px;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 16px;
+  border-radius: 12px;
   font-size: 0.75rem;
   font-weight: 800;
   text-transform: uppercase;
+  letter-spacing: 1px;
   margin-bottom: var(--space-4);
   color: white;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(8px);
 }
 
 .permissionList {
@@ -187,7 +206,7 @@
 
 .permissionList li {
   font-size: 0.9rem;
-  color: rgba(255, 255, 255, 0.85);
+  color: #d1d5db;
   padding: 8px 0;
   padding-left: 24px;
   position: relative;
@@ -198,7 +217,7 @@
   content: "✦";
   position: absolute;
   left: 0;
-  color: #fff;
+  color: #818cf8;
   font-size: 0.8rem;
   opacity: 0.7;
   top: 10px;
@@ -216,4 +235,35 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-4);
+  padding: var(--space-4) 0;
+}
+
+.formFullWidth {
+  grid-column: 1 / -1;
+}
+
+.modalContent {
+  max-height: 80vh;
+  overflow-y: auto;
+  padding-right: var(--space-2);
+}
+
+.modalContent::-webkit-scrollbar {
+  width: 6px;
+}
+
+.modalContent::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 3px;
+}
+
+.modalContent::-webkit-scrollbar-thumb {
+  background: rgba(99, 102, 241, 0.3);
+  border-radius: 3px;
 }

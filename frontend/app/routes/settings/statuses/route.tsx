@@ -178,8 +178,9 @@ export default function StatusesSettings() {
                         <input type="hidden" name="intent" value={editingStatus ? "update" : "create"} />
                         {editingStatus && <input type="hidden" name="id" value={editingStatus.id} />}
 
-                        <div className="space-y-4 py-4">
-                            <div className="space-y-2">
+                    <div className={styles.modalContent}>
+                        <div className={styles.formGrid}>
+                            <div className={`${styles.formFullWidth} space-y-2`}>
                                 <Label htmlFor="name">Status Name</Label>
                                 <Input
                                     id="name"
@@ -190,54 +191,50 @@ export default function StatusesSettings() {
                                 />
                             </div>
                             
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                                <div className="space-y-2">
-                                    <Label htmlFor="color">Color</Label>
-                                    <div style={{ display: 'flex', gap: 8 }}>
-                                        <Input
-                                            id="color"
-                                            name="color"
-                                            type="color"
-                                            defaultValue={editingStatus?.color || "#6B7280"}
-                                            style={{ width: 44, padding: 2, height: 40 }}
-                                        />
-                                        <Input
-                                            type="text"
-                                            defaultValue={editingStatus?.color || "#6B7280"}
-                                            onChange={(e) => {
-                                                const colorInput = document.getElementById('color') as HTMLInputElement;
-                                                if (colorInput) colorInput.value = e.target.value;
-                                            }}
-                                            placeholder="#HEXCODE"
-                                        />
-                                    </div>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="order">Display Order</Label>
+                            <div className="space-y-2">
+                                <Label htmlFor="color">Color</Label>
+                                <div style={{ display: 'flex', gap: 8 }}>
                                     <Input
-                                        id="order"
-                                        name="order"
-                                        type="number"
-                                        defaultValue={editingStatus?.order || 0}
-                                        required
+                                        id="color"
+                                        name="color"
+                                        type="color"
+                                        defaultValue={editingStatus?.color || "#6B7280"}
+                                        style={{ width: 44, padding: 2, height: 40 }}
+                                    />
+                                    <Input
+                                        type="text"
+                                        defaultValue={editingStatus?.color || "#6B7280"}
+                                        onChange={(e) => {
+                                            const colorInput = document.getElementById('color') as HTMLInputElement;
+                                            if (colorInput) colorInput.value = e.target.value;
+                                        }}
+                                        placeholder="#HEXCODE"
                                     />
                                 </div>
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="order">Display Order</Label>
+                                <Input
+                                    id="order"
+                                    name="order"
+                                    type="number"
+                                    defaultValue={editingStatus?.order || 0}
+                                    required
+                                />
                             </div>
 
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 8 }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                    <input 
-                                        type="checkbox" 
-                                        id="isDefault" 
-                                        name="isDefault" 
-                                        value="true"
-                                        defaultChecked={editingStatus?.isDefault}
-                                    />
-                                    <Label htmlFor="isDefault">Set as default for new tickets</Label>
-                                </div>
-                                
+                            <div className={styles.formFullWidth} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+                                <input 
+                                    type="checkbox" 
+                                    id="isDefault" 
+                                    name="isDefault" 
+                                    value="true"
+                                    defaultChecked={editingStatus?.isDefault}
+                                />
+                                <Label htmlFor="isDefault">Set as default for new tickets</Label>
                             </div>
                         </div>
+                    </div>
 
                         <DialogFooter>
                             <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>

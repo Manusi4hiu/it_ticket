@@ -79,7 +79,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
       {/* Hero Section */}
       <section className={styles.heroSection}>
         <div className={styles.heroContent}>
-          <h1 className={styles.heroTitle}>IT Support Made Simple</h1>
+          <h1 className={styles.heroTitle}>IT Aero Nusantara Indonesia</h1>
           <p className={styles.heroSubtitle}>
             Submit, track, and manage IT support tickets with ease. Our streamlined
             ticketing system ensures your issues are resolved quickly and efficiently.

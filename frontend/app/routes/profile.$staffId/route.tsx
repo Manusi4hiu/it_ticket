@@ -145,16 +145,7 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
   );
 
   return (
-    <div className={styles.container}>
-      <header className={styles.header}>
-        <h1 className={styles.headerTitle}>{session.userId === staffId ? "My Profile" : "Staff Profile"}</h1>
-        <Button variant="outline" onClick={() => navigate("/dashboard")}>
-          <ArrowLeft style={{ width: "16px", height: "16px", marginRight: "8px" }} />
-          Back to Dashboard
-        </Button>
-      </header>
-
-      <main className={styles.main}>
+    <>
         {/* Profile Header */}
         <Card className={styles.profileCard}>
           <div className={styles.profileHeader}>
@@ -330,7 +321,6 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
             </TabsContent>
           </Tabs>
         </Card>
-      </main>
-    </div>
+    </>
   );
 }

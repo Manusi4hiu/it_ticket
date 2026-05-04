@@ -415,28 +415,19 @@ export default function TicketDetail({ loaderData }: Route.ComponentProps) {
     return <Circle style={{ width: "16px", height: "16px" }} />;
   };
 
-  // --- Render ---
-
-  // NOTE: This component handles both Public (Guest) and Private (Staff) views.
-  // We use `isPublic` to conditionally render sections.
-
   return (
-    <div className={styles.container}>
-      <header className={styles.header}>
-        <div className={styles.headerContent}>
-          <Button
-            variant="outline"
-            onClick={() => navigate(isPublic ? "/" : "/dashboard")}
-            className={styles.backButton}
-          >
-            {isPublic ? <Home className={styles.backIcon} /> : <ArrowLeft className={styles.backIcon} />}
-            {isPublic ? "Back to Home" : "Back to Dashboard"}
-          </Button>
-          {isPublic && <div className={styles.publicBadge}>Public Tracking View</div>}
-        </div>
-      </header>
-
-      <main className={styles.main}>
+    <>
+      <div className={styles.headerActions} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-6)' }}>
+        <Button
+          variant="outline"
+          onClick={() => navigate(isPublic ? "/" : "/dashboard")}
+          className={styles.backButton}
+        >
+          {isPublic ? <Home className={styles.backIcon} /> : <ArrowLeft className={styles.backIcon} />}
+          {isPublic ? "Back to Home" : "Back to Dashboard"}
+        </Button>
+        {isPublic && <div className={styles.publicBadge}>Public Tracking View</div>}
+      </div>
         <div className={isPublic ? styles.gridPublic : styles.grid}>
           {/* Left Column - Ticket Details */}
           <div>
@@ -959,7 +950,6 @@ export default function TicketDetail({ loaderData }: Route.ComponentProps) {
             </div>
           )}
         </div>
-      </main>
 
       {/* Resolution Dialog - Only for Staff */}
       <Dialog open={showResolveDialog} onOpenChange={setShowResolveDialog}>
@@ -1083,6 +1073,6 @@ export default function TicketDetail({ loaderData }: Route.ComponentProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 }

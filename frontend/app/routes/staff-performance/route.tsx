@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router";
-import { ArrowLeft, Trophy, Award, Target, Clock } from "lucide-react";
+import { ArrowLeft, Trophy, Award, Target, Clock, Users } from "lucide-react";
 import {
   BarChart,
   Bar,
@@ -81,21 +81,7 @@ export default function StaffPerformance({ loaderData }: Route.ComponentProps) {
   const chartColors = ["#6366f1", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4"];
 
   return (
-    <div className={styles.container}>
-      <header className={styles.header}>
-        <div className={styles.headerContent}>
-          <div className={styles.headerLeft}>
-            <Trophy className={styles.headerIcon} />
-            <h1 className={styles.headerTitle}>Staff Performance Dashboard</h1>
-          </div>
-          <Button variant="outline" onClick={() => navigate("/dashboard")}>
-            <ArrowLeft style={{ width: "16px", height: "16px", marginRight: "8px" }} />
-            Back to Dashboard
-          </Button>
-        </div>
-      </header>
-
-      <main className={styles.main}>
+    <>
         <div className={styles.pageHeader}>
           <h2 className={styles.pageTitle}>IT Staff Resolved Tickets Overview</h2>
           <p className={styles.pageSubtitle}>Comprehensive statistics of tickets resolved by IT support staff</p>
@@ -114,6 +100,10 @@ export default function StaffPerformance({ loaderData }: Route.ComponentProps) {
                 <div className={styles.topStat}>
                   <span className={styles.topStatValue}>{topPerformer.resolved}</span>
                   <span className={styles.topStatLabel}>Tickets Resolved</span>
+                </div>
+                <div className={styles.topStat}>
+                  <span className={styles.topStatValue}>{topPerformer.totalAssists}</span>
+                  <span className={styles.topStatLabel}>Total Assists</span>
                 </div>
                 <div className={styles.topStat}>
                   <span className={styles.topStatValue}>{topPerformer.resolutionRate}%</span>
@@ -292,6 +282,10 @@ export default function StaffPerformance({ loaderData }: Route.ComponentProps) {
                         <span className={styles.workloadValue}>{staff.totalAssigned}</span>
                       </div>
                       <div className={styles.workloadItem}>
+                        <span className={styles.workloadLabel}>Total Assists:</span>
+                        <span className={styles.workloadValue}>{staff.totalAssists}</span>
+                      </div>
+                      <div className={styles.workloadItem}>
                         <span className={styles.workloadLabel}>In Progress:</span>
                         <span className={styles.workloadValue}>{staff.inProgress}</span>
                       </div>
@@ -353,6 +347,19 @@ export default function StaffPerformance({ loaderData }: Route.ComponentProps) {
           </Card>
 
           <Card className={styles.summaryCard}>
+            <div className={styles.summaryIcon} style={{ background: "rgba(139, 92, 246, 0.1)", border: "1px solid rgba(139, 92, 246, 0.2)" }}>
+              <Users style={{ color: "#a78bfa", width: "32px", height: "32px" }} />
+            </div>
+            <div className={styles.summaryContent}>
+              <div className={styles.summaryValue}>
+                {sortedStats.reduce((sum, staff) => sum + (staff.totalAssists || 0), 0)}
+              </div>
+              <div className={styles.summaryLabel}>Total Assists</div>
+              <div className={styles.summarySubtext}>Supporting other agents</div>
+            </div>
+          </Card>
+
+          <Card className={styles.summaryCard}>
             <div className={styles.summaryIcon} style={{ background: "rgba(192, 132, 252, 0.1)", border: "1px solid rgba(192, 132, 252, 0.2)" }}>
               <Trophy style={{ color: "#c084fc", width: "32px", height: "32px" }} />
             </div>
@@ -368,7 +375,6 @@ export default function StaffPerformance({ loaderData }: Route.ComponentProps) {
             </div>
           </Card>
         </div>
-      </main>
-    </div>
+      </>
   );
 }
