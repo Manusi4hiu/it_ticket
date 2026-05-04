@@ -3,19 +3,34 @@
 # ======================
 .DS_Store
 .env
+.env.local
+.env.*.local
+backend/.env
+frontend/.env
 *.log
 *.pid
+*.tmp
+*.bak
+*.swp
+Thumbs.db
 
 # ======================
 # Frontend (Vite / React)
 # ======================
 node_modules/
+frontend/node_modules/
 dist/
 build/
 .vite/
 .react-router/
 .netlify/
 .dazl/
+.nitro/
+.output/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.eslintcache
 
 # ======================
 # Backend (Python)
@@ -29,9 +44,22 @@ __pycache__/
 *.pyd
 instance/
 .pytest_cache/
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+.coverage
+htmlcov/
+instance/
+.webassets-cache
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
 
 # Uploads (kalau tidak ingin disimpan di git)
-backend/app/static/uploads/
+backend/app/static/uploads/*
+!backend/app/static/uploads/.gitkeep
 
 # ======================
 # Server / Deployment
@@ -47,3 +75,13 @@ backend/app/static/uploads/
 # ======================
 .vscode/
 .idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# ======================
+# Runner Script (Opsional)
+# ======================
+run_all.py
