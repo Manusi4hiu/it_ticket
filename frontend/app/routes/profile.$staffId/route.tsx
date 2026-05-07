@@ -21,7 +21,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   }
 
   // Fetch data from API
-  const [tickets, agents] = await Promise.all([
+  const [ticketResponse, agents] = await Promise.all([
     getTickets(),
     getAgents()
   ]);
@@ -33,7 +33,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     session,
     staffId,
     staff,
-    tickets,
+    tickets: ticketResponse.tickets,
     agents,
   };
 }

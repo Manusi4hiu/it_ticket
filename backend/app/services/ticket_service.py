@@ -173,11 +173,25 @@ class TicketService:
         return ticket
 
     @staticmethod
-    def delete_ticket(ticket_id):
+    def delete_ticket(ticket_id, user_id=None):
         ticket = Ticket.query.get(ticket_id)
         if not ticket:
             return False
             
+        # Log the activity before deletion
+        from app.utils.logging import log_activity
+        log_activity(
+            action="Ticket Deleted",
+            details=f"Ticket {ticket.ticket_code} ({ticket.title}) was deleted",
+            user_id=user_id,
+            target_id=ticket.id,
+            metadata={
+                "ticket_code": ticket.ticket_code,
+                "title": ticket.title,
+                "submitter": ticket.submitter_name
+            }
+        )
+
         db.session.delete(ticket)
         db.session.commit()
         return True

@@ -94,15 +94,20 @@ export async function getTickets(filters?: {
     category?: string;
     assignedTo?: string;
     search?: string;
-}): Promise<Ticket[]> {
+    page?: number;
+    per_page?: number;
+}): Promise<{ tickets: Ticket[]; total: number }> {
     const response = await ticketsApi.getAll(filters);
 
     if (!response.success || !response.data) {
         console.error('Failed to fetch tickets:', response.error);
-        return [];
+        return { tickets: [], total: 0 };
     }
 
-    return response.data.tickets.map(t => mapApiTicket(t as unknown as Record<string, unknown>));
+    return {
+        tickets: response.data.tickets.map((t: any) => mapApiTicket(t as unknown as Record<string, unknown>)),
+        total: response.data.total
+    };
 }
 
 export async function getTicketById(id: string): Promise<Ticket | null> {

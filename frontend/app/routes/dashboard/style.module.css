@@ -1,8 +1,10 @@
 .container {
-  min-height: 100vh;
+  height: 100vh;
   background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
   position: relative;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .container::before {
@@ -218,12 +220,18 @@
 }
 
 
-.main {
+.dashboardContainer {
   max-width: 1400px;
+  width: 100%;
   margin: 0 auto;
   padding: var(--space-6);
   position: relative;
   z-index: 1;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  height: 100%;
 }
 
 .metricsGrid {
@@ -232,6 +240,7 @@
   gap: var(--space-5);
   margin-bottom: var(--space-6);
   animation: fadeIn 0.6s ease-out;
+  flex-shrink: 0;
 }
 
 .metricCard {
@@ -323,6 +332,7 @@
   margin-bottom: var(--space-5);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
   animation: slideIn 0.6s ease-out 0.2s both;
+  flex-shrink: 0;
 }
 
 .filtersGrid {
@@ -358,6 +368,10 @@
   overflow: hidden;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
   animation: fadeIn 0.6s ease-out 0.4s both;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .tableHeader {
@@ -397,6 +411,33 @@
 
 .tableWrapper {
   overflow-x: auto;
+  overflow-y: auto;
+  flex: 1;
+  position: relative;
+  min-height: 0;
+}
+
+.tableWrapper::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.tableWrapper::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 10px;
+}
+
+.tableWrapper::-webkit-scrollbar-thumb {
+  background: rgba(99, 102, 241, 0.3);
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  transition: all 0.3s ease;
+}
+
+.tableWrapper::-webkit-scrollbar-thumb:hover {
+  background: rgba(99, 102, 241, 0.5);
+  background-clip: padding-box;
 }
 
 .table {
@@ -417,6 +458,12 @@
   text-transform: uppercase;
   letter-spacing: 1px;
   border-bottom: 1px solid rgba(99, 102, 241, 0.2);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: rgba(22, 28, 45, 0.95);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 .table tbody tr {
@@ -654,6 +701,17 @@
   box-shadow: 0 6px 20px rgba(16, 185, 129, 0.5) !important;
 }
 
+.miniDeleteButton {
+  color: #f87171 !important;
+  transition: all 0.2s ease !important;
+}
+
+.miniDeleteButton:hover {
+  background: rgba(239, 68, 68, 0.1) !important;
+  color: #ef4444 !important;
+  transform: scale(1.1);
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -737,6 +795,10 @@
   }
 }
 
+.welcomeSection {
+  flex-shrink: 0;
+}
+
 .prioritySelect {
   height: 32px;
   font-size: 11px;
@@ -752,4 +814,32 @@
 .prioritySelect :global(span) {
   display: inline-flex;
   align-items: center;
+}
+.sentinel {
+  padding: var(--space-8);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  color: #9ca3af;
+  font-size: 0.9rem;
+  border-top: 1px solid rgba(99, 102, 241, 0.1);
+}
+
+.loadingMore {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: #818cf8;
+  font-weight: 600;
+}
+
+.loadingIcon {
+  animation: rotate 1s linear infinite;
+}
+
+.noMore {
+  opacity: 0.5;
+  font-style: italic;
 }

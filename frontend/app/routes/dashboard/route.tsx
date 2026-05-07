@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate, Form, redirect } from "react-router";
 import type { Route } from "./+types/route";
 import {
@@ -19,32 +19,37 @@ import {
   CircleDot,
   Circle,
   Plus,
+  Trash2,
 } from "lucide-react";
 import { NotificationBell } from "~/components/notification-bell";
 import { Button } from "~/components/ui/button/button";
 import { Badge } from "~/components/ui/badge/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "~/components/ui/select/select";
-import { getTickets, getAgents, assignTicket, updateTicketPriority, type Ticket, type Agent } from "~/services/ticket.service";
+import { getTickets, getAgents, assignTicket, updateTicketPriority, deleteTicket, type Ticket, type Agent } from "~/services/ticket.service";
 import { settingsApi, type Status } from "~/services/settings.service";
 import { requireAuth, logout } from "~/services/session.service";
 import { setAuthToken } from "~/services/api.service";
+import { getTicketStats } from "~/services/ticket.service";
 import styles from "./style.module.css";
 
 export async function loader({ request }: Route.LoaderArgs) {
   const session = await requireAuth(request);
 
   // Parallel fetch
-  const [tickets, agents, statusResponse] = await Promise.all([
-    getTickets(),
+  const [ticketResponse, agents, statusResponse, stats] = await Promise.all([
+    getTickets({ page: 1, per_page: 5 }),
     getAgents(),
-    settingsApi.getStatuses()
+    settingsApi.getStatuses(),
+    getTicketStats()
   ]);
 
   return {
     session,
-    tickets,
+    tickets: ticketResponse.tickets,
+    totalTickets: ticketResponse.total,
     agents,
-    statuses: statusResponse.data?.data || []
+    statuses: statusResponse.data?.data || [],
+    stats
   };
 }
 
@@ -64,9 +69,15 @@ export async function action({ request }: Route.ActionArgs) {
 }
 
 export default function Dashboard({ loaderData }: Route.ComponentProps) {
-  const { session, tickets: initialTickets, agents, statuses } = loaderData;
+  const { session, tickets: initialTickets, totalTickets, agents, statuses, stats } = loaderData;
   const navigate = useNavigate();
+  const tableWrapperRef = useRef<HTMLDivElement>(null);
+  
+  // State for infinite scroll
   const [tickets, setTickets] = useState(initialTickets);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(initialTickets.length < totalTickets);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   useEffect(() => {
     if (session?.authToken) {
@@ -74,27 +85,51 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
     }
   }, [session]);
 
+  // Infinite Scroll Logic
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !isLoadingMore) {
+          loadMoreTickets();
+        }
+      },
+      { 
+        root: tableWrapperRef.current,
+        threshold: 0.1 
+      }
+    );
+
+    const sentinel = document.getElementById("scroll-sentinel");
+    if (sentinel) {
+      observer.observe(sentinel);
+    }
+
+    return () => observer.disconnect();
+  }, [hasMore, isLoadingMore, page]);
+
+  const loadMoreTickets = async () => {
+    setIsLoadingMore(true);
+    const nextPage = page + 1;
+    const response = await getTickets({ page: nextPage, per_page: 5 });
+    
+    if (response.tickets.length > 0) {
+      setTickets((prev) => [...prev, ...response.tickets]);
+      setPage(nextPage);
+      setHasMore(tickets.length + response.tickets.length < totalTickets);
+    } else {
+      setHasMore(false);
+    }
+    setIsLoadingMore(false);
+  };
+
   const isAdministrator = session.userRole === 'Administrator';
 
   const metrics = useMemo(() => ({
-    new: tickets.filter((t) => {
-      const s = t.status.toLowerCase();
-      return s === 'new' || s === 'triaged';
-    }).length,
-    inProgress: tickets.filter((t) => {
-      const s = t.status.toLowerCase();
-      return s === 'in progress' || s === 'in-progress' || s === 'assigned';
-    }).length,
-    resolved: tickets.filter((t) => {
-      const s = t.status.toLowerCase();
-      return s === 'resolved' || s === 'closed';
-    }).length,
-    critical: tickets.filter((t) => {
-      const s = t.status.toLowerCase();
-      const p = t.priority.toLowerCase();
-      return p === 'critical' && s !== 'resolved' && s !== 'closed';
-    }).length,
-  }), [tickets]);
+    new: stats?.new || 0,
+    inProgress: stats?.assigned || 0,
+    resolved: stats?.resolved || 0,
+    critical: stats?.byPriority?.critical || 0,
+  }), [stats]);
 
   const getStatusIcon = (status: string) => {
     const s = status.toLowerCase();
@@ -157,8 +192,19 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
     return status?.color || 'var(--color-neutral-8)';
   };
 
+  const handleDelete = async (id: number) => {
+    if (confirm("Are you sure you want to delete this ticket?")) {
+      const success = await deleteTicket(id.toString());
+      if (success) {
+        setTickets(prev => prev.filter(t => t.id !== id));
+      } else {
+        alert("Failed to delete ticket");
+      }
+    }
+  };
+
   return (
-    <>
+    <div className={styles.dashboardContainer}>
         {/* Welcome Section */}
         <div className={styles.welcomeSection}>
           <div className={styles.welcomeContent}>
@@ -226,7 +272,7 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
               <p className={styles.emptyStateText}>No tickets available</p>
             </div>
           ) : (
-            <div className={styles.tableWrapper}>
+            <div className={styles.tableWrapper} ref={tableWrapperRef}>
               <table className={styles.table}>
                 <thead>
                   <tr>
@@ -238,6 +284,7 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
                     <th>Submitter</th>
                     <th>Assigned To</th>
                     <th>Created</th>
+                    {isAdministrator && <th>Actions</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -369,13 +416,40 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
                           minute: '2-digit'
                         })}
                       </td>
+                      {isAdministrator && (
+                        <td onClick={(e) => e.stopPropagation()}>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className={styles.miniDeleteButton}
+                            onClick={() => handleDelete(ticket.id)}
+                          >
+                            <Trash2 size={14} />
+                          </Button>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
               </table>
+              
+              {/* Infinite Scroll Sentinel */}
+              <div id="scroll-sentinel" className={styles.sentinel}>
+                {isLoadingMore && (
+                  <div className={styles.loadingMore}>
+                    <CircleDot className={styles.loadingIcon} />
+                    <span>Loading more tickets...</span>
+                  </div>
+                )}
+                {!hasMore && tickets.length > 0 && (
+                  <div className={styles.noMore}>
+                    <span>No more tickets to load</span>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
-    </>
+    </div>
   );
 }

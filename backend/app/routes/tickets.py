@@ -62,11 +62,21 @@ def get_tickets():
         if not search and not assigned_to:
             return jsonify({'success': True, 'tickets': [], 'total': 0}), 200
 
-    tickets = query.order_by(Ticket.created_at.desc()).all()
+    # Total count before pagination
+    total = query.count()
+    
+    # Pagination
+    page = request.args.get('page', type=int)
+    per_page = request.args.get('per_page', default=20, type=int)
+    
+    if page:
+        query = query.order_by(Ticket.created_at.desc()).offset((page - 1) * per_page).limit(per_page)
+    else:
+        query = query.order_by(Ticket.created_at.desc())
+
+    tickets = query.all()
     
     # Update SLA status for each ticket
-    # Note: Optimization could be done here to avoid checking every time, 
-    # but keeping it for consistency with original logic
     for ticket in tickets:
         ticket.sla_status = TicketService.calculate_sla_status(ticket.sla_deadline, ticket.resolved_at)
     
@@ -75,7 +85,9 @@ def get_tickets():
     return jsonify({
         'success': True,
         'tickets': [ticket.to_dict(include_notes=False) for ticket in tickets],
-        'total': len(tickets)
+        'total': total,
+        'page': page,
+        'per_page': per_page
     }), 200
 
 
@@ -178,10 +190,11 @@ def update_ticket(ticket_id):
 @jwt_required()
 def delete_ticket(ticket_id):
     """Delete a ticket"""
+    user_id = get_jwt_identity()
     ticket = get_ticket_or_404(ticket_id)
     if not ticket:
         return jsonify({'success': False, 'error': 'Ticket tidak ditemukan'}), 404
-    success = TicketService.delete_ticket(ticket.id)
+    success = TicketService.delete_ticket(ticket.id, user_id)
     
     if not success:
         return jsonify({'success': False, 'error': 'Ticket tidak ditemukan'}), 404

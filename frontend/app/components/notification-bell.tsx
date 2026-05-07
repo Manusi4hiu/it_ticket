@@ -50,7 +50,7 @@ export function NotificationBell({ userId }: NotificationBellProps) {
     const fetchNotifications = async () => {
       try {
         // PERF: Only fetch tickets assigned to this user from the backend
-        const tickets = await getTickets({ assignedTo: userId });
+        const { tickets } = await getTickets({ assignedTo: userId });
 
         // Final frontend filter for status
         const assignedTickets = tickets.filter(

@@ -329,7 +329,7 @@ export default function TicketDetail({ loaderData }: Route.ComponentProps) {
     setLoadingStaffTickets(true);
 
     try {
-      const tickets = await getTickets({ assignedTo: staffId });
+      const { tickets } = await getTickets({ assignedTo: staffId });
       setStaffTickets(tickets);
     } catch (error) {
       console.error("Failed to fetch staff tickets:", error);
