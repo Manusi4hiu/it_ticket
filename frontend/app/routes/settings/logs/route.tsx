@@ -114,59 +114,61 @@ export default function SystemLogsSettings() {
                             No logs found.
                         </div>
                     ) : (
-                        <div style={{ overflowX: 'auto' }}>
-                            <table className={styles.dataTable}>
-                                <thead>
-                                    <tr>
-                                        <th>Timestamp</th>
-                                        <th>Action</th>
-                                        <th>Details</th>
-                                        <th>User</th>
-                                        <th>IP Address</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {filteredLogs.map((log) => (
-                                        <tr key={log.id}>
-                                            <td style={{ whiteSpace: 'nowrap' }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--color-neutral-10)', fontSize: '0.85rem' }}>
-                                                    <Clock size={14} />
-                                                    {formatDate(log.timestamp)}
-                                                </div>
-                                            </td>
-                                            <td>
-                                                <span
-                                                    className={styles.badge}
-                                                >
-                                                    {log.action}
-                                                </span>
-                                            </td>
-                                            <td>
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                                                    <span style={{ fontWeight: 500 }}>{log.details}</span>
-                                                    {log.targetId && (
-                                                        <span style={{ fontSize: '0.75rem', color: 'var(--color-neutral-9)' }}>
-                                                            Target ID: {log.targetId}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </td>
-                                            <td>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                    <User size={14} style={{ color: 'var(--color-neutral-9)' }} />
-                                                    {log.userName}
-                                                </div>
-                                            </td>
-                                            <td>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--color-primary-9)' }}>
-                                                    <Globe size={14} />
-                                                    <code style={{ fontSize: '0.9rem' }}>{log.ipAddress}</code>
-                                                </div>
-                                            </td>
+                        <div className={styles.tableContainer}>
+                            <div className={styles.scrollableArea}>
+                                <table className={styles.dataTable}>
+                                    <thead>
+                                        <tr>
+                                            <th>Timestamp</th>
+                                            <th>Action</th>
+                                            <th>Details</th>
+                                            <th>User</th>
+                                            <th>IP Address</th>
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                                    </thead>
+                                    <tbody>
+                                        {filteredLogs.map((log) => (
+                                            <tr key={log.id}>
+                                                <td style={{ whiteSpace: 'nowrap' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--color-neutral-10)', fontSize: '0.85rem' }}>
+                                                        <Clock size={14} />
+                                                        {formatDate(log.timestamp)}
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <span
+                                                        className={styles.badge}
+                                                    >
+                                                        {log.action}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                                        <span style={{ fontWeight: 500 }}>{log.details}</span>
+                                                        {log.targetId && (
+                                                            <span style={{ fontSize: '0.75rem', color: 'var(--color-neutral-9)' }}>
+                                                                Target ID: {log.targetId}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                        <User size={14} style={{ color: 'var(--color-neutral-9)' }} />
+                                                        {log.userName}
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--color-primary-9)' }}>
+                                                        <Globe size={14} />
+                                                        <code style={{ fontSize: '0.9rem' }}>{log.ipAddress}</code>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     )}
                 </CardContent>

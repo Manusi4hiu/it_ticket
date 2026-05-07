@@ -56,9 +56,9 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
   // Get all tickets assigned to this staff - Memoized
   const staffTickets = useMemo(() => {
     const assigned = tickets.filter((t) => t.assignedTo === staff.name);
-    const resolved = assigned.filter((t) => t.status === "resolved" || t.status === "closed");
-    const inProgress = assigned.filter((t) => t.status === "in-progress");
-    const pending = assigned.filter((t) => t.status === "assigned");
+    const resolved = assigned.filter((t) => t.status.toLowerCase() === "resolved" || t.status.toLowerCase() === "closed");
+    const inProgress = assigned.filter((t) => t.status.toLowerCase() === "in-progress");
+    const pending = assigned.filter((t) => t.status.toLowerCase() === "assigned");
 
     // Calculate resolution time
     const resTimes = resolved

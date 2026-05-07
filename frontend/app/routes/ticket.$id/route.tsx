@@ -58,8 +58,8 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   const statusesPromise = settingsApi.getStatuses();
 
   const [ticket, agents, prioritiesRes, statusesRes] = await Promise.all([
-    ticketPromise, 
-    agentsPromise, 
+    ticketPromise,
+    agentsPromise,
     prioritiesPromise,
     statusesPromise
   ]);
@@ -187,7 +187,7 @@ export default function TicketDetail({ loaderData }: Route.ComponentProps) {
 
 
   const handleUpdateStatus = async () => {
-    if ((status === "resolved" || status === "closed") && !ticket?.resolutionSummary) {
+    if ((status.toLowerCase() === "resolved" || status.toLowerCase() === "closed") && !ticket?.resolutionSummary) {
       setShowResolveDialog(true);
       return;
     }
@@ -347,7 +347,7 @@ export default function TicketDetail({ loaderData }: Route.ComponentProps) {
   };
 
   const formatTimeRemaining = (deadline: Date) => {
-    if (ticket.status === "resolved" || ticket.status === "closed") {
+    if (ticket.status.toLowerCase() === "resolved" || ticket.status.toLowerCase() === "closed") {
       if (ticket.resolvedAt && ticket.createdAt) {
         return formatDuration(new Date(ticket.createdAt), new Date(ticket.resolvedAt));
       }
@@ -416,8 +416,8 @@ export default function TicketDetail({ loaderData }: Route.ComponentProps) {
   };
 
   return (
-    <>
-      <div className={styles.headerActions} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-6)' }}>
+    <div className={styles.container}>
+      <div className={styles.headerActions}>
         <Button
           variant="outline"
           onClick={() => navigate(isPublic ? "/" : "/dashboard")}
@@ -428,528 +428,505 @@ export default function TicketDetail({ loaderData }: Route.ComponentProps) {
         </Button>
         {isPublic && <div className={styles.publicBadge}>Public Tracking View</div>}
       </div>
+      <main className={styles.main}>
         <div className={isPublic ? styles.gridPublic : styles.grid}>
-          {/* Left Column - Ticket Details */}
-          <div>
-            <div className={styles.section}>
-              <div className={styles.sectionHeader}>
-                <h2 className={styles.sectionTitle}>
-                  <FileText className={styles.sectionIcon} />
-                  Ticket Information
-                </h2>
-              </div>
-              <div className={styles.sectionContent}>
-                <div className={styles.ticketHeader}>
-                  <div className={styles.ticketId}>{ticket.ticketCode || ticket.id}</div>
-                  <h1 className={styles.ticketTitle}>{ticket.title}</h1>
-                  <div className={styles.ticketMeta}>
+        {/* Left Column - Ticket Details */}
+        <div>
+          <div className={styles.section}>
+            <div className={styles.sectionHeader}>
+              <h2 className={styles.sectionTitle}>
+                <FileText className={styles.sectionIcon} />
+                Ticket Information
+              </h2>
+            </div>
+            <div className={styles.sectionContent}>
+              <div className={styles.ticketHeader}>
+                <div className={styles.ticketId}>{ticket.ticketCode || ticket.id}</div>
+                <h1 className={styles.ticketTitle}>{ticket.title}</h1>
+                <div className={styles.ticketMeta}>
+                  <span
+                    className={styles.statusBadge}
+                    style={{
+                      backgroundColor: `${getStatusColor(ticket.status)}15`,
+                      color: getStatusColor(ticket.status),
+                      borderColor: `${getStatusColor(ticket.status)}30`,
+                    }}
+                  >
+                    {getStatusIconDetail(ticket.status)}
+                    {ticket.status}
+                  </span>
+                  {!isPublic && (
                     <span
-                      className={styles.statusBadge}
-                      style={{ 
-                        backgroundColor: `${getStatusColor(ticket.status)}15`, 
-                        color: getStatusColor(ticket.status),
-                        borderColor: `${getStatusColor(ticket.status)}30`,
-                        border: '1px solid',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        padding: '4px 10px',
-                        borderRadius: '100px',
-                        fontSize: '0.85rem',
-                        fontWeight: 600
-                      }}
+                      className={`${styles.priorityBadge} ${styles[`priority${ticket.priority.charAt(0).toUpperCase() + ticket.priority.slice(1)}`]}`}
                     >
-                      {getStatusIconDetail(ticket.status)}
-                      {ticket.status}
+                      {ticket.priority === "critical" && <ArrowUpCircle style={{ width: "14px", height: "14px" }} />}
+                      {ticket.priority}
                     </span>
-                    {!isPublic && (
-                      <span
-                        className={`${styles.priorityBadge} ${styles[`priority${ticket.priority.charAt(0).toUpperCase() + ticket.priority.slice(1)}`]}`}
-                      >
-                        {ticket.priority === "critical" && <ArrowUpCircle style={{ width: "14px", height: "14px" }} />}
-                        {ticket.priority}
-                      </span>
-                    )}
-                  </div>
+                  )}
                 </div>
+              </div>
 
                 <div className={styles.infoGrid}>
                   <div className={styles.infoItem}>
                     <span className={styles.infoLabel}>
-                      <User style={{ width: "14px", height: "14px", display: "inline", marginRight: "6px" }} />
+                      <User />
                       Submitter
                     </span>
                     <span className={styles.infoValue}>{ticket.submitterName}</span>
                   </div>
 
-                  <div className={styles.infoItem}>
-                    <span className={styles.infoLabel}>
-                      <Calendar style={{ width: "14px", height: "14px", display: "inline", marginRight: "6px" }} />
-                      Created
-                    </span>
-                    <span className={styles.infoValue}>{formatDate(ticket.createdAt)}</span>
-                  </div>
+                <div className={styles.infoItem}>
+                  <span className={styles.infoLabel}>
+                    <Calendar />
+                    Created
+                  </span>
+                  <span className={styles.infoValue}>{formatDate(ticket.createdAt)}</span>
+                </div>
 
-                  { /* Show minimal info for public */}
-                  {!isPublic && (
-                    <>
+                { /* Show minimal info for public */}
+                {!isPublic && (
+                  <>
+                    <div className={styles.infoItem}>
+                      <span className={styles.infoLabel}>
+                        <Mail />
+                        Email
+                      </span>
+                      <span className={styles.infoValue}>{ticket.submitterEmail}</span>
+                    </div>
+
+                    {ticket.submitterPhone && (
                       <div className={styles.infoItem}>
                         <span className={styles.infoLabel}>
-                          <Mail style={{ width: "14px", height: "14px", display: "inline", marginRight: "6px" }} />
-                          Email
+                          <Phone />
+                          Phone
                         </span>
-                        <span className={styles.infoValue}>{ticket.submitterEmail}</span>
+                        <span className={styles.infoValue}>{ticket.submitterPhone}</span>
                       </div>
+                    )}
 
-                      {ticket.submitterPhone && (
-                        <div className={styles.infoItem}>
-                          <span className={styles.infoLabel}>
-                            <Phone style={{ width: "14px", height: "14px", display: "inline", marginRight: "6px" }} />
-                            Phone
-                          </span>
-                          <span className={styles.infoValue}>{ticket.submitterPhone}</span>
-                        </div>
-                      )}
+                    {ticket.submitterDepartment && (
+                      <div className={styles.infoItem}>
+                        <span className={styles.infoLabel}>
+                          <Building />
+                          Department
+                        </span>
+                        <span className={styles.infoValue}>{ticket.submitterDepartment}</span>
+                      </div>
+                    )}
+                  </>
+                )}
 
-                      {ticket.submitterDepartment && (
-                        <div className={styles.infoItem}>
-                          <span className={styles.infoLabel}>
-                            <Building style={{ width: "14px", height: "14px", display: "inline", marginRight: "6px" }} />
-                            Department
-                          </span>
-                          <span className={styles.infoValue}>{ticket.submitterDepartment}</span>
-                        </div>
-                      )}
-                    </>
-                  )}
-
-                  <div className={styles.infoItem}>
-                    <span className={styles.infoLabel}>
-                      <Tag style={{ width: "14px", height: "14px", display: "inline", marginRight: "6px" }} />
-                      Category
-                    </span>
-                    <span className={styles.infoValue}>
-                      <Badge variant="outline">{ticket.category}</Badge>
-                    </span>
-                  </div>
-
-                  <div className={styles.infoItem}>
-                    <span className={styles.infoLabel}>
-                      <Clock style={{ width: "14px", height: "14px", display: "inline", marginRight: "6px" }} />
-                      Last Updated
-                    </span>
-                    <span className={styles.infoValue}>{formatDate(ticket.updatedAt)}</span>
-                  </div>
+                <div className={styles.infoItem}>
+                  <span className={styles.infoLabel}>
+                    <Tag />
+                    Category
+                  </span>
+                  <span className={styles.infoValue}>
+                    <Badge variant="outline">{ticket.category}</Badge>
+                  </span>
                 </div>
 
-                <div className={styles.description}>
-                  <h3 style={{ fontSize: '0.9rem', color: 'var(--color-neutral-10)', marginBottom: 'var(--space-2)' }}>Description</h3>
-                  <p className={styles.descriptionText}>{ticket.description}</p>
+                <div className={styles.infoItem}>
+                  <span className={styles.infoLabel}>
+                    <Clock />
+                    Last Updated
+                  </span>
+                  <span className={styles.infoValue}>{formatDate(ticket.updatedAt)}</span>
                 </div>
+              </div>
 
-                {ticket.imageUrl && (
-                  <div className={styles.attachmentSection} style={{ marginTop: 'var(--space-4)' }}>
-                    <h3 style={{ fontSize: '0.9rem', color: 'var(--color-neutral-10)', marginBottom: 'var(--space-2)' }}>
-                      <ImageIcon size={14} style={{ display: 'inline', marginRight: 6, opacity: 0.7 }} />
-                      Attachment
-                    </h3>
-                    <div className={styles.imageAttachment}>
-                      <a
-                        href={`http://localhost:5000${ticket.imageUrl}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={styles.imageLink}
+              <div className={styles.description}>
+                <h3>Description</h3>
+                <p className={styles.descriptionText}>{ticket.description}</p>
+              </div>
+
+              {ticket.imageUrl && (
+                <div className={styles.attachmentSection}>
+                  <h3>
+                    <ImageIcon size={14} style={{ display: 'inline', marginRight: 6, opacity: 0.7 }} />
+                    Attachment
+                  </h3>
+                  <div className={styles.imageAttachment}>
+                    <a
+                      href={`http://localhost:5000${ticket.imageUrl}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={styles.imageLink}
+                    >
+                      <img
+                        src={`http://localhost:5000${ticket.imageUrl}`}
+                        alt="Ticket Attachment"
+                      />
+                    </a>
+                  </div>
+                </div>
+              )}
+
+              <div className={styles.staffGrid}>
+                <div className={styles.infoItem}>
+                  <span className={styles.infoLabel}>
+                    <User />
+                    Staff Assigned
+                  </span>
+                  <span className={styles.infoValue}>
+                    {ticket.assignedToId ? (
+                      <span
+                        className={styles.profileLink}
+                        onClick={() => handleStaffClick(ticket.assignedToId!)}
                       >
-                        <img
-                          src={`http://localhost:5000${ticket.imageUrl}`}
-                          alt="Ticket Attachment"
-                          style={{
-                            maxWidth: '100%',
-                            maxHeight: '400px',
-                            borderRadius: '12px',
-                            border: '1px solid rgba(255, 255, 255, 0.1)',
-                            boxShadow: '0 8px 16px rgba(0, 0, 0, 0.2)',
-                            cursor: 'zoom-in',
-                            display: 'block'
-                          }}
-                        />
-                      </a>
-                    </div>
-                  </div>
-                )}
+                        {ticket.assignedTo}
+                      </span>
+                    ) : (
+                      ticket.assignedTo || "Waiting for Assignment"
+                    )}
+                  </span>
+                </div>
 
-                <div className={styles.staffGrid} style={{ marginTop: 'var(--space-6)', paddingTop: 'var(--space-4)', borderTop: '1px solid var(--color-neutral-3)' }}>
+                {ticket.collaborators && ticket.collaborators.length > 0 && (
                   <div className={styles.infoItem}>
                     <span className={styles.infoLabel}>
-                      <User style={{ width: "14px", height: "14px", display: "inline", marginRight: "6px" }} />
-                      Staff Assigned
+                      <Users />
+                      Collaborators
                     </span>
-                    <span className={styles.infoValue}>
-                      {ticket.assignedToId ? (
-                        <span
-                          className={styles.profileLink}
-                          onClick={() => handleStaffClick(ticket.assignedToId!)}
-                        >
-                          {ticket.assignedTo}
-                        </span>
-                      ) : (
-                        ticket.assignedTo || "Waiting for Assignment"
-                      )}
-                    </span>
-                  </div>
-
-                  {ticket.collaborators && ticket.collaborators.length > 0 && (
-                    <div className={styles.infoItem} style={{ marginTop: 'var(--space-3)' }}>
-                      <span className={styles.infoLabel}>
-                        <Users style={{ width: "14px", height: "14px", display: "inline", marginRight: "6px" }} />
-                        Collaborators
-                      </span>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)', marginTop: 'var(--space-1)' }}>
-                        {ticket.collaborators.map((c, i) => {
-                          const collaboratorId = ticket.collaboratorIds[i];
-                          return (
-                            <Badge key={i} variant="secondary" style={{ padding: '2px 8px', fontSize: '0.8rem' }}>
-                              {collaboratorId ? (
-                                <span
-                                  className={styles.profileLinkBadge}
-                                  onClick={() => handleStaffClick(collaboratorId)}
-                                >
-                                  {c}
-                                </span>
-                              ) : c}
-                            </Badge>
-                          );
-                        })}
-                      </div>
+                    <div className={styles.collaboratorsList}>
+                      {ticket.collaborators.map((c, i) => {
+                        const collaboratorId = ticket.collaboratorIds[i];
+                        return (
+                          <Badge key={i} variant="secondary" className={styles.collaboratorBadge}>
+                            {collaboratorId ? (
+                              <span
+                                className={styles.profileLinkBadge}
+                                onClick={() => handleStaffClick(collaboratorId)}
+                              >
+                                {c}
+                              </span>
+                            ) : c}
+                          </Badge>
+                        );
+                      })}
                     </div>
-                  )}
-                </div>
-
-                {ticket.resolutionSummary && (
-                  <div className={styles.resolutionSection}>
-                    <h3 className={styles.resolutionTitle}>
-                      <CheckCircle className={styles.resolutionIcon} />
-                      Resolution Summary
-                    </h3>
-                    <p className={styles.resolutionText}>{ticket.resolutionSummary}</p>
                   </div>
                 )}
               </div>
-            </div>
 
-            {/* Notes Timeline - HIDDEN FOR PUBLIC */}
-            {!isPublic && (
-              <div className={styles.section} style={{ marginTop: "var(--space-6)" }}>
-                <div className={styles.sectionHeader}>
-                  <h2 className={styles.sectionTitle}>
-                    <MessageSquare className={styles.sectionIcon} />
-                    Activity & Notes
-                  </h2>
+              {ticket.resolutionSummary && (
+                <div className={styles.resolutionSection}>
+                  <h3 className={styles.resolutionTitle}>
+                    <CheckCircle className={styles.resolutionIcon} />
+                    Resolution Summary
+                  </h3>
+                  <p className={styles.resolutionText}>{ticket.resolutionSummary}</p>
                 </div>
-                <div className={styles.sectionContent}>
-                  {ticket.notes.length === 0 ? (
-                    <div className={styles.emptyNotes}>
-                      <MessageSquare className={styles.emptyNotesIcon} />
-                      <p>No notes or activity yet</p>
-                    </div>
-                  ) : (
-                    <div className={styles.timeline}>
-                      {ticket.notes.map((note) => (
-                        <div key={note.id} className={styles.timelineItem}>
-                          <div className={`${styles.timelineIcon} ${note.isInternal ? styles.timelineIconInternal : ""}`}>
-                            <MessageSquare style={{ width: "16px", height: "16px" }} />
-                          </div>
-                          <div className={styles.timelineContent}>
-                            <div className={styles.timelineHeader}>
-                              <span className={styles.timelineAuthor}>{note.author}</span>
-                              <span className={styles.timelineTime}>{formatDate(note.createdAt)}</span>
-                            </div>
-                            <p className={styles.timelineText}>{note.content}</p>
-                            {note.imageUrl && (
-                              <div className={styles.noteImageContainer}>
-                                <a
-                                  href={`http://localhost:5000${note.imageUrl}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                >
-                                  <img
-                                    src={`http://localhost:5000${note.imageUrl}`}
-                                    alt="Documentation"
-                                    className={styles.noteImage}
-                                  />
-                                </a>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
-          {/* Right Column - Actions & SLA - MAINLY HIDDEN FOR PUBLIC */}
+          {/* Notes Timeline - HIDDEN FOR PUBLIC */}
           {!isPublic && (
-            <div>
-              {/* SLA Status */}
-              <div className={`${styles.slaCard} ${getSLAStatusClass(ticket.slaStatus)}`}>
-                <div className={styles.slaHeader}>
-                  {getSLAIcon()}
-                  <h3
-                    className={`${styles.slaTitle} ${styles[`slaTitle${ticket.slaStatus.charAt(0).toUpperCase() + ticket.slaStatus.slice(1)}`]}`}
-                  >
-                    {ticket.status === "resolved" || ticket.status === "closed"
-                      ? "Resolution Time"
-                      : (
-                        <>
-                          {ticket.slaStatus === "good" && "SLA On Track"}
-                          {ticket.slaStatus === "warning" && "SLA Warning"}
-                          {ticket.slaStatus === "breached" && "SLA Breached"}
-                        </>
-                      )
-                    }
-                  </h3>
-                </div>
-                <div
-                  className={`${styles.slaTime} ${styles[`slaTime${ticket.slaStatus.charAt(0).toUpperCase() + ticket.slaStatus.slice(1)}`]}`}
-                >
-                  {formatTimeRemaining(ticket.slaDeadline)}
-                </div>
-                <p
-                  className={`${styles.slaDeadline} ${styles[`slaDeadline${ticket.slaStatus.charAt(0).toUpperCase() + ticket.slaStatus.slice(1)}`]}`}
-                >
-                  Deadline: {formatDate(ticket.slaDeadline)}
-                </p>
+            <div className={styles.section} id="activity">
+              <div className={styles.sectionHeader}>
+                <h2 className={styles.sectionTitle}>
+                  <MessageSquare className={styles.sectionIcon} />
+                  Activity & Notes
+                </h2>
               </div>
-
-              {/* Actions Panel */}
-              <div className={styles.section}>
-                <div className={styles.sectionHeader}>
-                  <h2 className={styles.sectionTitle}>
-                    <Settings className={styles.sectionIcon} />
-                    Ticket Actions
-                  </h2>
-                </div>
-                <div className={styles.sectionContent}>
-                  <form className={styles.actionForm}>
-                    <div className={styles.formGroup}>
-                      <Label htmlFor="status">Update Status</Label>
-                      <Select
-                        value={status}
-                        onValueChange={(value) => setStatus(value)}
-                        disabled={isManagement}
-                      >
-                        <SelectTrigger id="status">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {statuses.map(s => (
-                            <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {isManagement && (
-                        <p style={{ fontSize: "0.75rem", color: "var(--color-neutral-9)", marginTop: "var(--space-1)" }}>
-                          Management role has view-only access
-                        </p>
-                      )}
-                    </div>
-
-                    <div className={styles.formGroup}>
-                      <Label>Ticket Priority</Label>
-                      <div style={{ marginTop: 'var(--space-1)' }}>
-                        <span
-                          className={`${styles.priorityBadge} ${styles[`priority${ticket.priority.charAt(0).toUpperCase() + ticket.priority.slice(1)}`]}`}
-                        >
-                          {ticket.priority === "critical" && <ArrowUpCircle style={{ width: "14px", height: "14px", marginRight: '6px' }} />}
-                          {ticket.priority}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className={styles.formGroup}>
-                      <Label htmlFor="assignee">Assign To</Label>
-                      <Select
-                        value={assignedTo || "unassigned"}
-                        onValueChange={(value) => setAssignedTo(value === "unassigned" ? "" : value)}
-                        disabled={isManagement || !isAdministrator}
-                      >
-                        <SelectTrigger id="assignee">
-                          <SelectValue placeholder="Select agent..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="unassigned">Unassigned</SelectItem>
-                          {agents.map((agent) => (
-                            <SelectItem key={agent.id} value={agent.name}>
-                              {agent.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {/* ... permission texts ... */}
-                    </div>
-
-                    {/* ... collaborators inputs ... */}
-                    {/* Collaborators Section */}
-                    <div className={styles.formGroup}>
-                      <Label>Collaborators</Label>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-                        {collaborators.length > 0 && (
-                          <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-2)" }}>
-                            {collaborators.map((collaborator) => (
-                              <Badge
-                                key={collaborator}
-                                variant="secondary"
-                                style={{
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: "var(--space-1)",
-                                  paddingRight: "var(--space-1)",
-                                }}
-                              >
-                                <Users style={{ width: "12px", height: "12px" }} />
-                                {collaborator}
-                                {(isAdministrator || assignedTo === currentUser?.name) && !isManagement && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRemoveCollaborator(collaborator)}
-                                    style={{
-                                      background: "none",
-                                      border: "none",
-                                      padding: "2px",
-                                      cursor: "pointer",
-                                      display: "flex",
-                                      alignItems: "center",
-                                    }}
-                                  >
-                                    <X style={{ width: "12px", height: "12px" }} />
-                                  </button>
-                                )}
-                              </Badge>
-                            ))}
-                          </div>
-                        )}
-                        {(isAdministrator || assignedTo === currentUser?.name) && !isManagement && (
-                          <Select onValueChange={(value) => handleAddCollaborator(value)}>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Add collaborator..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {agents
-                                .filter((agent) => agent.name !== assignedTo && !collaboratorIds.includes(agent.id))
-                                .map((agent) => (
-                                  <SelectItem key={agent.id} value={agent.id}>
-                                    {agent.name}
-                                  </SelectItem>
-                                ))}
-                            </SelectContent>
-                          </Select>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className={styles.formGroup}>
-                      <Label htmlFor="note">Add Internal Note</Label>
-                      <Textarea
-                        id="note"
-                        placeholder="Add notes about this ticket..."
-                        rows={4}
-                        value={newNote}
-                        onChange={(e) => setNewNote(e.target.value)}
-                      />
-                    </div>
-
-                    <div className={styles.formGroup}>
-                      <Label>Documentation (Image)</Label>
-                      <div className={styles.fileUploadContainer}>
-                        <input
-                          type="file"
-                          id="note-image"
-                          accept="image/*"
-                          onChange={(e) => {
-                            if (e.target.files && e.target.files[0]) {
-                              setNoteImage(e.target.files[0]);
-                            }
-                          }}
-                          className={styles.fileInput}
-                        />
-                        <Label htmlFor="note-image" className={styles.fileLabel}>
-                          <ImageIcon size={18} style={{ marginRight: 8 }} />
-                          {noteImage ? 'Change Image' : 'Select Image'}
-                        </Label>
-
-                        {noteImage && (
-                          <div className={styles.filePreview}>
-                            <div className={styles.previewInfo}>
-                              <ImageIcon size={14} style={{ marginRight: 6 }} />
-                              <span className={styles.fileName}>{noteImage.name}</span>
-                              <button
-                                type="button"
-                                onClick={() => setNoteImage(null)}
-                                className={styles.removeFile}
-                              >
-                                <X size={14} />
-                              </button>
-                            </div>
-                            <img
-                              src={URL.createObjectURL(noteImage)}
-                              alt="Preview"
-                              className={styles.imagePreviewThumb}
-                            />
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {!isManagement && (
-                      <>
-                        <Button type="button" onClick={handleUpdateStatus}>
-                          Update Ticket
-                        </Button>
-
-                        {ticket?.status !== "resolved" && ticket?.status !== "closed" && (
-                          <Button
-                            type="button"
-                            onClick={handleOpenResolveDialog}
-                            variant="default"
-                            style={{ marginTop: "var(--space-4)" }}
-                            disabled={!ticket?.assignedTo || (ticket?.assignedTo !== currentUser?.name)}
-                          >
-                            <CheckCircle style={{ width: "16px", height: "16px", marginRight: "8px" }} />
-                            Mark as Resolved
-                          </Button>
-                        )}
-
-                        {/* Close button... */}
-                      </>
-                    )}
-                  </form>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Public Info Card */}
-          {isPublic && (
-            <div className={styles.publicSidebar}>
-              <div className={`${styles.slaCard} ${styles.slaInfoOnly}`}>
-                <h3 className={styles.sidebarTitle}>Ticket Status</h3>
-                <p>This is a read-only view of your ticket status. If you need to add more information, please reply to the confirmation email you received.</p>
-                <div className={styles.statusBox}>
-                  <strong>Current Status</strong>
-                  <div className={`${styles.statusBadge} ${styles[
-                    `status${ticket.status.replace("-", "")}`
-                  ]}`} style={{ marginTop: '0.5rem', display: 'inline-flex' }}>
-                    {getStatusIconDetail(ticket.status)}
-                    {ticket.status.replace("-", " ")}
+              <div className={styles.sectionContent}>
+                {ticket.notes.length === 0 ? (
+                  <div className={styles.emptyNotes}>
+                    <MessageSquare className={styles.emptyNotesIcon} />
+                    <p>No notes or activity yet</p>
                   </div>
-                </div>
+                ) : (
+                  <div className={styles.timeline}>
+                    {ticket.notes.map((note) => (
+                      <div key={note.id} className={styles.timelineItem}>
+                        <div className={`${styles.timelineIcon} ${note.isInternal ? styles.timelineIconInternal : ""}`}>
+                          <MessageSquare />
+                        </div>
+                        <div className={styles.timelineContent}>
+                          <div className={styles.timelineHeader}>
+                            <span className={styles.timelineAuthor}>{note.author}</span>
+                            <span className={styles.timelineTime}>{formatDate(note.createdAt)}</span>
+                          </div>
+                          <p className={styles.timelineText}>{note.content}</p>
+                          {note.imageUrl && (
+                            <div className={styles.noteImageContainer}>
+                              <a
+                                href={`http://localhost:5000${note.imageUrl}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              >
+                                <img
+                                  src={`http://localhost:5000${note.imageUrl}`}
+                                  alt="Documentation"
+                                  className={styles.noteImage}
+                                />
+                              </a>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}
         </div>
+
+        {/* Right Column - Actions & SLA - MAINLY HIDDEN FOR PUBLIC */}
+        {!isPublic && (
+          <div>
+            {/* SLA Status */}
+            <div className={`${styles.slaCard} ${getSLAStatusClass(ticket.slaStatus)}`}>
+              <div className={styles.slaHeader}>
+                {getSLAIcon()}
+                <h3
+                  className={`${styles.slaTitle} ${styles[`slaTitle${ticket.slaStatus.charAt(0).toUpperCase() + ticket.slaStatus.slice(1)}`]}`}
+                >
+                  {ticket.status.toLowerCase() === "resolved" || ticket.status.toLowerCase() === "closed"
+                    ? "Resolution Time"
+                    : (
+                      <>
+                        {ticket.slaStatus === "good" && "SLA On Track"}
+                        {ticket.slaStatus === "warning" && "SLA Warning"}
+                        {ticket.slaStatus === "breached" && "SLA Breached"}
+                      </>
+                    )
+                  }
+                </h3>
+              </div>
+              <div
+                className={`${styles.slaTime} ${styles[`slaTime${ticket.slaStatus.charAt(0).toUpperCase() + ticket.slaStatus.slice(1)}`]}`}
+              >
+                {formatTimeRemaining(ticket.slaDeadline)}
+              </div>
+              <p
+                className={`${styles.slaDeadline} ${styles[`slaDeadline${ticket.slaStatus.charAt(0).toUpperCase() + ticket.slaStatus.slice(1)}`]}`}
+              >
+                Deadline: {formatDate(ticket.slaDeadline)}
+              </p>
+            </div>
+
+            {/* Actions Panel */}
+            <div className={styles.section}>
+              <div className={styles.sectionHeader}>
+                <h2 className={styles.sectionTitle}>
+                  <Settings className={styles.sectionIcon} />
+                  Ticket Actions
+                </h2>
+              </div>
+              <div className={styles.sectionContent}>
+                <form className={styles.actionForm}>
+                  <div className={styles.formGroup}>
+                    <Label htmlFor="status">Update Status</Label>
+                    <Select
+                      value={status}
+                      onValueChange={(value) => setStatus(value)}
+                      disabled={isManagement}
+                    >
+                      <SelectTrigger id="status">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {statuses.map(s => (
+                          <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {isManagement && (
+                      <p style={{ fontSize: "0.75rem", color: "var(--color-neutral-9)", marginTop: "var(--space-1)" }}>
+                        Management role has view-only access
+                      </p>
+                    )}
+                  </div>
+
+                  <div className={styles.formGroup}>
+                    <Label>Ticket Priority</Label>
+                    <div className={styles.priorityContainer}>
+                      <span
+                        className={`${styles.priorityBadge} ${styles[`priority${ticket.priority.charAt(0).toUpperCase() + ticket.priority.slice(1)}`]}`}
+                      >
+                        {ticket.priority === "critical" && <ArrowUpCircle style={{ width: "14px", height: "14px", marginRight: '6px' }} />}
+                        {ticket.priority}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className={styles.formGroup}>
+                    <Label htmlFor="assignee">Assign To</Label>
+                    <Select
+                      value={assignedTo || "unassigned"}
+                      onValueChange={(value) => setAssignedTo(value === "unassigned" ? "" : value)}
+                      disabled={isManagement || !isAdministrator}
+                    >
+                      <SelectTrigger id="assignee">
+                        <SelectValue placeholder="Select agent..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="unassigned">Unassigned</SelectItem>
+                        {agents.map((agent) => (
+                          <SelectItem key={agent.id} value={agent.name}>
+                            {agent.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {/* ... permission texts ... */}
+                  </div>
+
+                  {/* ... collaborators inputs ... */}
+                  {/* Collaborators Section */}
+                  <div className={styles.formGroup}>
+                    <Label>Collaborators</Label>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
+                      {collaborators.length > 0 && (
+                        <div className={styles.collaboratorsList}>
+                          {collaborators.map((collaborator) => (
+                            <Badge
+                              key={collaborator}
+                              variant="secondary"
+                              className={styles.collaboratorBadgeAction}
+                            >
+                              <Users style={{ width: "12px", height: "12px" }} />
+                              {collaborator}
+                              {(isAdministrator || assignedTo === currentUser?.name) && !isManagement && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveCollaborator(collaborator)}
+                                  className={styles.removeCollaboratorBtn}
+                                >
+                                  <X />
+                                </button>
+                              )}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                      {(isAdministrator || assignedTo === currentUser?.name) && !isManagement && (
+                        <Select onValueChange={(value) => handleAddCollaborator(value)}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Add collaborator..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {agents
+                              .filter((agent) => agent.name !== assignedTo && !collaboratorIds.includes(agent.id))
+                              .map((agent) => (
+                                <SelectItem key={agent.id} value={agent.id}>
+                                  {agent.name}
+                                </SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className={styles.formGroup}>
+                    <Label htmlFor="note">Add Internal Note</Label>
+                    <Textarea
+                      id="note"
+                      placeholder="Add notes about this ticket..."
+                      rows={4}
+                      value={newNote}
+                      onChange={(e) => setNewNote(e.target.value)}
+                    />
+                  </div>
+
+                  <div className={styles.formGroup}>
+                    <Label>Documentation (Image)</Label>
+                    <div className={styles.fileUploadContainer}>
+                      <input
+                        type="file"
+                        id="note-image"
+                        accept="image/*"
+                        onChange={(e) => {
+                          if (e.target.files && e.target.files[0]) {
+                            setNoteImage(e.target.files[0]);
+                          }
+                        }}
+                        className={styles.fileInput}
+                      />
+                      <Label htmlFor="note-image" className={styles.fileLabel}>
+                        <ImageIcon size={18} style={{ marginRight: 8 }} />
+                        {noteImage ? 'Change Image' : 'Select Image'}
+                      </Label>
+
+                      {noteImage && (
+                        <div className={styles.filePreview}>
+                          <div className={styles.previewInfo}>
+                            <ImageIcon size={14} style={{ marginRight: 6 }} />
+                            <span className={styles.fileName}>{noteImage.name}</span>
+                            <button
+                              type="button"
+                              onClick={() => setNoteImage(null)}
+                              className={styles.removeFile}
+                            >
+                              <X size={14} />
+                            </button>
+                          </div>
+                          <img
+                            src={URL.createObjectURL(noteImage)}
+                            alt="Preview"
+                            className={styles.imagePreviewThumb}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {!isManagement && (
+                    <>
+                      <Button type="button" onClick={handleUpdateStatus}>
+                        Update Ticket
+                      </Button>
+
+                      <Button
+                        type="button"
+                        onClick={handleOpenResolveDialog}
+                        variant="default"
+                        className={styles.resolveButton}
+                        disabled={
+                          !ticket?.assignedTo ||
+                          (ticket?.assignedTo !== currentUser?.name) ||
+                          ticket.status.toLowerCase() === "resolved" ||
+                          ticket.status.toLowerCase() === "closed"
+                        }
+                      >
+                        <CheckCircle />
+                        {ticket.status.toLowerCase() === "resolved" || ticket.status.toLowerCase() === "closed"
+                          ? "Ticket Resolved"
+                          : "Mark as Resolved"}
+                      </Button>
+
+                      {/* Close button... */}
+                    </>
+                  )}
+                </form>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Public Info Card */}
+        {isPublic && (
+          <div className={styles.publicSidebar}>
+            <div className={`${styles.slaCard} ${styles.slaInfoOnly}`}>
+              <h3 className={styles.sidebarTitle}>Ticket Status</h3>
+              <p>This is a read-only view of your ticket status. If you need to add more information, please reply to the confirmation email you received.</p>
+              <div className={styles.statusBox}>
+                <strong>Current Status</strong>
+                <div className={`${styles.statusBadge} ${styles[
+                  `status${ticket.status.replace("-", "")}`
+                ]}`}>
+                  {getStatusIconDetail(ticket.status)}
+                  {ticket.status.replace("-", " ")}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Resolution Dialog - Only for Staff */}
       <Dialog open={showResolveDialog} onOpenChange={setShowResolveDialog}>
@@ -1073,6 +1050,7 @@ export default function TicketDetail({ loaderData }: Route.ComponentProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </>
+      </main>
+    </div>
   );
 }

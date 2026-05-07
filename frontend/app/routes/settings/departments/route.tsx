@@ -101,58 +101,60 @@ export default function DepartmentsSettings() {
                             No departments found. Create one to get started.
                         </div>
                     ) : (
-                        <table className={styles.dataTable}>
-                            <thead>
-                                <tr>
-                                    <th>Name</th>
-                                    <th>Code (ID Prefix)</th>
-                                    <th>Description</th>
-                                    <th>Status</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {departments.map((department) => (
-                                    <tr key={department.id}>
-                                        <td style={{ fontWeight: 500 }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                <Building2 size={14} />
-                                                {department.name}
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <code className={styles.code}>
-                                                {department.code || '-'}
-                                            </code>
-                                        </td>
-                                        <td>{department.description || '-'}</td>
-                                        <td>
-                                            <span className={department.isActive ? styles.statusActive : styles.statusInactive}>
-                                                {department.isActive ? 'Active' : 'Inactive'}
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <div style={{ display: 'flex', gap: 8 }}>
-                                                <Button variant="outline" size="sm" onClick={() => openEditDialog(department)}>
-                                                    <Pencil size={14} />
-                                                </Button>
-                                                <Form method="post" onSubmit={(e) => {
-                                                    if (!confirm('Are you sure you want to delete this department?')) {
-                                                        e.preventDefault();
-                                                    }
-                                                }}>
-                                                    <input type="hidden" name="intent" value="delete" />
-                                                    <input type="hidden" name="id" value={department.id} />
-                                                    <Button variant="outline" size="sm" style={{ color: 'var(--color-critical-9)' }}>
-                                                        <Trash2 size={14} />
-                                                    </Button>
-                                                </Form>
-                                            </div>
-                                        </td>
+                        <div className={styles.tableContainer}>
+                            <table className={styles.dataTable}>
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Code (ID Prefix)</th>
+                                        <th>Description</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody>
+                                    {departments.map((department) => (
+                                        <tr key={department.id}>
+                                            <td style={{ fontWeight: 500 }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                    <Building2 size={14} />
+                                                    {department.name}
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <code className={styles.code}>
+                                                    {department.code || '-'}
+                                                </code>
+                                            </td>
+                                            <td>{department.description || '-'}</td>
+                                            <td>
+                                                <span className={department.isActive ? styles.statusActive : styles.statusInactive}>
+                                                    {department.isActive ? 'Active' : 'Inactive'}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <div style={{ display: 'flex', gap: 8 }}>
+                                                    <Button variant="outline" size="sm" onClick={() => openEditDialog(department)}>
+                                                        <Pencil size={14} />
+                                                    </Button>
+                                                    <Form method="post" onSubmit={(e) => {
+                                                        if (!confirm('Are you sure you want to delete this department?')) {
+                                                            e.preventDefault();
+                                                        }
+                                                    }}>
+                                                        <input type="hidden" name="intent" value="delete" />
+                                                        <input type="hidden" name="id" value={department.id} />
+                                                        <Button variant="outline" size="sm" style={{ color: 'var(--color-critical-9)' }}>
+                                                            <Trash2 size={14} />
+                                                        </Button>
+                                                    </Form>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
                     )}
                 </CardContent>
             </Card>

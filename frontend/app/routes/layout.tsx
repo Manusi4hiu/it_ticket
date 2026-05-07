@@ -1,10 +1,11 @@
 import { Outlet, useNavigate, Form, redirect, NavLink, useLocation } from "react-router";
-import { 
-  User, 
-  Users, 
-  BarChart3, 
-  Settings, 
-  LogOut 
+import {
+  User,
+  Users,
+  BarChart3,
+  Settings,
+  LogOut,
+  Inbox
 } from "lucide-react";
 import { NotificationBell } from "~/components/notification-bell";
 import { getUserSession, logout } from "~/services/session.service";
@@ -47,27 +48,34 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
             </div>
             <h1 className={styles.headerTitle}>IT Aero Support</h1>
           </div>
-          
+
           {session && (
             <nav className={styles.navBar}>
               <div className={styles.navGroup}>
-                <NavLink 
-                  to={`/profile/${session.userId}`} 
+                <NavLink
+                  to="/tickets"
+                  className={({ isActive }) => `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`}
+                >
+                  <Inbox className={styles.navIcon} />
+                  <span className={styles.navLabel}>Tickets</span>
+                </NavLink>
+                <NavLink
+                  to={`/profile/${session.userId}`}
                   className={({ isActive }) => `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`}
                 >
                   <User className={styles.navIcon} />
                   <span className={styles.navLabel}>Profile</span>
                 </NavLink>
-                <NavLink 
-                  to="/staff-performance" 
+                <NavLink
+                  to="/staff-performance"
                   className={({ isActive }) => `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`}
                 >
                   <Users className={styles.navIcon} />
                   <span className={styles.navLabel}>Performance</span>
                 </NavLink>
                 {(isAdministrator || session.userRole === 'Management') && (
-                  <NavLink 
-                    to="/analytics" 
+                  <NavLink
+                    to="/analytics"
                     className={({ isActive }) => `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`}
                   >
                     <BarChart3 className={styles.navIcon} />
@@ -75,8 +83,8 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
                   </NavLink>
                 )}
                 {isAdministrator && (
-                  <NavLink 
-                    to="/settings/role-management" 
+                  <NavLink
+                    to="/settings/role-management"
                     className={({ isActive }) => `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`}
                   >
                     <Settings className={styles.navIcon} />

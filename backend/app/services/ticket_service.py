@@ -156,7 +156,7 @@ class TicketService:
         if 'assignedToId' in data:
             ticket.assigned_to_id = data['assignedToId']
             # If assigned, change status from 'new' to 'assigned'
-            if ticket.assigned_to_id and ticket.status == 'new':
+            if ticket.assigned_to_id and ticket.status.lower() == 'new':
                 ticket.status = 'assigned'
         if 'collaboratorIds' in data:
             # Clear existing collaborators and add new ones
@@ -231,7 +231,8 @@ class TicketService:
             
         ticket.status = status
         
-        if status == 'resolved':
+        # Check if status is resolved (case-insensitive)
+        if status.lower() == 'resolved':
             ticket.resolved_at = datetime.utcnow()
             if resolution_summary:
                 ticket.resolution_summary = resolution_summary

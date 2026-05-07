@@ -5,6 +5,7 @@ export default [
   route("login", "routes/login/route.tsx"),
   layout("routes/layout.tsx", [
     route("dashboard", "routes/dashboard/route.tsx"),
+    route("tickets", "routes/tickets/route.tsx"),
     route("staff-performance", "routes/staff-performance/route.tsx"),
     route("analytics", "routes/analytics/route.tsx"),
     route("ticket/:id", "routes/ticket.$id/route.tsx"),

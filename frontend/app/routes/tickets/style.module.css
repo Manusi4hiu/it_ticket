@@ -1,0 +1,304 @@
+.container {
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  gap: var(--space-6);
+  color: #f3f4f6;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.filterBar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding: var(--space-4);
+  background: rgba(17, 24, 39, 0.4);
+  border-radius: 12px;
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  backdrop-filter: blur(10px);
+}
+
+.searchInputWrapper {
+  position: relative;
+  flex: 1;
+  min-width: 200px;
+}
+
+.searchInput {
+  width: 100%;
+  background: rgba(17, 24, 39, 0.6);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  border-radius: 8px;
+  padding: 8px 12px 8px 36px;
+  color: #fff;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+}
+
+.searchInput:focus {
+  outline: none;
+  border-color: #6366f1;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+}
+
+.searchIcon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #9ca3af;
+  width: 16px;
+  height: 16px;
+}
+
+.filterGroup {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.selectTrigger {
+  background: rgba(17, 24, 39, 0.6) !important;
+  border: 1px solid rgba(99, 102, 241, 0.3) !important;
+  color: #f3f4f6 !important;
+  height: 36px !important;
+  font-size: 0.85rem !important;
+  border-radius: 8px !important;
+  min-width: 120px;
+}
+
+.clearButton {
+  color: #9ca3af !important;
+  font-size: 0.85rem !important;
+  font-weight: 600 !important;
+  padding: 0 var(--space-2) !important;
+  height: 36px !important;
+}
+
+.clearButton:hover {
+  color: #fff !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+}
+
+.tableContainer {
+  background: rgba(17, 24, 39, 0.4);
+  border-radius: 12px;
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  overflow: hidden;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.tableWrapper {
+  overflow: auto;
+  flex: 1;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th {
+  text-align: left;
+  padding: 12px 16px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid rgba(99, 102, 241, 0.2);
+  background: #111827;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.tableRow {
+  border-bottom: 1px solid rgba(99, 102, 241, 0.1);
+  transition: background 0.2s ease;
+  cursor: pointer;
+}
+
+.tableRow:hover {
+  background: rgba(99, 102, 241, 0.05);
+}
+
+.table td {
+  padding: 12px 16px;
+  font-size: 0.9rem;
+  color: #d1d5db;
+}
+
+.ticketKey {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: #818cf8;
+}
+
+.ticketSummary {
+  font-weight: 600;
+  color: #fff;
+}
+
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.priorityIcon {
+  width: 14px;
+  height: 14px;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-6);
+  border-top: 1px solid rgba(99, 102, 241, 0.2);
+  background: rgba(17, 24, 39, 0.4);
+}
+
+.paginationInfo {
+  font-size: 0.85rem;
+  color: #9ca3af;
+}
+
+.paginationActions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.pageButton {
+  background: rgba(17, 24, 39, 0.6) !important;
+  border: 1px solid rgba(99, 102, 241, 0.3) !important;
+  color: #f3f4f6 !important;
+  width: 32px !important;
+  height: 32px !important;
+  padding: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.pageButton:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.pageButtonActive {
+  background: #6366f1 !important;
+  border-color: #6366f1 !important;
+  color: #fff !important;
+}
+
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-10);
+  gap: var(--space-4);
+  color: #9ca3af;
+}
+
+.emptyIcon {
+  width: 64px;
+  height: 64px;
+  opacity: 0.2;
+}
+
+/* Jira-specific colors for statuses */
+.statusNew { background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); }
+.statusInProgress { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
+.statusResolved { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+.statusClosed { background: rgba(107, 114, 128, 0.15); color: #9ca3af; border: 1px solid rgba(107, 114, 128, 0.3); }
+
+/* Priority colors */
+.priorityCritical { color: #f87171; }
+.priorityHigh { color: #fb923c; }
+.priorityMedium { color: #fbbf24; }
+.priorityLow { color: #9ca3af; }
+
+.assignedWrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #f3f4f6;
+  font-weight: 600;
+  background: rgba(99, 102, 241, 0.15);
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  width: fit-content;
+}
+
+.assignedIcon {
+  color: #818cf8;
+}
+
+.takeAction {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.unassignedText {
+  color: #6b7280;
+  font-size: 0.85rem;
+  font-style: italic;
+}
+
+.miniTakeButton {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+  color: white !important;
+  height: 28px !important;
+  padding: 0 12px !important;
+  font-size: 11px !important;
+  text-transform: uppercase;
+  font-weight: 800;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3) !important;
+  border: none !important;
+  transition: all 0.2s ease !important;
+}
+
+.miniTakeButton:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4) !important;
+}
+
+.miniDeleteButton {
+  color: #6b7280 !important;
+  padding: 4px !important;
+  transition: color 0.2s ease !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.miniDeleteButton:hover {
+  background: transparent !important;
+  color: #f87171 !important;
+}

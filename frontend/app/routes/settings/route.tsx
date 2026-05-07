@@ -83,15 +83,13 @@ export default function SettingsLayout() {
                         System Logs
                     </NavLink>
 
-                    {/* 
-          <NavLink 
-            to="/settings/sla-policies" 
-            className={({ isActive }) => `${styles.navItem} ${isActive ? styles.navItemActive : ''}`}
-          >
-            <Clock size={18} />
-            SLA Policies
-          </NavLink>
-          */}
+                    <NavLink 
+                        to="/settings/sla-policies" 
+                        className={({ isActive }) => `${styles.navItem} ${isActive ? styles.navItemActive : ''}`}
+                    >
+                        <Clock size={18} />
+                        SLA Policies
+                    </NavLink>
                 </nav>
             </aside>
 

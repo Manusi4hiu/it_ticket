@@ -176,12 +176,6 @@
 .dataTable {
     width: 100%;
     border-collapse: collapse;
-    background: rgba(17, 24, 39, 0.6);
-    backdrop-filter: blur(20px);
-    border: 1px solid rgba(99, 102, 241, 0.2);
-    border-radius: 16px;
-    overflow: hidden;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
 }
 
 .dataTable thead {
@@ -197,6 +191,10 @@
     text-transform: uppercase;
     letter-spacing: 1px;
     border-bottom: 1px solid rgba(99, 102, 241, 0.2);
+    position: sticky;
+    top: 0;
+    background: #111827;
+    z-index: 10;
 }
 
 .dataTable tbody tr {
@@ -359,4 +357,37 @@
 .modalContent::-webkit-scrollbar-thumb {
     background: rgba(99, 102, 241, 0.3);
     border-radius: 3px;
+}
+
+.tableContainer {
+    background: rgba(17, 24, 39, 0.6);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(99, 102, 241, 0.2);
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.scrollableArea {
+    max-height: 600px;
+    overflow-y: auto;
+    overflow-x: auto;
+}
+
+.scrollableArea::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.scrollableArea::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.scrollableArea::-webkit-scrollbar-thumb {
+    background: rgba(99, 102, 241, 0.3);
+    border-radius: 4px;
+}
+
+.scrollableArea::-webkit-scrollbar-thumb:hover {
+    background: rgba(99, 102, 241, 0.5);
 }

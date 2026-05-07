@@ -99,52 +99,54 @@ export default function CategoriesSettings() {
                             No categories found. Create one to get started.
                         </div>
                     ) : (
-                        <table className={styles.dataTable}>
-                            <thead>
-                                <tr>
-                                    <th>Name</th>
-                                    <th>Description</th>
-                                    <th>Status</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {categories.map((category) => (
-                                    <tr key={category.id}>
-                                        <td style={{ fontWeight: 500 }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                <Tag size={14} />
-                                                {category.name}
-                                            </div>
-                                        </td>
-                                        <td>{category.description || '-'}</td>
-                                        <td>
-                                            <span className={category.isActive ? styles.statusActive : styles.statusInactive}>
-                                                {category.isActive ? 'Active' : 'Inactive'}
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <div style={{ display: 'flex', gap: 8 }}>
-                                                <Button variant="outline" size="sm" onClick={() => openEditDialog(category)}>
-                                                    <Pencil size={14} />
-                                                </Button>
-                                                <Form method="post" onSubmit={(e) => {
-                                                    if (!confirm('Are you sure you want to delete this category?')) {
-                                                        e.preventDefault();
-                                                    }
-                                                }}>
-                                                    <input type="hidden" name="intent" value="delete" />
-                                                    <input type="hidden" name="id" value={category.id} />
-                                                    <Button variant="outline" size="sm" style={{ color: 'var(--color-critical-9)' }}>
-                                                        <Trash2 size={14} />
-                                                    </Button>
-                                                </Form>
-                                            </div>
-                                        </td>
+                        <div className={styles.tableContainer}>
+                            <table className={styles.dataTable}>
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Description</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody>
+                                    {categories.map((category) => (
+                                        <tr key={category.id}>
+                                            <td style={{ fontWeight: 500 }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                    <Tag size={14} />
+                                                    {category.name}
+                                                </div>
+                                            </td>
+                                            <td>{category.description || '-'}</td>
+                                            <td>
+                                                <span className={category.isActive ? styles.statusActive : styles.statusInactive}>
+                                                    {category.isActive ? 'Active' : 'Inactive'}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <div style={{ display: 'flex', gap: 8 }}>
+                                                    <Button variant="outline" size="sm" onClick={() => openEditDialog(category)}>
+                                                        <Pencil size={14} />
+                                                    </Button>
+                                                    <Form method="post" onSubmit={(e) => {
+                                                        if (!confirm('Are you sure you want to delete this category?')) {
+                                                            e.preventDefault();
+                                                        }
+                                                    }}>
+                                                        <input type="hidden" name="intent" value="delete" />
+                                                        <input type="hidden" name="id" value={category.id} />
+                                                        <Button variant="outline" size="sm" style={{ color: 'var(--color-critical-9)' }}>
+                                                            <Trash2 size={14} />
+                                                        </Button>
+                                                    </Form>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
                     )}
                 </CardContent>
             </Card>

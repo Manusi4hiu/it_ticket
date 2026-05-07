@@ -127,9 +127,9 @@ class UserService:
         )
         
         total_involved = user_tickets_query.count()
-        resolved = user_tickets_query.filter(Ticket.status == 'resolved').count()
-        closed = user_tickets_query.filter(Ticket.status == 'closed').count()
-        in_progress = user_tickets_query.filter(Ticket.status == 'in-progress').count()
+        resolved = user_tickets_query.filter(db.func.lower(Ticket.status) == 'resolved').count()
+        closed = user_tickets_query.filter(db.func.lower(Ticket.status) == 'closed').count()
+        in_progress = user_tickets_query.filter(db.func.lower(Ticket.status) == 'in-progress').count()
         
         # SLA compliance
         breached = user_tickets_query.filter(Ticket.sla_status == 'breached').count()
@@ -170,11 +170,11 @@ class UserService:
             
             total_involved = len(involved_tickets)
             
-            resolved_tickets = [t for t in involved_tickets if t.status in ['resolved', 'closed']]
+            resolved_tickets = [t for t in involved_tickets if t.status.lower() in ['resolved', 'closed']]
             resolved_count = len(resolved_tickets)
             
-            in_progress = len([t for t in involved_tickets if t.status == 'in-progress'])
-            pending = len([t for t in involved_tickets if t.status == 'assigned'])
+            in_progress = len([t for t in involved_tickets if t.status.lower() == 'in-progress'])
+            pending = len([t for t in involved_tickets if t.status.lower() == 'assigned'])
             
             # SLA compliance
             breached = len([t for t in involved_tickets if t.sla_status == 'breached'])
