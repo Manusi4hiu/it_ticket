@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router";
-import { useMemo } from "react";
-import { BarChart3, TrendingUp, TrendingDown, ArrowLeft } from "lucide-react";
+import { useMemo, useState } from "react";
+import { LayoutDashboard, PieChart as PieChartIcon, Users2, Activity, TrendingUp, Inbox, CheckCircle, Clock, ShieldCheck } from "lucide-react";
 import {
   BarChart,
   Bar,
@@ -16,7 +16,6 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
-import { Button } from "~/components/ui/button/button";
 import { getTicketStats, getAllAgentsPerformance } from "~/services/ticket.service";
 import { requireRole } from "~/services/session.service";
 import type { Route } from "./+types/route";
@@ -39,36 +38,31 @@ export async function loader({ request }: Route.LoaderArgs) {
 
 export default function Analytics({ loaderData }: Route.ComponentProps) {
   const { stats, agentsPerformance } = loaderData;
-  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState<"overview" | "distribution" | "staff">("overview");
 
-  if (!stats) return <div>Loading...</div>;
+  if (!stats) return <div className="p-12 text-center text-slate-400">Loading analytics...</div>;
 
-  // Real metrics
-  const totalTickets = stats.total;
   const resolvedTickets = stats.resolved;
-  const avgResolutionTime = `${stats.avgResolutionTime} hours`;
+  const avgResolutionTime = `${stats.avgResolutionTime}h`;
   const slaCompliance = stats.total > 0
     ? ((stats.sla.healthy / stats.total) * 100).toFixed(1)
     : "100.0";
 
-  // Status distribution data (partially mapped from stats if possible, otherwise we might need more detailed stats)
   const statusData = useMemo(() => [
-    { name: "New", value: stats.new, color: "#60a5fa" },
-    { name: "In Progress", value: stats.assigned, color: "#fbbf24" },
-    { name: "Resolved", value: stats.resolved, color: "#34d399" },
+    { name: "New", value: stats.new, color: "#3b82f6" },
+    { name: "Assigned", value: stats.assigned, color: "#f59e0b" },
+    { name: "Resolved", value: stats.resolved, color: "#10b981" },
   ], [stats.new, stats.assigned, stats.resolved]);
 
-  // Priority distribution data
   const priorityData = useMemo(() => [
     { name: "Low", count: stats.byPriority.low || 0, color: "#94a3b8" },
-    { name: "Medium", count: stats.byPriority.medium || 0, color: "#60a5fa" },
-    { name: "High", count: stats.byPriority.high || 0, color: "#fbbf24" },
-    { name: "Critical", count: stats.byPriority.critical || 0, color: "#fb7185" },
+    { name: "Medium", count: stats.byPriority.medium || 0, color: "#3b82f6" },
+    { name: "High", count: stats.byPriority.high || 0, color: "#f59e0b" },
+    { name: "Critical", count: stats.byPriority.critical || 0, color: "#ef4444" },
   ], [stats.byPriority]);
 
-  // Category distribution data
   const categoryData = useMemo(() => {
-    const COLORS = ["#60a5fa", "#34d399", "#fbbf24", "#f472b6", "#a78bfa", "#2dd4bf"];
+    const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ec4899", "#8b5cf6", "#06b6d4"];
     return Object.entries(stats.byCategory).map(([name, count], index) => ({
       name,
       value: count,
@@ -76,7 +70,6 @@ export default function Analytics({ loaderData }: Route.ComponentProps) {
     }));
   }, [stats.byCategory]);
 
-  // Department distribution data
   const departmentData = useMemo(() => {
     return Object.entries(stats.byDepartment)
       .map(([name, count]) => ({
@@ -86,13 +79,12 @@ export default function Analytics({ loaderData }: Route.ComponentProps) {
       .sort((a, b) => b.count - a.count);
   }, [stats.byDepartment]);
 
-  // Agent performance data
   const agentPerformance = useMemo(() => agentsPerformance.map((agent) => {
     const total = agent.totalAssigned;
     const resolvedCount = agent.resolved;
     const avgTime = agent.avgResolutionTime;
 
-    let performance = "average";
+    let performance: "excellent" | "good" | "average" = "average";
     if (resolvedCount >= 5 && avgTime <= 4) performance = "excellent";
     else if (resolvedCount >= 2 || avgTime <= 8) performance = "good";
 
@@ -100,7 +92,7 @@ export default function Analytics({ loaderData }: Route.ComponentProps) {
       name: agent.name,
       assigned: total,
       resolved: resolvedCount,
-      avgTime: `${avgTime}h`,
+      avgTime: `${avgTime.toFixed(1)}h`,
       performance,
     };
   }), [agentsPerformance]);
@@ -108,65 +100,141 @@ export default function Analytics({ loaderData }: Route.ComponentProps) {
   const trendData = useMemo(() => stats.trend || [], [stats.trend]);
 
   return (
-    <>
-        <div className={styles.pageHeader}>
-          <h2 className={styles.pageTitle}>Performance Overview</h2>
-          <p className={styles.pageSubtitle}>Comprehensive analytics and insights for IT support operations</p>
+    <div className={styles.contentWrapper}>
+      <div className={styles.pageHeader}>
+        <div className={styles.titleSection}>
+          <h2 className={styles.pageTitle}>System Analytics</h2>
+          <p className={styles.pageSubtitle}>In-depth monitoring of support efficiency and metrics</p>
         </div>
+        <div className={styles.tabsList}>
+          <button
+            className={`${styles.tabButton} ${activeTab === "overview" ? styles.activeTab : ""}`}
+            onClick={() => setActiveTab("overview")}
+          >
+            <LayoutDashboard className={styles.tabIcon} />
+            Overview
+          </button>
+          <button
+            className={`${styles.tabButton} ${activeTab === "distribution" ? styles.activeTab : ""}`}
+            onClick={() => setActiveTab("distribution")}
+          >
+            <PieChartIcon className={styles.tabIcon} />
+            Distribution
+          </button>
+          <button
+            className={`${styles.tabButton} ${activeTab === "staff" ? styles.activeTab : ""}`}
+            onClick={() => setActiveTab("staff")}
+          >
+            <Users2 className={styles.tabIcon} />
+            Staff
+          </button>
+        </div>
+      </div>
 
-        {/* Key Metrics */}
-        <div className={styles.metricsGrid}>
-          <div className={styles.metricCard}>
-            <div className={styles.metricHeader}>
-              <span className={styles.metricLabel}>Tickets Worked On</span>
+      {activeTab === "overview" && (
+        <div className="animate-fade-in">
+          <div className={styles.summaryGrid}>
+            <div className={styles.summaryCard}>
+              <div className={styles.summaryIcon} style={{ background: "rgba(59, 130, 246, 0.1)", border: "1px solid rgba(59, 130, 246, 0.2)" }}>
+                <Inbox size={22} style={{ color: "#3b82f6" }} />
+              </div>
+              <div className={styles.summaryContent}>
+                <span className={styles.summaryLabel}>Total Tickets</span>
+                <span className={styles.summaryValue}>{stats.total}</span>
+              </div>
             </div>
-            <div className={styles.metricValue}>{stats.workedOn}</div>
-            <div className={`${styles.metricChange} ${styles.changePositive}`}>
-              <TrendingUp style={{ width: "16px", height: "16px" }} />
-              <span>Excluding new/untouched</span>
+
+            <div className={styles.summaryCard}>
+              <div className={styles.summaryIcon} style={{ background: "rgba(16, 185, 129, 0.1)", border: "1px solid rgba(16, 185, 129, 0.2)" }}>
+                <CheckCircle size={22} style={{ color: "#10b981" }} />
+              </div>
+              <div className={styles.summaryContent}>
+                <span className={styles.summaryLabel}>Resolved</span>
+                <span className={styles.summaryValue}>{resolvedTickets}</span>
+              </div>
+            </div>
+
+            <div className={styles.summaryCard}>
+              <div className={styles.summaryIcon} style={{ background: "rgba(245, 158, 11, 0.1)", border: "1px solid rgba(245, 158, 11, 0.2)" }}>
+                <Clock size={22} style={{ color: "#f59e0b" }} />
+              </div>
+              <div className={styles.summaryContent}>
+                <span className={styles.summaryLabel}>Avg. Resolution</span>
+                <span className={styles.summaryValue}>{avgResolutionTime}</span>
+              </div>
+            </div>
+
+            <div className={styles.summaryCard}>
+              <div className={styles.summaryIcon} style={{ background: "rgba(139, 92, 246, 0.1)", border: "1px solid rgba(139, 92, 246, 0.2)" }}>
+                <ShieldCheck size={22} style={{ color: "#8b5cf6" }} />
+              </div>
+              <div className={styles.summaryContent}>
+                <span className={styles.summaryLabel}>SLA Compliance</span>
+                <span className={styles.summaryValue}>{slaCompliance}%</span>
+              </div>
             </div>
           </div>
 
-          <div className={styles.metricCard}>
-            <div className={styles.metricHeader}>
-              <span className={styles.metricLabel}>Resolved Tickets</span>
+          <div className={`${styles.chartCard} ${styles.fullWidthChart}`}>
+            <div className={styles.chartHeader}>
+              <h3 className={styles.chartTitle}>Ticket Activity Trends</h3>
+              <p className={styles.chartSubtitle}>Comparison of ticket creation vs. resolution (Last 7 Days)</p>
             </div>
-            <div className={styles.metricValue}>{resolvedTickets}</div>
-            <div className={`${styles.metricChange} ${styles.changePositive}`}>
-              <TrendingUp style={{ width: "16px", height: "16px" }} />
-              <span>8% from last week</span>
-            </div>
-          </div>
-
-          <div className={styles.metricCard}>
-            <div className={styles.metricHeader}>
-              <span className={styles.metricLabel}>Avg. Resolution Time</span>
-            </div>
-            <div className={styles.metricValue}>{avgResolutionTime}</div>
-            <div className={`${styles.metricChange} ${styles.changeNegative}`}>
-              <TrendingDown style={{ width: "16px", height: "16px" }} />
-              <span>15% slower</span>
-            </div>
-          </div>
-
-          <div className={styles.metricCard}>
-            <div className={styles.metricHeader}>
-              <span className={styles.metricLabel}>SLA Compliance</span>
-            </div>
-            <div className={styles.metricValue}>{slaCompliance}%</div>
-            <div className={`${styles.metricChange} ${styles.changePositive}`}>
-              <TrendingUp style={{ width: "16px", height: "16px" }} />
-              <span>5% improvement</span>
+            <div className={styles.chartContent}>
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={trendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.05)" vertical={false} />
+                  <XAxis
+                    dataKey="day"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: "#94a3b8", fontSize: 12 }}
+                  />
+                  <YAxis
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: "#94a3b8", fontSize: 12 }}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      background: "rgba(15, 23, 42, 0.95)",
+                      border: "1px solid rgba(255, 255, 255, 0.1)",
+                      borderRadius: "12px",
+                      backdropFilter: "blur(10px)"
+                    }}
+                  />
+                  <Legend verticalAlign="top" align="right" height={36} iconType="circle" />
+                  <Line
+                    type="monotone"
+                    dataKey="created"
+                    name="Created"
+                    stroke="#3b82f6"
+                    strokeWidth={3}
+                    dot={{ r: 4, fill: "#3b82f6", strokeWidth: 0 }}
+                    activeDot={{ r: 6, strokeWidth: 0 }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="resolved"
+                    name="Resolved"
+                    stroke="#10b981"
+                    strokeWidth={3}
+                    dot={{ r: 4, fill: "#10b981", strokeWidth: 0 }}
+                    activeDot={{ r: 6, strokeWidth: 0 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
             </div>
           </div>
         </div>
+      )}
 
-        {/* Charts */}
-        <div className={styles.chartsGrid}>
+      {activeTab === "distribution" && (
+        <div className={styles.chartsGrid + " animate-fade-in"}>
           <div className={styles.chartCard}>
             <div className={styles.chartHeader}>
-              <h3 className={styles.chartTitle}>Ticket Status Distribution</h3>
-              <p className={styles.chartSubtitle}>Current breakdown by status</p>
+              <h3 className={styles.chartTitle}>Status Distribution</h3>
+              <p className={styles.chartSubtitle}>Current workload breakdown by ticket status</p>
             </div>
             <div className={styles.chartContent}>
               <ResponsiveContainer width="100%" height="100%">
@@ -178,10 +246,9 @@ export default function Analytics({ loaderData }: Route.ComponentProps) {
                     cx="50%"
                     cy="50%"
                     outerRadius={100}
-                    innerRadius={60}
-                    paddingAngle={5}
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                    labelLine={false}
+                    innerRadius={70}
+                    paddingAngle={8}
+                    stroke="none"
                   >
                     {statusData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
@@ -189,13 +256,12 @@ export default function Analytics({ loaderData }: Route.ComponentProps) {
                   </Pie>
                   <Tooltip
                     contentStyle={{
-                      background: "rgba(17, 24, 39, 0.9)",
-                      border: "1px solid rgba(129, 140, 248, 0.2)",
+                      background: "rgba(15, 23, 42, 0.95)",
+                      border: "1px solid rgba(255, 255, 255, 0.1)",
                       borderRadius: "12px",
-                      backdropFilter: "blur(10px)"
                     }}
                   />
-                  <Legend verticalAlign="bottom" height={36} />
+                  <Legend verticalAlign="bottom" height={36} iconType="circle" />
                 </PieChart>
               </ResponsiveContainer>
             </div>
@@ -204,33 +270,32 @@ export default function Analytics({ loaderData }: Route.ComponentProps) {
           <div className={styles.chartCard}>
             <div className={styles.chartHeader}>
               <h3 className={styles.chartTitle}>Priority Levels</h3>
-              <p className={styles.chartSubtitle}>Distribution by priority</p>
+              <p className={styles.chartSubtitle}>Workload intensity by ticket priority</p>
             </div>
             <div className={styles.chartContent}>
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={priorityData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                <BarChart data={priorityData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.05)" vertical={false} />
                   <XAxis
                     dataKey="name"
                     axisLine={false}
                     tickLine={false}
-                    tick={{ fill: "#9ca3af", fontSize: 12 }}
+                    tick={{ fill: "#94a3b8", fontSize: 12 }}
                   />
                   <YAxis
                     axisLine={false}
                     tickLine={false}
-                    tick={{ fill: "#9ca3af", fontSize: 12 }}
+                    tick={{ fill: "#94a3b8", fontSize: 12 }}
                   />
                   <Tooltip
-                    cursor={{ fill: "rgba(255, 255, 255, 0.05)" }}
+                    cursor={{ fill: "rgba(255, 255, 255, 0.02)" }}
                     contentStyle={{
-                      background: "rgba(17, 24, 39, 0.9)",
-                      border: "1px solid rgba(129, 140, 248, 0.2)",
+                      background: "rgba(15, 23, 42, 0.95)",
+                      border: "1px solid rgba(255, 255, 255, 0.1)",
                       borderRadius: "12px",
-                      backdropFilter: "blur(10px)"
                     }}
                   />
-                  <Bar dataKey="count" radius={[8, 8, 0, 0]}>
+                  <Bar dataKey="count" radius={[6, 6, 0, 0]} barSize={40}>
                     {priorityData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
@@ -242,8 +307,8 @@ export default function Analytics({ loaderData }: Route.ComponentProps) {
 
           <div className={styles.chartCard}>
             <div className={styles.chartHeader}>
-              <h3 className={styles.chartTitle}>Request by Category</h3>
-              <p className={styles.chartSubtitle}>Tickets by issue category</p>
+              <h3 className={styles.chartTitle}>Category Breakdown</h3>
+              <p className={styles.chartSubtitle}>Service requests distribution by category</p>
             </div>
             <div className={styles.chartContent}>
               <ResponsiveContainer width="100%" height="100%">
@@ -255,8 +320,7 @@ export default function Analytics({ loaderData }: Route.ComponentProps) {
                     cx="50%"
                     cy="50%"
                     outerRadius={80}
-                    label={({ name, value }) => `${name}: ${value}`}
-                    labelLine={true}
+                    stroke="none"
                   >
                     {categoryData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
@@ -264,12 +328,12 @@ export default function Analytics({ loaderData }: Route.ComponentProps) {
                   </Pie>
                   <Tooltip
                     contentStyle={{
-                      background: "rgba(17, 24, 39, 0.9)",
-                      border: "1px solid rgba(129, 140, 248, 0.2)",
+                      background: "rgba(15, 23, 42, 0.95)",
+                      border: "1px solid rgba(255, 255, 255, 0.1)",
                       borderRadius: "12px",
-                      backdropFilter: "blur(10px)"
                     }}
                   />
+                  <Legend verticalAlign="bottom" height={36} iconType="circle" />
                 </PieChart>
               </ResponsiveContainer>
             </div>
@@ -277,15 +341,15 @@ export default function Analytics({ loaderData }: Route.ComponentProps) {
 
           <div className={styles.chartCard}>
             <div className={styles.chartHeader}>
-              <h3 className={styles.chartTitle}>Request by Department</h3>
-              <p className={styles.chartSubtitle}>Top requesting departments</p>
+              <h3 className={styles.chartTitle}>Department Demand</h3>
+              <p className={styles.chartSubtitle}>Top departments by support request volume</p>
             </div>
             <div className={styles.chartContent}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
                   layout="vertical"
                   data={departmentData}
-                  margin={{ top: 5, right: 30, left: 40, bottom: 5 }}
+                  margin={{ top: 0, right: 30, left: 30, bottom: 0 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.05)" horizontal={false} />
                   <XAxis type="number" hide />
@@ -294,110 +358,54 @@ export default function Analytics({ loaderData }: Route.ComponentProps) {
                     type="category"
                     axisLine={false}
                     tickLine={false}
-                    tick={{ fill: "#9ca3af", fontSize: 11 }}
-                    width={80}
+                    tick={{ fill: "#94a3b8", fontSize: 11 }}
+                    width={100}
                   />
                   <Tooltip
-                    cursor={{ fill: "rgba(255, 255, 255, 0.05)" }}
+                    cursor={{ fill: "rgba(255, 255, 255, 0.02)" }}
                     contentStyle={{
-                      background: "rgba(17, 24, 39, 0.9)",
-                      border: "1px solid rgba(129, 140, 248, 0.2)",
+                      background: "rgba(15, 23, 42, 0.95)",
+                      border: "1px solid rgba(255, 255, 255, 0.1)",
                       borderRadius: "12px",
-                      backdropFilter: "blur(10px)"
                     }}
                   />
-                  <Bar dataKey="count" fill="#60a5fa" radius={[0, 4, 4, 0]} barSize={20} />
+                  <Bar dataKey="count" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={20} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </div>
-
-          <div className={`${styles.chartCard} ${styles.fullWidthChart}`}>
-            <div className={styles.chartHeader}>
-              <h3 className={styles.chartTitle}>Ticket Trends (Last 7 Days)</h3>
-              <p className={styles.chartSubtitle}>Created vs. Resolved tickets</p>
-            </div>
-            <div className={styles.chartContent}>
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={trendData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.05)" vertical={false} />
-                  <XAxis
-                    dataKey="day"
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: "#9ca3af", fontSize: 12 }}
-                  />
-                  <YAxis
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: "#9ca3af", fontSize: 12 }}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      background: "rgba(17, 24, 39, 0.9)",
-                      border: "1px solid rgba(129, 140, 248, 0.2)",
-                      borderRadius: "12px",
-                      backdropFilter: "blur(10px)"
-                    }}
-                  />
-                  <Legend verticalAlign="top" align="right" height={36} />
-                  <Line
-                    type="monotone"
-                    dataKey="created"
-                    stroke="#60a5fa"
-                    strokeWidth={4}
-                    dot={{ r: 6, fill: "#60a5fa", strokeWidth: 2, stroke: "#050b14" }}
-                    activeDot={{ r: 8, strokeWidth: 0 }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="resolved"
-                    stroke="#34d399"
-                    strokeWidth={4}
-                    dot={{ r: 6, fill: "#34d399", strokeWidth: 2, stroke: "#050b14" }}
-                    activeDot={{ r: 8, strokeWidth: 0 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
         </div>
+      )}
 
-
-        {/* Agent Performance Table */}
-        <div className={styles.statsTable}>
+      {activeTab === "staff" && (
+        <div className={styles.leaderboardContainer + " animate-fade-in"}>
           <div className={styles.tableHeader}>
-            <h3 className={styles.tableTitle}>Agent Performance</h3>
+            <div>Agent Name</div>
+            <div>Assigned</div>
+            <div>Resolved</div>
+            <div>Avg. Time</div>
+            <div>Performance</div>
           </div>
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th>Agent Name</th>
-                <th>Assigned Tickets</th>
-                <th>Resolved Tickets</th>
-                <th>Avg. Resolution Time</th>
-                <th>Performance</th>
-              </tr>
-            </thead>
-            <tbody>
-              {agentPerformance.map((agent) => (
-                <tr key={agent.name}>
-                  <td className={styles.agentName}>{agent.name}</td>
-                  <td>{agent.assigned}</td>
-                  <td>{agent.resolved}</td>
-                  <td>{agent.avgTime}</td>
-                  <td>
-                    <span className={`${styles.performanceIndicator} ${styles[agent.performance]}`}>
-                      {agent.performance === "excellent" && "⭐ Excellent"}
-                      {agent.performance === "good" && "✓ Good"}
-                      {agent.performance === "average" && "• Average"}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className={styles.tableBody}>
+            {agentPerformance.map((agent) => (
+              <div key={agent.name} className={styles.tableRow}>
+                <div className={styles.staffInfo}>
+                  <div className={styles.miniAvatar}>{agent.name.charAt(0)}</div>
+                  <span className={styles.staffName}>{agent.name}</span>
+                </div>
+                <div className={styles.metricValue}>{agent.assigned}</div>
+                <div className={styles.metricValue}>{agent.resolved}</div>
+                <div className={styles.metricValue}>{agent.avgTime}</div>
+                <div>
+                  <span className={`${styles.performanceBadge} ${styles[agent.performance]}`}>
+                    {agent.performance}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
-      </>
+      )}
+    </div>
   );
 }

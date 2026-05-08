@@ -1,369 +1,270 @@
-.container {
-  min-height: 100vh;
-  background: linear-gradient(135deg, #050b14 0%, #0a192f 50%, #020c1b 100%);
-  position: relative;
-  overflow-x: hidden;
-}
+/* Analytics Page - Precisely aligned with Performance Page */
 
-.container::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background:
-    radial-gradient(circle at 20% 50%, rgba(59, 130, 246, 0.15), transparent 50%),
-    radial-gradient(circle at 80% 80%, rgba(29, 78, 216, 0.15), transparent 50%),
-    radial-gradient(circle at 40% 20%, rgba(59, 130, 246, 0.1), transparent 50%);
-  pointer-events: none;
-}
-
-.header {
-  background: rgba(17, 24, 39, 0.8);
-  backdrop-filter: blur(24px) saturate(180%);
-  border-bottom: 1px solid rgba(59, 130, 246, 0.2);
-  padding: var(--space-4) var(--space-6);
-  box-shadow:
-    0 4px 30px rgba(0, 0, 0, 0.3),
-    0 0 0 1px rgba(59, 130, 246, 0.1) inset;
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  transition: all 0.3s ease;
-}
-
-.header::before {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: linear-gradient(90deg,
-      transparent 0%,
-      rgba(59, 130, 246, 0.5) 25%,
-      rgba(29, 78, 216, 0.7) 50%,
-      rgba(59, 130, 246, 0.5) 75%,
-      transparent 100%);
-  opacity: 0.6;
-}
-
-.headerContent {
-  max-width: 1400px;
+.contentWrapper {
+  padding: 3rem 2rem;
+  max-width: 1200px;
   margin: 0 auto;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: var(--space-4);
-}
-
-.headerLeft {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-}
-
-.headerIcon {
-  width: 32px;
-  height: 32px;
-  color: #60a5fa;
-  filter: drop-shadow(0 0 10px rgba(129, 140, 248, 0.5));
-  animation: pulse 3s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  0%, 100% {
-    transform: scale(1);
-    filter: drop-shadow(0 0 10px rgba(129, 140, 248, 0.5));
-  }
-  50% {
-    transform: scale(1.05);
-    filter: drop-shadow(0 0 15px rgba(129, 140, 248, 0.7));
-  }
-}
-
-.headerTitle {
-  font: var(--font-heading);
-  margin: 0;
-  font-size: 1.6rem;
-  font-weight: 800;
-  letter-spacing: -0.8px;
-  background: linear-gradient(135deg, #fff 0%, #93c5fd 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  filter: drop-shadow(0 2px 10px rgba(129, 140, 248, 0.3));
-}
-
-.main {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: var(--space-6);
-  position: relative;
-  z-index: 1;
+  animation: fadeIn 0.6s ease-out;
 }
 
 .pageHeader {
-  margin-bottom: var(--space-8);
-  animation: fadeIn 0.6s ease-out;
-  text-align: center;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 3rem;
+  gap: 2rem;
+}
+
+.titleSection {
+  flex: 1;
 }
 
 .pageTitle {
-  font-size: 3rem;
+  font-size: 2.5rem;
   font-weight: 800;
-  background: linear-gradient(135deg, #fff 0%, #93c5fd 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  margin: 0 0 var(--space-2);
-  filter: drop-shadow(0 2px 20px rgba(129, 140, 248, 0.3));
+  letter-spacing: -0.04em;
+  margin-bottom: 0.5rem;
+  color: #fff;
 }
 
 .pageSubtitle {
-  font-size: 1.125rem;
-  color: rgba(165, 180, 252, 0.8);
-  margin: 0;
-  font-weight: 500;
+  color: #94a3b8;
+  font-size: 1.1rem;
 }
 
-.metricsGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: var(--space-6);
-  margin-bottom: var(--space-8);
-  animation: fadeIn 0.8s ease-out 0.2s both;
-}
-
-.metricCard {
-  background: rgba(17, 24, 39, 0.6);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(129, 140, 248, 0.2);
-  border-radius: 24px;
-  padding: var(--space-7);
-  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-  position: relative;
-  overflow: hidden;
-}
-
-.metricCard::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: linear-gradient(90deg, transparent, rgba(129, 140, 248, 0.5), transparent);
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
-.metricCard:hover {
-  transform: translateY(-5px);
-  border-color: rgba(59, 130, 246, 0.5);
-  box-shadow: 0 20px 50px rgba(59, 130, 246, 0.2);
-}
-
-.metricCard:hover::before {
-  opacity: 1;
-}
-
-.metricHeader {
+/* Tabs Navigation - Matching Performance Page */
+.tabsList {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: var(--space-4);
+  background: rgba(255, 255, 255, 0.03);
+  padding: 4px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
 }
 
-.metricLabel {
-  font-size: 0.875rem;
-  color: #9ca3af;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-}
-
-.metricValue {
-  font-size: 3rem;
-  font-weight: 800;
-  color: #fff;
-  line-height: 1;
-  margin-bottom: var(--space-3);
-  text-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-}
-
-.metricChange {
+.tabButton {
+  padding: 0.6rem 1.5rem;
+  border-radius: 8px;
   font-size: 0.875rem;
   font-weight: 600;
-  display: inline-flex;
+  color: #94a3b8;
+  transition: all 0.2s ease;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
   align-items: center;
-  gap: var(--space-1);
-  padding: 6px 12px;
-  border-radius: 12px;
+  gap: 0.5rem;
+}
+
+.tabButton:hover {
+  color: #fff;
   background: rgba(255, 255, 255, 0.05);
 }
 
-.changePositive {
-  color: #34d399;
-  background: rgba(52, 211, 153, 0.1);
+.activeTab {
+  color: #fff;
+  background: rgba(59, 130, 246, 0.2);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.2);
 }
 
-.changeNegative {
-  color: #f87171;
-  background: rgba(248, 113, 113, 0.1);
+.tabIcon {
+  width: 16px;
+  height: 16px;
 }
 
-.chartsGrid {
+/* Metrics Row - Matching summaryGrid from Performance Page */
+.summaryGrid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: var(--space-6);
-  margin-bottom: var(--space-8);
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.5rem;
+  margin-bottom: 2.5rem;
 }
 
-.chartCard {
-  background: rgba(17, 24, 39, 0.6);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(129, 140, 248, 0.2);
-  border-radius: 24px;
-  padding: var(--space-7);
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-  animation: fadeIn 0.8s ease-out 0.4s both;
+.summaryCard {
+  background: rgba(30, 41, 59, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  padding: 1.5rem;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(10px);
 }
 
-.chartCard:hover {
-  border-color: rgba(129, 140, 248, 0.4);
+.summaryCard:hover {
+  transform: translateY(-4px);
+  background: rgba(30, 41, 59, 0.6);
+  border-color: rgba(59, 130, 246, 0.3);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
 }
 
-.fullWidthChart {
-  grid-column: span 2;
+.summaryIcon {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
-.chartHeader {
-  margin-bottom: var(--space-6);
+.summaryContent {
+  display: flex;
+  flex-direction: column;
 }
 
-.chartTitle {
+.summaryLabel {
+  font-size: 0.8125rem;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.summaryValue {
   font-size: 1.5rem;
   font-weight: 700;
   color: #fff;
-  margin: 0 0 var(--space-1);
+}
+
+/* Charts Styles - Matching Performance Page */
+.chartsGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1.5rem;
+  margin-bottom: 2.5rem;
+}
+
+.chartCard {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  padding: 2rem;
+  border-radius: 24px;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+}
+
+.chartHeader {
+  margin-bottom: 2rem;
+}
+
+.chartTitle {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+  color: #fff;
 }
 
 .chartSubtitle {
   font-size: 0.875rem;
-  color: #9ca3af;
-  margin: 0;
+  color: #94a3b8;
 }
 
 .chartContent {
   height: 350px;
 }
 
-.statsTable {
-  background: rgba(17, 24, 39, 0.6);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(129, 140, 248, 0.2);
+.fullWidthChart {
+  grid-column: 1 / -1;
+}
+
+/* Agent Table - Matching Leaderboard style */
+.leaderboardContainer {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.05);
   border-radius: 24px;
-  padding: var(--space-7);
+  overflow: hidden;
+  backdrop-filter: blur(10px);
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-  animation: fadeIn 0.8s ease-out 0.6s both;
-  overflow-x: auto;
 }
 
 .tableHeader {
-  margin-bottom: var(--space-6);
-}
-
-.tableTitle {
-  font-size: 1.75rem;
-  font-weight: 800;
-  color: #fff;
-  margin: 0;
-}
-
-.table {
-  width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
-  color: #d1d5db;
-}
-
-.table th {
-  text-align: left;
-  padding: var(--space-4);
-  font-size: 0.75rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  color: #9ca3af;
-  border-bottom: 1px solid rgba(129, 140, 248, 0.1);
-}
-
-.table td {
-  padding: var(--space-5) var(--space-4);
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1.5fr 1fr;
+  padding: 1.25rem 2rem;
+  background: rgba(255, 255, 255, 0.02);
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #94a3b8;
+  letter-spacing: 0.05em;
 }
 
-.table tr:last-child td {
+.tableRow {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1.5fr 1fr;
+  padding: 1.25rem 2rem;
+  align-items: center;
+  transition: all 0.2s ease;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+}
+
+.tableRow:last-child {
   border-bottom: none;
 }
 
-.agentName {
+.tableRow:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.staffInfo {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.miniAvatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgba(59, 130, 246, 0.2);
+  color: #60a5fa;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.875rem;
+}
+
+.staffName {
+  font-weight: 600;
+  color: #fff;
+}
+
+.metricValue {
+  font-size: 1.125rem;
   font-weight: 700;
   color: #fff;
 }
 
-.performanceIndicator {
-  display: inline-flex;
-  align-items: center;
-  padding: 6px 12px;
-  border-radius: 10px;
-  font-size: 0.8125rem;
+.performanceBadge {
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 0.75rem;
   font-weight: 700;
+  text-transform: uppercase;
 }
 
-.excellent {
-  background: rgba(129, 140, 248, 0.1);
-  color: #60a5fa;
-}
-
-.good {
-  background: rgba(52, 211, 153, 0.1);
-  color: #34d399;
-}
-
-.average {
-  background: rgba(156, 163, 175, 0.1);
-  color: #9ca3af;
-}
+.excellent { background: rgba(16, 185, 129, 0.1); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.2); }
+.good { background: rgba(59, 130, 246, 0.1); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.2); }
+.average { background: rgba(148, 163, 184, 0.1); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.2); }
 
 @keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(30px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 @media (max-width: 1024px) {
-  .chartsGrid {
-    grid-template-columns: 1fr;
-  }
-  .fullWidthChart {
-    grid-column: span 1;
-  }
+  .pageHeader { flex-direction: column; align-items: flex-start; gap: 1.5rem; }
+  .summaryGrid { grid-template-columns: repeat(2, 1fr); }
+  .chartsGrid { grid-template-columns: 1fr; }
+  .tableHeader, .tableRow { grid-template-columns: 1.5fr 1fr 1fr; }
+  .metricCol:nth-child(4), .metricCol:nth-child(5) { display: none; }
 }
 
 @media (max-width: 768px) {
-  .pageTitle {
-    font-size: 2.25rem;
-  }
-  .metricValue {
-    font-size: 2.5rem;
-  }
+  .contentWrapper { padding: 2rem 1rem; }
+  .summaryGrid { grid-template-columns: 1fr; }
 }

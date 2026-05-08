@@ -44,7 +44,6 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
           <div className={styles.headerLeft} onClick={() => navigate("/dashboard")} style={{ cursor: "pointer" }}>
             <div className={styles.logoContainer}>
               <img src="/logo/logo itani.png" alt="Logo" className={styles.headerIcon} />
-              <div className={styles.logoCircle}></div>
             </div>
             <h1 className={styles.headerTitle}>IT Aero Support</h1>
           </div>
@@ -93,7 +92,6 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
                 )}
               </div>
 
-              <div className={styles.navDivider}></div>
 
               <div className={styles.navActionGroup}>
                 <NotificationBell userId={session.userId} />
