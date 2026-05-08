@@ -58,9 +58,9 @@
 
 .activeTab {
   color: #fff;
-  background: rgba(99, 102, 241, 0.2);
+  background: rgba(59, 130, 246, 0.2);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  border: 1px solid rgba(99, 102, 241, 0.2);
+  border: 1px solid rgba(59, 130, 246, 0.2);
 }
 
 .tabContent {
@@ -75,7 +75,7 @@
 /* Overview Styles */
 .topPerformerCard {
   background: linear-gradient(135deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.8) 100%);
-  border: 1px solid rgba(99, 102, 241, 0.2);
+  border: 1px solid rgba(59, 130, 246, 0.2);
   border-radius: 24px;
   padding: 3rem;
   margin-bottom: 2rem;
@@ -91,7 +91,7 @@
   right: -10%;
   width: 300px;
   height: 300px;
-  background: radial-gradient(circle, rgba(99, 102, 241, 0.1) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.1) 0%, transparent 70%);
   pointer-events: none;
 }
 
@@ -106,8 +106,8 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  background: rgba(99, 102, 241, 0.15);
-  color: #818cf8;
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
   padding: 0.5rem 1rem;
   border-radius: 100px;
   font-size: 0.75rem;
@@ -115,7 +115,7 @@
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin-bottom: 2rem;
-  border: 1px solid rgba(99, 102, 241, 0.2);
+  border: 1px solid rgba(59, 130, 246, 0.2);
 }
 
 .topPerformerIdentity {
@@ -128,7 +128,7 @@
 .topPerformerAvatar {
   width: 80px;
   height: 80px;
-  background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+  background: linear-gradient(135deg, #3b82f6 0%, #a855f7 100%);
   border-radius: 24px;
   display: flex;
   align-items: center;
@@ -136,7 +136,7 @@
   font-size: 2.5rem;
   font-weight: 800;
   color: #fff;
-  box-shadow: 0 10px 25px rgba(99, 102, 241, 0.3);
+  box-shadow: 0 10px 25px rgba(59, 130, 246, 0.3);
 }
 
 .topPerformerName {
@@ -191,7 +191,7 @@
 .summaryCard:hover {
   transform: translateY(-4px);
   background: rgba(30, 41, 59, 0.6);
-  border-color: rgba(99, 102, 241, 0.3);
+  border-color: rgba(59, 130, 246, 0.3);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
 }
 
@@ -326,8 +326,8 @@
   width: 40px;
   height: 40px;
   border-radius: 12px;
-  background: rgba(99, 102, 241, 0.2);
-  color: #818cf8;
+  background: rgba(59, 130, 246, 0.2);
+  color: #60a5fa;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -366,9 +366,9 @@
 
 .miniProgressFill {
   height: 100%;
-  background: #6366f1;
+  background: #3b82f6;
   border-radius: 100px;
-  box-shadow: 0 0 10px rgba(99, 102, 241, 0.5);
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
 }
 
 .rowArrow {
@@ -380,7 +380,7 @@
 }
 
 .leaderboardRow:hover .rowArrow {
-  color: #818cf8;
+  color: #60a5fa;
   transform: translateX(4px) rotate(180deg);
 }
 

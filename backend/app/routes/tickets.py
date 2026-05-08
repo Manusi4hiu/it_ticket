@@ -23,15 +23,36 @@ def get_tickets():
     """Get all tickets with optional filters"""
     # Query parameters
     status = request.args.get('status')
+    exclude_status = request.args.get('exclude_status')
     priority = request.args.get('priority')
     category = request.args.get('category')
     assigned_to = request.args.get('assignedTo')
     search = request.args.get('search')
+    is_resolved = request.args.get('is_resolved', type=lambda v: v.lower() == 'true')
     
     query = Ticket.query
     
     if status:
-        query = query.filter(Ticket.status == status)
+        if ',' in status:
+            status_list = status.split(',')
+            query = query.filter(Ticket.status.in_(status_list))
+        else:
+            query = query.filter(Ticket.status == status)
+    
+    if exclude_status:
+        if ',' in exclude_status:
+            exclude_list = exclude_status.split(',')
+            query = query.filter(Ticket.status.notin_(exclude_list))
+        else:
+            query = query.filter(Ticket.status != exclude_status)
+
+    if is_resolved is not None:
+        resolved_statuses = ['resolved', 'closed', 'completed']
+        if is_resolved:
+            query = query.filter(db.func.lower(Ticket.status).in_(resolved_statuses))
+        else:
+            query = query.filter(db.func.lower(Ticket.status).notin_(resolved_statuses))
+
     if priority:
         query = query.filter(Ticket.priority == priority)
     if category:
@@ -302,7 +323,15 @@ def add_ticket_note(ticket_id):
 @jwt_required()
 def get_ticket_stats():
     """Get ticket statistics for dashboard"""
-    stats = TicketService.get_stats()
+    user_id = get_jwt_identity()
+    # Check if we should filter by user (e.g. if not admin)
+    # For now, let's allow a query param 'personal' to toggle
+    personal = request.args.get('personal', type=lambda v: v.lower() == 'true')
+    
+    if personal:
+        stats = TicketService.get_stats(user_id=user_id)
+    else:
+        stats = TicketService.get_stats()
     
     return jsonify({
         'success': True,

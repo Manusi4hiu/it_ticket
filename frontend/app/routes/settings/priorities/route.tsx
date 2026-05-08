@@ -70,13 +70,13 @@ export async function action({ request }: Route.ActionArgs) {
 export default function PrioritiesSettings() {
     const { priorities } = useLoaderData() as { priorities: Priority[] };
     const actionData = useActionData() as { error?: string; success?: boolean } | undefined;
-    const [selectedColor, setSelectedColor] = useState("#6366f1");
+    const [selectedColor, setSelectedColor] = useState("#3b82f6");
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingPriority, setEditingPriority] = useState<Priority | null>(null);
 
     const openCreateDialog = () => {
         setEditingPriority(null);
-        setSelectedColor("#6366f1");
+        setSelectedColor("#3b82f6");
         setIsDialogOpen(true);
     };
 
@@ -150,12 +150,12 @@ export default function PrioritiesSettings() {
                                                 </div>
                                             </td>
                                             <td>
-                                                <span className={styles.badge} style={{ background: 'rgba(99, 102, 241, 0.1)', color: '#a5b4fc' }}>
+                                                <span className={styles.badge} style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#93c5fd' }}>
                                                     {priority.slaHours}h
                                                 </span>
                                             </td>
                                             <td>
-                                                <span className={styles.badge} style={{ background: 'rgba(139, 92, 246, 0.1)', color: '#c4b5fd' }}>
+                                                <span className={styles.badge} style={{ background: 'rgba(29, 78, 216, 0.1)', color: '#c4b5fd' }}>
                                                     {priority.responseTimeMinutes}m
                                                 </span>
                                             </td>
@@ -180,9 +180,9 @@ export default function PrioritiesSettings() {
                                                         size="sm" 
                                                         onClick={() => openEditDialog(priority)}
                                                         style={{ 
-                                                            borderColor: 'rgba(99, 102, 241, 0.3)',
-                                                            background: 'rgba(99, 102, 241, 0.05)',
-                                                            color: '#a5b4fc',
+                                                            borderColor: 'rgba(59, 130, 246, 0.3)',
+                                                            background: 'rgba(59, 130, 246, 0.05)',
+                                                            color: '#93c5fd',
                                                             padding: '8px'
                                                         }}
                                                     >

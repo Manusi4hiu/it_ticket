@@ -639,14 +639,15 @@ export default function TicketDetail({ loaderData }: Route.ComponentProps) {
                 ) : (
                   <div className={styles.timeline}>
                     {ticket.notes.map((note) => (
-                      <div key={note.id} className={styles.timelineItem}>
-                        <div className={`${styles.timelineIcon} ${note.isInternal ? styles.timelineIconInternal : ""}`}>
-                          <MessageSquare />
-                        </div>
-                        <div className={styles.timelineContent}>
+                      <div 
+                        key={note.id} 
+                        className={`${styles.timelineItem} ${note.isInternal ? styles.timelineItemInternal : ""}`}
+                      >
+                        <div className={`${styles.timelineContent} ${note.isInternal ? styles.timelineContentInternal : ""}`}>
                           <div className={styles.timelineHeader}>
                             <span className={styles.timelineAuthor}>{note.author}</span>
                             <span className={styles.timelineTime}>{formatDate(note.createdAt)}</span>
+                            {note.isInternal && <span className={styles.internalBadge}>Internal Only</span>}
                           </div>
                           <p className={styles.timelineText}>{note.content}</p>
                           {note.imageUrl && (
@@ -742,15 +743,33 @@ export default function TicketDetail({ loaderData }: Route.ComponentProps) {
                   </div>
 
                   <div className={styles.formGroup}>
-                    <Label>Ticket Priority</Label>
-                    <div className={styles.priorityContainer}>
-                      <span
-                        className={`${styles.priorityBadge} ${styles[`priority${ticket.priority.charAt(0).toUpperCase() + ticket.priority.slice(1)}`]}`}
+                    <Label htmlFor="priority">Ticket Priority</Label>
+                    {isAdministrator ? (
+                      <Select
+                        value={priority}
+                        onValueChange={(value) => setPriority(value)}
                       >
-                        {ticket.priority === "critical" && <ArrowUpCircle style={{ width: "14px", height: "14px", marginRight: '6px' }} />}
-                        {ticket.priority}
-                      </span>
-                    </div>
+                        <SelectTrigger id="priority">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {priorities.map((p) => (
+                            <SelectItem key={p.id} value={p.name.toLowerCase()}>
+                              {p.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <div className={styles.priorityContainer}>
+                        <span
+                          className={`${styles.priorityBadge} ${styles[`priority${ticket.priority.charAt(0).toUpperCase() + ticket.priority.slice(1)}`]}`}
+                        >
+                          {ticket.priority === "critical" && <ArrowUpCircle style={{ width: "14px", height: "14px", marginRight: '6px' }} />}
+                          {ticket.priority}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   <div className={styles.formGroup}>

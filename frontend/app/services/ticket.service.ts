@@ -94,6 +94,7 @@ export async function getTickets(filters?: {
     category?: string;
     assignedTo?: string;
     search?: string;
+    is_resolved?: boolean;
     page?: number;
     per_page?: number;
 }): Promise<{ tickets: Ticket[]; total: number }> {
@@ -223,7 +224,7 @@ export async function addTicketNote(
     };
 }
 
-export async function getTicketStats(): Promise<{
+export async function getTicketStats(personal: boolean = false): Promise<{
     total: number;
     new: number;
     assigned: number;
@@ -244,7 +245,7 @@ export async function getTicketStats(): Promise<{
     }>;
     avgResolutionTime: number;
 } | null> {
-    const response = await ticketsApi.getStats();
+    const response = await ticketsApi.getStats(personal);
 
     if (!response.success || !response.data) {
         console.error('Failed to fetch stats:', response.error);

@@ -53,7 +53,7 @@ export default function Analytics({ loaderData }: Route.ComponentProps) {
 
   // Status distribution data (partially mapped from stats if possible, otherwise we might need more detailed stats)
   const statusData = useMemo(() => [
-    { name: "New", value: stats.new, color: "#818cf8" },
+    { name: "New", value: stats.new, color: "#60a5fa" },
     { name: "In Progress", value: stats.assigned, color: "#fbbf24" },
     { name: "Resolved", value: stats.resolved, color: "#34d399" },
   ], [stats.new, stats.assigned, stats.resolved]);
@@ -68,7 +68,7 @@ export default function Analytics({ loaderData }: Route.ComponentProps) {
 
   // Category distribution data
   const categoryData = useMemo(() => {
-    const COLORS = ["#818cf8", "#34d399", "#fbbf24", "#f472b6", "#a78bfa", "#2dd4bf"];
+    const COLORS = ["#60a5fa", "#34d399", "#fbbf24", "#f472b6", "#a78bfa", "#2dd4bf"];
     return Object.entries(stats.byCategory).map(([name, count], index) => ({
       name,
       value: count,
@@ -306,7 +306,7 @@ export default function Analytics({ loaderData }: Route.ComponentProps) {
                       backdropFilter: "blur(10px)"
                     }}
                   />
-                  <Bar dataKey="count" fill="#818cf8" radius={[0, 4, 4, 0]} barSize={20} />
+                  <Bar dataKey="count" fill="#60a5fa" radius={[0, 4, 4, 0]} barSize={20} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -344,9 +344,9 @@ export default function Analytics({ loaderData }: Route.ComponentProps) {
                   <Line
                     type="monotone"
                     dataKey="created"
-                    stroke="#818cf8"
+                    stroke="#60a5fa"
                     strokeWidth={4}
-                    dot={{ r: 6, fill: "#818cf8", strokeWidth: 2, stroke: "#0f0c29" }}
+                    dot={{ r: 6, fill: "#60a5fa", strokeWidth: 2, stroke: "#050b14" }}
                     activeDot={{ r: 8, strokeWidth: 0 }}
                   />
                   <Line
@@ -354,7 +354,7 @@ export default function Analytics({ loaderData }: Route.ComponentProps) {
                     dataKey="resolved"
                     stroke="#34d399"
                     strokeWidth={4}
-                    dot={{ r: 6, fill: "#34d399", strokeWidth: 2, stroke: "#0f0c29" }}
+                    dot={{ r: 6, fill: "#34d399", strokeWidth: 2, stroke: "#050b14" }}
                     activeDot={{ r: 8, strokeWidth: 0 }}
                   />
                 </LineChart>

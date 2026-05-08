@@ -13,8 +13,8 @@
     right: 0;
     bottom: 0;
     background:
-        radial-gradient(ellipse at 30% 20%, rgba(99, 102, 241, 0.1) 0%, transparent 50%),
-        radial-gradient(ellipse at 70% 80%, rgba(139, 92, 246, 0.08) 0%, transparent 50%);
+        radial-gradient(ellipse at 30% 20%, rgba(59, 130, 246, 0.1) 0%, transparent 50%),
+        radial-gradient(ellipse at 70% 80%, rgba(29, 78, 216, 0.08) 0%, transparent 50%);
     pointer-events: none;
 }
 
@@ -22,7 +22,7 @@
 .header {
     background: rgba(17, 24, 39, 0.8);
     backdrop-filter: blur(24px);
-    border-bottom: 1px solid rgba(99, 102, 241, 0.2);
+    border-bottom: 1px solid rgba(59, 130, 246, 0.2);
     padding: 16px 24px;
     position: sticky;
     top: 0;
@@ -38,7 +38,7 @@
     height: 2px;
     background: linear-gradient(90deg,
             transparent 0%,
-            rgba(99, 102, 241, 0.5) 50%,
+            rgba(59, 130, 246, 0.5) 50%,
             transparent 100%);
 }
 
@@ -62,7 +62,7 @@
 }
 
 .backLink:hover {
-    color: #818cf8;
+    color: #60a5fa;
 }
 
 .headerTitle {
@@ -75,14 +75,14 @@
     font-size: 1.5rem;
     font-weight: 800;
     margin: 0;
-    background: linear-gradient(135deg, #f3f4f6 0%, #818cf8 100%);
+    background: linear-gradient(135deg, #f3f4f6 0%, #60a5fa 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
 }
 
 .headerIcon {
-    color: #818cf8;
+    color: #60a5fa;
     filter: drop-shadow(0 0 10px rgba(129, 140, 248, 0.5));
 }
 
@@ -103,15 +103,15 @@
 .formCard {
     background: rgba(17, 24, 39, 0.7) !important;
     backdrop-filter: blur(24px) !important;
-    border: 1px solid rgba(99, 102, 241, 0.2) !important;
+    border: 1px solid rgba(59, 130, 246, 0.2) !important;
     border-radius: 24px !important;
     box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4) !important;
     overflow: hidden !important;
 }
 
 .cardHeader {
-    background: rgba(99, 102, 241, 0.05) !important;
-    border-bottom: 1px solid rgba(99, 102, 241, 0.15) !important;
+    background: rgba(59, 130, 246, 0.05) !important;
+    border-bottom: 1px solid rgba(59, 130, 246, 0.15) !important;
     padding: 28px 32px !important;
 }
 
@@ -125,7 +125,7 @@
 }
 
 .cardTitle svg {
-    color: #818cf8;
+    color: #60a5fa;
 }
 
 .cardDescription {
@@ -154,12 +154,12 @@
     gap: 10px;
     font-size: 1rem;
     font-weight: 700;
-    color: #818cf8;
+    color: #60a5fa;
     text-transform: uppercase;
     letter-spacing: 1px;
     margin: 0;
     padding-bottom: 12px;
-    border-bottom: 1px solid rgba(99, 102, 241, 0.2);
+    border-bottom: 1px solid rgba(59, 130, 246, 0.2);
 }
 
 .formGrid {
@@ -190,7 +190,7 @@
 }
 
 .label svg {
-    color: #818cf8;
+    color: #60a5fa;
     opacity: 0.7;
 }
 
@@ -198,7 +198,7 @@
 .select,
 .textarea {
     background: rgba(17, 24, 39, 0.6) !important;
-    border: 1.5px solid rgba(99, 102, 241, 0.25) !important;
+    border: 1.5px solid rgba(59, 130, 246, 0.25) !important;
     border-radius: 12px !important;
     color: #f3f4f6 !important;
     padding: 12px 16px !important;
@@ -209,10 +209,10 @@
 .input:focus,
 .select:focus,
 .textarea:focus {
-    border-color: rgba(99, 102, 241, 0.6) !important;
+    border-color: rgba(59, 130, 246, 0.6) !important;
     box-shadow:
-        0 0 0 3px rgba(99, 102, 241, 0.1),
-        0 0 20px rgba(99, 102, 241, 0.15) !important;
+        0 0 0 3px rgba(59, 130, 246, 0.1),
+        0 0 20px rgba(59, 130, 246, 0.15) !important;
     outline: none !important;
 }
 
@@ -232,7 +232,7 @@
     gap: 16px;
     justify-content: flex-end;
     padding-top: 16px;
-    border-top: 1px solid rgba(99, 102, 241, 0.15);
+    border-top: 1px solid rgba(59, 130, 246, 0.15);
 }
 
 .submitButton {
@@ -241,13 +241,13 @@
     display: flex !important;
     align-items: center !important;
     gap: 10px !important;
-    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%) !important;
-    box-shadow: 0 4px 16px rgba(99, 102, 241, 0.4) !important;
+    background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%) !important;
+    box-shadow: 0 4px 16px rgba(59, 130, 246, 0.4) !important;
 }
 
 .submitButton:hover {
     transform: translateY(-2px) !important;
-    box-shadow: 0 8px 24px rgba(99, 102, 241, 0.5) !important;
+    box-shadow: 0 8px 24px rgba(59, 130, 246, 0.5) !important;
 }
 
 /* Success Card */
@@ -297,9 +297,9 @@
     font-family: monospace;
     font-size: 1.25rem;
     font-weight: 700;
-    color: #818cf8;
-    background: rgba(99, 102, 241, 0.1);
-    border: 1px solid rgba(99, 102, 241, 0.3);
+    color: #60a5fa;
+    background: rgba(59, 130, 246, 0.1);
+    border: 1px solid rgba(59, 130, 246, 0.3);
     padding: 16px 32px;
     border-radius: 12px;
     display: inline-block;

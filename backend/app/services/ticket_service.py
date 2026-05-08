@@ -262,39 +262,45 @@ class TicketService:
         return note
 
     @staticmethod
-    def get_stats():
-        """Get ticket statistics for dashboard"""
-        total = Ticket.query.count()
+    def get_stats(user_id=None):
+        """Get ticket statistics for dashboard, optionally filtered by user"""
+        base_query = Ticket.query
+        if user_id:
+            base_query = base_query.filter(Ticket.assigned_to_id == user_id)
+            
+        total = base_query.count()
         # To make it dynamic, we use the master data if possible
         all_statuses = Status.query.all()
         
         new_status_names = [s.name.lower() for s in all_statuses if s.is_default] or ['new']
         resolved_status_names = [s.name.lower() for s in all_statuses if 'resolve' in s.name.lower() or 'close' in s.name.lower()] or ['resolved', 'closed']
         
-        new = Ticket.query.filter(db.func.lower(Ticket.status).in_(new_status_names)).count()
-        resolved = Ticket.query.filter(db.func.lower(Ticket.status).in_(resolved_status_names)).count()
+        new = base_query.filter(db.func.lower(Ticket.status).in_(new_status_names)).count()
+        resolved = base_query.filter(db.func.lower(Ticket.status).in_(resolved_status_names)).count()
         assigned = total - new - resolved
         worked_on = total - new
         
         # SLA stats
-        breached = Ticket.query.filter_by(sla_status='breached').count()
-        warning = Ticket.query.filter_by(sla_status='warning').count()
+        breached = base_query.filter_by(sla_status='breached').count()
+        warning = base_query.filter_by(sla_status='warning').count()
         
         # Priority breakdown
         by_priority = {
-            'critical': Ticket.query.filter(db.func.lower(Ticket.priority) == 'critical').filter(db.func.lower(Ticket.status).notin_(['resolved', 'closed', 'completed'])).count(),
-            'high': Ticket.query.filter(db.func.lower(Ticket.priority) == 'high').filter(db.func.lower(Ticket.status).notin_(['resolved', 'closed', 'completed'])).count(),
-            'medium': Ticket.query.filter(db.func.lower(Ticket.priority) == 'medium').filter(db.func.lower(Ticket.status).notin_(['resolved', 'closed', 'completed'])).count(),
-            'low': Ticket.query.filter(db.func.lower(Ticket.priority) == 'low').filter(db.func.lower(Ticket.status).notin_(['resolved', 'closed', 'completed'])).count(),
+            'critical': base_query.filter(db.func.lower(Ticket.priority) == 'critical').filter(db.func.lower(Ticket.status).notin_(resolved_status_names)).count(),
+            'high': base_query.filter(db.func.lower(Ticket.priority) == 'high').filter(db.func.lower(Ticket.status).notin_(resolved_status_names)).count(),
+            'medium': base_query.filter(db.func.lower(Ticket.priority) == 'medium').filter(db.func.lower(Ticket.status).notin_(resolved_status_names)).count(),
+            'low': base_query.filter(db.func.lower(Ticket.priority) == 'low').filter(db.func.lower(Ticket.status).notin_(resolved_status_names)).count(),
         }
         
         # Category breakdown
         cats = db.session.query(Ticket.category, db.func.count(Ticket.id))\
+            .filter(Ticket.assigned_to_id == user_id if user_id else True)\
             .group_by(Ticket.category).all()
         by_category = {cat: count for cat, count in cats if cat}
         
         # Department breakdown
         depts = db.session.query(Ticket.submitter_department, db.func.count(Ticket.id))\
+            .filter(Ticket.assigned_to_id == user_id if user_id else True)\
             .group_by(Ticket.submitter_department).all()
         by_department = {dept: count for dept, count in depts if dept}
         
@@ -304,8 +310,15 @@ class TicketService:
             date = (datetime.utcnow() - timedelta(days=i)).date()
             date_str = date.strftime('%a')
             
-            created = Ticket.query.filter(db.func.date(Ticket.created_at) == date).count()
-            resolved_on_day = Ticket.query.filter(db.func.date(Ticket.resolved_at) == date).count()
+            created_q = Ticket.query.filter(db.func.date(Ticket.created_at) == date)
+            resolved_q = Ticket.query.filter(db.func.date(Ticket.resolved_at) == date)
+            
+            if user_id:
+                created_q = created_q.filter(Ticket.assigned_to_id == user_id)
+                resolved_q = resolved_q.filter(Ticket.assigned_to_id == user_id)
+                
+            created = created_q.count()
+            resolved_on_day = resolved_q.count()
             
             trend.append({
                 'day': date_str,
@@ -314,7 +327,11 @@ class TicketService:
             })
         
         # All resolved tickets (for compliance)
-        resolved_all = Ticket.query.filter(db.func.lower(Ticket.status).in_(['resolved', 'closed', 'completed'])).all()
+        resolved_all_q = Ticket.query.filter(db.func.lower(Ticket.status).in_(resolved_status_names))
+        if user_id:
+            resolved_all_q = resolved_all_q.filter(Ticket.assigned_to_id == user_id)
+        
+        resolved_all = resolved_all_q.all()
         res_times = []
         for t in resolved_all:
             if t.resolved_at and t.created_at:

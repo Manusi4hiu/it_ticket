@@ -4,7 +4,7 @@
   height: 44px;
   width: 100%;
   border-radius: 12px;
-  border: 1.5px solid rgba(99, 102, 241, 0.25);
+  border: 1.5px solid rgba(59, 130, 246, 0.25);
   background: rgba(17, 24, 39, 0.6);
   padding: var(--space-3) var(--space-4);
   font-size: var(--font-size-1);
@@ -18,10 +18,10 @@
 
 .input:focus-visible {
   outline: none;
-  border-color: rgba(99, 102, 241, 0.6);
+  border-color: rgba(59, 130, 246, 0.6);
   box-shadow:
-    0 0 0 3px rgba(99, 102, 241, 0.1),
-    0 0 20px rgba(99, 102, 241, 0.15);
+    0 0 0 3px rgba(59, 130, 246, 0.1),
+    0 0 20px rgba(59, 130, 246, 0.15);
 }
 
 .input:disabled {

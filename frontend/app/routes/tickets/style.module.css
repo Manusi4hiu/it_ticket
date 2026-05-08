@@ -27,7 +27,7 @@
   padding: var(--space-4);
   background: rgba(17, 24, 39, 0.4);
   border-radius: 12px;
-  border: 1px solid rgba(99, 102, 241, 0.2);
+  border: 1px solid rgba(59, 130, 246, 0.2);
   backdrop-filter: blur(10px);
 }
 
@@ -40,7 +40,7 @@
 .searchInput {
   width: 100%;
   background: rgba(17, 24, 39, 0.6);
-  border: 1px solid rgba(99, 102, 241, 0.3);
+  border: 1px solid rgba(59, 130, 246, 0.3);
   border-radius: 8px;
   padding: 8px 12px 8px 36px;
   color: #fff;
@@ -50,8 +50,8 @@
 
 .searchInput:focus {
   outline: none;
-  border-color: #6366f1;
-  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
 }
 
 .searchIcon {
@@ -72,7 +72,7 @@
 
 .selectTrigger {
   background: rgba(17, 24, 39, 0.6) !important;
-  border: 1px solid rgba(99, 102, 241, 0.3) !important;
+  border: 1px solid rgba(59, 130, 246, 0.3) !important;
   color: #f3f4f6 !important;
   height: 36px !important;
   font-size: 0.85rem !important;
@@ -96,7 +96,7 @@
 .tableContainer {
   background: rgba(17, 24, 39, 0.4);
   border-radius: 12px;
-  border: 1px solid rgba(99, 102, 241, 0.2);
+  border: 1px solid rgba(59, 130, 246, 0.2);
   overflow: hidden;
   flex: 1;
   display: flex;
@@ -121,7 +121,7 @@
   color: #9ca3af;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  border-bottom: 1px solid rgba(99, 102, 241, 0.2);
+  border-bottom: 1px solid rgba(59, 130, 246, 0.2);
   background: #111827;
   position: sticky;
   top: 0;
@@ -129,13 +129,13 @@
 }
 
 .tableRow {
-  border-bottom: 1px solid rgba(99, 102, 241, 0.1);
+  border-bottom: 1px solid rgba(59, 130, 246, 0.1);
   transition: background 0.2s ease;
   cursor: pointer;
 }
 
 .tableRow:hover {
-  background: rgba(99, 102, 241, 0.05);
+  background: rgba(59, 130, 246, 0.05);
 }
 
 .table td {
@@ -147,7 +147,7 @@
 .ticketKey {
   font-family: var(--font-mono);
   font-weight: 700;
-  color: #818cf8;
+  color: #60a5fa;
 }
 
 .ticketSummary {
@@ -175,7 +175,7 @@
   align-items: center;
   justify-content: space-between;
   padding: var(--space-4) var(--space-6);
-  border-top: 1px solid rgba(99, 102, 241, 0.2);
+  border-top: 1px solid rgba(59, 130, 246, 0.2);
   background: rgba(17, 24, 39, 0.4);
 }
 
@@ -191,7 +191,7 @@
 
 .pageButton {
   background: rgba(17, 24, 39, 0.6) !important;
-  border: 1px solid rgba(99, 102, 241, 0.3) !important;
+  border: 1px solid rgba(59, 130, 246, 0.3) !important;
   color: #f3f4f6 !important;
   width: 32px !important;
   height: 32px !important;
@@ -207,8 +207,8 @@
 }
 
 .pageButtonActive {
-  background: #6366f1 !important;
-  border-color: #6366f1 !important;
+  background: #3b82f6 !important;
+  border-color: #3b82f6 !important;
   color: #fff !important;
 }
 
@@ -246,15 +246,15 @@
   gap: 8px;
   color: #f3f4f6;
   font-weight: 600;
-  background: rgba(99, 102, 241, 0.15);
+  background: rgba(59, 130, 246, 0.15);
   padding: 4px 10px;
   border-radius: 8px;
-  border: 1px solid rgba(99, 102, 241, 0.3);
+  border: 1px solid rgba(59, 130, 246, 0.3);
   width: fit-content;
 }
 
 .assignedIcon {
-  color: #818cf8;
+  color: #60a5fa;
 }
 
 .takeAction {

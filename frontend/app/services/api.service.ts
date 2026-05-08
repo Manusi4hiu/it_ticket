@@ -220,6 +220,7 @@ export const ticketsApi = {
         category?: string;
         assignedTo?: string;
         search?: string;
+        is_resolved?: boolean;
     }) => {
         const params = new URLSearchParams();
         if (filters) {
@@ -395,7 +396,7 @@ export const ticketsApi = {
         });
     },
 
-    getStats: async () => {
+    getStats: async (personal: boolean = false) => {
         return apiRequest<{
             success: boolean;
             stats: {
@@ -419,7 +420,7 @@ export const ticketsApi = {
                 }>;
                 avgResolutionTime: number;
             };
-        }>('/tickets/stats');
+        }>(`/tickets/stats${personal ? '?personal=true' : ''}`);
     },
 };
 

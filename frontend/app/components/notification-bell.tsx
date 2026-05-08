@@ -178,7 +178,7 @@ export function NotificationBell({ userId }: NotificationBellProps) {
                   </div>
                   <p className={styles.notificationMessage}>{notification.message}</p>
                   <div className={styles.notificationFooter}>
-                    <span style={{ fontSize: '11px', color: '#818cf8', fontWeight: 700 }}>VIEW TICKET →</span>
+                    <span style={{ fontSize: '11px', color: '#60a5fa', fontWeight: 700 }}>VIEW TICKET →</span>
                   </div>
                 </div>
               </div>

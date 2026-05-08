@@ -79,7 +79,7 @@ export default function StaffPerformance({ loaderData }: Route.ComponentProps) {
     { week: "Week 4", ...sortedStats.reduce((acc, staff) => ({ ...acc, [staff.name]: Math.floor(Math.random() * 7) + 5 }), {}) },
   ];
 
-  const chartColors = ["#6366f1", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4"];
+  const chartColors = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#1d4ed8", "#ec4899", "#06b6d4"];
 
   return (
     <div className={styles.contentWrapper}>
@@ -147,8 +147,8 @@ export default function StaffPerformance({ loaderData }: Route.ComponentProps) {
           {/* Summary Statistics */}
           <div className={styles.summaryGrid}>
             <Card className={styles.summaryCard}>
-              <div className={styles.summaryIcon} style={{ background: "rgba(99, 102, 241, 0.1)", border: "1px solid rgba(99, 102, 241, 0.2)" }}>
-                <Target style={{ color: "#818cf8", width: "24px", height: "24px" }} />
+              <div className={styles.summaryIcon} style={{ background: "rgba(59, 130, 246, 0.1)", border: "1px solid rgba(59, 130, 246, 0.2)" }}>
+                <Target style={{ color: "#60a5fa", width: "24px", height: "24px" }} />
               </div>
               <div className={styles.summaryContent}>
                 <div className={styles.summaryLabel}>Total Worked</div>
@@ -182,7 +182,7 @@ export default function StaffPerformance({ loaderData }: Route.ComponentProps) {
             </Card>
 
             <Card className={styles.summaryCard}>
-              <div className={styles.summaryIcon} style={{ background: "rgba(139, 92, 246, 0.1)", border: "1px solid rgba(139, 92, 246, 0.2)" }}>
+              <div className={styles.summaryIcon} style={{ background: "rgba(29, 78, 216, 0.1)", border: "1px solid rgba(29, 78, 216, 0.2)" }}>
                 <Users style={{ color: "#a78bfa", width: "24px", height: "24px" }} />
               </div>
               <div className={styles.summaryContent}>
@@ -217,7 +217,7 @@ export default function StaffPerformance({ loaderData }: Route.ComponentProps) {
                     />
                     <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px' }} />
                     <Bar dataKey="resolved" fill="#10b981" name="Resolved" radius={[6, 6, 0, 0]} barSize={24} />
-                    <Bar dataKey="inProgress" fill="#6366f1" name="In Progress" radius={[6, 6, 0, 0]} barSize={24} />
+                    <Bar dataKey="inProgress" fill="#3b82f6" name="In Progress" radius={[6, 6, 0, 0]} barSize={24} />
                     <Bar dataKey="pending" fill="#9ca3af" name="Pending" radius={[6, 6, 0, 0]} barSize={24} />
                   </BarChart>
                 </ResponsiveContainer>

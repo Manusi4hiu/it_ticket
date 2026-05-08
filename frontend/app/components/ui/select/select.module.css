@@ -6,7 +6,7 @@
   justify-content: space-between;
   border-radius: 12px;
   padding: var(--space-3) var(--space-4);
-  border: 1.5px solid rgba(99, 102, 241, 0.25);
+  border: 1.5px solid rgba(59, 130, 246, 0.25);
   background: rgba(17, 24, 39, 0.6);
   color: #f3f4f6;
   transition: all 0.3s ease;
@@ -15,10 +15,10 @@
 
 .trigger:focus {
   outline: none;
-  border-color: rgba(99, 102, 241, 0.6);
+  border-color: rgba(59, 130, 246, 0.6);
   box-shadow:
-    0 0 0 3px rgba(99, 102, 241, 0.1),
-    0 0 20px rgba(99, 102, 241, 0.15);
+    0 0 0 3px rgba(59, 130, 246, 0.1),
+    0 0 20px rgba(59, 130, 246, 0.15);
 }
 
 .trigger:disabled {
@@ -38,7 +38,7 @@
 .icon {
   aspect-ratio: 1;
   width: 20px;
-  color: #818cf8;
+  color: #60a5fa;
   transition: transform 0.2s ease;
 }
 
@@ -52,11 +52,11 @@
   align-items: center;
   justify-content: center;
   padding: var(--space-2);
-  color: #818cf8;
+  color: #60a5fa;
 }
 
 .scrollButton:hover {
-  background: rgba(99, 102, 241, 0.1);
+  background: rgba(59, 130, 246, 0.1);
 }
 
 .content {
@@ -70,8 +70,8 @@
   color: #f3f4f6;
   box-shadow:
     0 10px 40px rgba(0, 0, 0, 0.5),
-    0 0 0 1px rgba(99, 102, 241, 0.2);
-  border: 1px solid rgba(99, 102, 241, 0.3);
+    0 0 0 1px rgba(59, 130, 246, 0.2);
+  border: 1px solid rgba(59, 130, 246, 0.3);
 }
 
 .content[data-state="open"] {
@@ -94,7 +94,7 @@
 .label {
   padding: var(--space-2) var(--space-3);
   font-weight: 700;
-  color: #818cf8;
+  color: #60a5fa;
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -116,12 +116,12 @@
 }
 
 .item:focus {
-  background: rgba(99, 102, 241, 0.15);
+  background: rgba(59, 130, 246, 0.15);
   color: #f3f4f6;
 }
 
 .item:hover {
-  background: rgba(99, 102, 241, 0.1);
+  background: rgba(59, 130, 246, 0.1);
   color: #f3f4f6;
 }
 
@@ -131,7 +131,7 @@
 }
 
 .item[data-state="checked"] {
-  background: rgba(99, 102, 241, 0.2);
+  background: rgba(59, 130, 246, 0.2);
   color: #f3f4f6;
 }
 
@@ -144,13 +144,13 @@
 }
 
 .indicatorIcon {
-  color: #818cf8;
+  color: #60a5fa;
 }
 
 .separator {
   margin: 6px 8px;
   height: 1px;
-  background: rgba(99, 102, 241, 0.2);
+  background: rgba(59, 130, 246, 0.2);
 }
 
 @keyframes contentShow {

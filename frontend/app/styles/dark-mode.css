@@ -1,18 +1,18 @@
 /* Dark Mode Base Template - Can be used for all pages */
 :root {
-    --dark-bg-primary: #0f0c29;
-    --dark-bg-secondary: #302b63;
-    --dark-bg-tertiary: #24243e;
-    --dark-surface: rgba(17, 24, 39, 0.6);
-    --dark-surface-hover: rgba(17, 24, 39, 0.8);
-    --dark-border: rgba(99, 102, 241, 0.2);
-    --dark-border-hover: rgba(99, 102, 241, 0.4);
-    --dark-text-primary: #f3f4f6;
-    --dark-text-secondary: #d1d5db;
-    --dark-text-tertiary: #9ca3af;
-    --dark-accent: #6366f1;
-    --dark-accent-light: #818cf8;
-    --dark-accent-lighter: #a5b4fc;
+    --dark-bg-primary: #050b14;
+    --dark-bg-secondary: #0a192f;
+    --dark-bg-tertiary: #020c1b;
+    --dark-surface: rgba(10, 25, 47, 0.6);
+    --dark-surface-hover: rgba(10, 25, 47, 0.8);
+    --dark-border: rgba(59, 130, 246, 0.2);
+    --dark-border-hover: rgba(59, 130, 246, 0.4);
+    --dark-text-primary: #f8fafc;
+    --dark-text-secondary: #cbd5e1;
+    --dark-text-tertiary: #94a3b8;
+    --dark-accent: #3b82f6;
+    --dark-accent-light: #60a5fa;
+    --dark-accent-lighter: #93c5fd;
 }
 
 .container {
@@ -30,9 +30,9 @@
     right: 0;
     bottom: 0;
     background:
-        radial-gradient(circle at 20% 50%, rgba(99, 102, 241, 0.15), transparent 50%),
-        radial-gradient(circle at 80% 80%, rgba(139, 92, 246, 0.15), transparent 50%),
-        radial-gradient(circle at 40% 20%, rgba(59, 130, 246, 0.1), transparent 50%);
+        radial-gradient(circle at 20% 50%, rgba(59, 130, 246, 0.15), transparent 50%),
+        radial-gradient(circle at 80% 80%, rgba(29, 78, 216, 0.15), transparent 50%),
+        radial-gradient(circle at 40% 20%, rgba(96, 165, 250, 0.1), transparent 50%);
     pointer-events: none;
 }
 
@@ -43,7 +43,7 @@
     padding: var(--space-4) var(--space-6);
     box-shadow:
         0 4px 30px rgba(0, 0, 0, 0.3),
-        0 0 0 1px rgba(99, 102, 241, 0.1) inset;
+        0 0 0 1px rgba(59, 130, 246, 0.1) inset;
     position: sticky;
     top: 0;
     z-index: 100;
@@ -58,9 +58,9 @@
     height: 2px;
     background: linear-gradient(90deg,
             transparent 0%,
-            rgba(99, 102, 241, 0.5) 25%,
-            rgba(139, 92, 246, 0.7) 50%,
-            rgba(99, 102, 241, 0.5) 75%,
+            rgba(59, 130, 246, 0.5) 25%,
+            rgba(37, 99, 235, 0.7) 50%,
+            rgba(59, 130, 246, 0.5) 75%,
             transparent 100%);
     opacity: 0.6;
 }
@@ -78,7 +78,7 @@
 
 .card:hover {
     transform: translateY(-4px);
-    box-shadow: 0 12px 40px rgba(99, 102, 241, 0.2);
+    box-shadow: 0 12px 40px rgba(59, 130, 246, 0.2);
     border-color: var(--dark-border-hover);
 }
 
@@ -86,7 +86,7 @@
 .title {
     color: var(--dark-text-primary);
     font-weight: 800;
-    background: linear-gradient(135deg, #818cf8 0%, #c084fc 100%);
+    background: linear-gradient(135deg, #93c5fd 0%, #3b82f6 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -116,9 +116,9 @@
 }
 
 .badge-primary {
-    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
     color: white;
-    box-shadow: 0 0 15px rgba(99, 102, 241, 0.4);
+    box-shadow: 0 0 15px rgba(59, 130, 246, 0.4);
 }
 
 .badge-success {

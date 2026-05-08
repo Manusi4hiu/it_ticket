@@ -35,18 +35,21 @@ import styles from "./style.module.css";
 export async function loader({ request }: Route.LoaderArgs) {
   const session = await requireAuth(request);
 
-  // Parallel fetch
-  const [ticketResponse, agents, statusResponse, stats] = await Promise.all([
-    getTickets({ page: 1, per_page: 5 }),
+  // Parallel fetch for personal data
+  const [activeResponse, completedResponse, agents, statusResponse, stats] = await Promise.all([
+    getTickets({ assignedTo: session.userId, is_resolved: false, page: 1, per_page: 5 }),
+    getTickets({ assignedTo: session.userId, is_resolved: true, page: 1, per_page: 5 }),
     getAgents(),
     settingsApi.getStatuses(),
-    getTicketStats()
+    getTicketStats(true) // Personal stats
   ]);
 
   return {
     session,
-    tickets: ticketResponse.tickets,
-    totalTickets: ticketResponse.total,
+    activeTickets: activeResponse.tickets,
+    activeTotal: activeResponse.total,
+    completedTickets: completedResponse.tickets,
+    completedTotal: completedResponse.total,
     agents,
     statuses: statusResponse.data?.data || [],
     stats
@@ -69,14 +72,32 @@ export async function action({ request }: Route.ActionArgs) {
 }
 
 export default function Dashboard({ loaderData }: Route.ComponentProps) {
-  const { session, tickets: initialTickets, totalTickets, agents, statuses, stats } = loaderData;
+  const { 
+    session, 
+    activeTickets: initialActive, 
+    activeTotal,
+    completedTickets: initialCompleted, 
+    completedTotal,
+    agents, 
+    statuses, 
+    stats 
+  } = loaderData;
   const navigate = useNavigate();
   const tableWrapperRef = useRef<HTMLDivElement>(null);
   
-  // State for infinite scroll
-  const [tickets, setTickets] = useState(initialTickets);
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(initialTickets.length < totalTickets);
+  // Tab State
+  const [activeTab, setActiveTab] = useState<'active' | 'completed'>('active');
+
+  // State for active tickets
+  const [activeTickets, setActiveTickets] = useState(initialActive);
+  const [activePage, setActivePage] = useState(1);
+  const [hasMoreActive, setHasMoreActive] = useState(initialActive.length < activeTotal);
+  
+  // State for completed tickets
+  const [completedTickets, setCompletedTickets] = useState(initialCompleted);
+  const [completedPage, setCompletedPage] = useState(1);
+  const [hasMoreCompleted, setHasMoreCompleted] = useState(initialCompleted.length < completedTotal);
+
   const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   useEffect(() => {
@@ -84,6 +105,11 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
       setAuthToken(session.authToken);
     }
   }, [session]);
+
+  // Current active data based on tab
+  const tickets = activeTab === 'active' ? activeTickets : completedTickets;
+  const hasMore = activeTab === 'active' ? hasMoreActive : hasMoreCompleted;
+  const totalCount = activeTab === 'active' ? activeTotal : completedTotal;
 
   // Infinite Scroll Logic
   useEffect(() => {
@@ -105,31 +131,71 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
     }
 
     return () => observer.disconnect();
-  }, [hasMore, isLoadingMore, page]);
+  }, [hasMore, isLoadingMore, activeTab, activeTickets.length, completedTickets.length]);
 
   const loadMoreTickets = async () => {
     setIsLoadingMore(true);
-    const nextPage = page + 1;
-    const response = await getTickets({ page: nextPage, per_page: 5 });
+    const isWorkingOnActive = activeTab === 'active';
+    const nextPage = isWorkingOnActive ? activePage + 1 : completedPage + 1;
+    
+    const response = await getTickets({ 
+      assignedTo: session.userId, 
+      is_resolved: !isWorkingOnActive, 
+      page: nextPage, 
+      per_page: 5 
+    });
     
     if (response.tickets.length > 0) {
-      setTickets((prev) => [...prev, ...response.tickets]);
-      setPage(nextPage);
-      setHasMore(tickets.length + response.tickets.length < totalTickets);
+      if (isWorkingOnActive) {
+        setActiveTickets((prev) => [...prev, ...response.tickets]);
+        setActivePage(nextPage);
+        setHasMoreActive(activeTickets.length + response.tickets.length < activeTotal);
+      } else {
+        setCompletedTickets((prev) => [...prev, ...response.tickets]);
+        setCompletedPage(nextPage);
+        setHasMoreCompleted(completedTickets.length + response.tickets.length < completedTotal);
+      }
     } else {
-      setHasMore(false);
+      if (isWorkingOnActive) setHasMoreActive(false);
+      else setHasMoreCompleted(false);
     }
     setIsLoadingMore(false);
   };
 
-  const isAdministrator = session.userRole === 'Administrator';
+  const updateTicketsState = (updated: Ticket) => {
+    // If ticket is no longer assigned to me, remove it
+    if (updated.assignedToId !== parseInt(session.userId)) {
+      setActiveTickets(prev => prev.filter(t => t.id !== updated.id));
+      setCompletedTickets(prev => prev.filter(t => t.id !== updated.id));
+      return;
+    }
 
-  const metrics = useMemo(() => ({
-    new: stats?.new || 0,
-    inProgress: stats?.assigned || 0,
-    resolved: stats?.resolved || 0,
-    critical: stats?.byPriority?.critical || 0,
-  }), [stats]);
+    // Check if it should move between tabs
+    const resolvedStatuses = ['resolved', 'closed', 'completed'];
+    const isResolved = resolvedStatuses.includes(updated.status.toLowerCase());
+
+    if (isResolved) {
+      // Remove from active, add to completed if not already there
+      setActiveTickets(prev => prev.filter(t => t.id !== updated.id));
+      setCompletedTickets(prev => {
+        if (prev.find(t => t.id === updated.id)) {
+          return prev.map(t => t.id === updated.id ? updated : t);
+        }
+        return [updated, ...prev];
+      });
+    } else {
+      // Remove from completed, add to active if not already there
+      setCompletedTickets(prev => prev.filter(t => t.id !== updated.id));
+      setActiveTickets(prev => {
+        if (prev.find(t => t.id === updated.id)) {
+          return prev.map(t => t.id === updated.id ? updated : t);
+        }
+        return [updated, ...prev];
+      });
+    }
+  };
+
+  const isAdministrator = session.userRole === 'Administrator';
 
   const getStatusIcon = (status: string) => {
     const s = status.toLowerCase();
@@ -196,7 +262,8 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
     if (confirm("Are you sure you want to delete this ticket?")) {
       const success = await deleteTicket(id.toString());
       if (success) {
-        setTickets(prev => prev.filter(t => t.id !== id));
+        setActiveTickets(prev => prev.filter(t => t.id !== id));
+        setCompletedTickets(prev => prev.filter(t => t.id !== id));
       } else {
         alert("Failed to delete ticket");
       }
@@ -221,41 +288,56 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
         <div className={styles.metricsGrid}>
           <div className={styles.metricCard}>
             <div className={styles.metricHeader}>
-              <span className={styles.metricLabel}>New Tickets</span>
+              <span className={styles.metricLabel}>My Active Tickets</span>
               <Inbox className={styles.metricIcon} />
             </div>
-            <div className={`${styles.metricValue} ${styles.metricNew}`}>{metrics.new}</div>
+            <div className={`${styles.metricValue} ${styles.metricNew}`}>{stats?.assigned || 0}</div>
           </div>
 
           <div className={styles.metricCard}>
             <div className={styles.metricHeader}>
-              <span className={styles.metricLabel}>In Progress</span>
-              <Clock className={styles.metricIcon} />
-            </div>
-            <div className={`${styles.metricValue} ${styles.metricInProgress}`}>{metrics.inProgress}</div>
-          </div>
-
-          <div className={styles.metricCard}>
-            <div className={styles.metricHeader}>
-              <span className={styles.metricLabel}>Resolved</span>
+              <span className={styles.metricLabel}>My Completed</span>
               <CheckCircle className={styles.metricIcon} />
             </div>
-            <div className={`${styles.metricValue} ${styles.metricResolved}`}>{metrics.resolved}</div>
+            <div className={`${styles.metricValue} ${styles.metricResolved}`}>{stats?.resolved || 0}</div>
           </div>
 
           <div className={styles.metricCard}>
             <div className={styles.metricHeader}>
-              <span className={styles.metricLabel}>Critical</span>
+              <span className={styles.metricLabel}>My SLA Breached</span>
               <AlertTriangle className={styles.metricIcon} />
             </div>
-            <div className={`${styles.metricValue} ${styles.metricBreached}`}>{metrics.critical}</div>
+            <div className={`${styles.metricValue} ${styles.metricBreached}`}>{stats?.sla?.breached || 0}</div>
+          </div>
+
+          <div className={styles.metricCard}>
+            <div className={styles.metricHeader}>
+              <span className={styles.metricLabel}>Avg. Resolution</span>
+              <Clock className={styles.metricIcon} />
+            </div>
+            <div className={`${styles.metricValue} ${styles.metricInProgress}`}>{stats?.avgResolutionTime || 0}h</div>
           </div>
         </div>
 
         {/* Tickets Table */}
         <div className={styles.tableSection}>
           <div className={styles.tableHeader}>
-            <h2 className={styles.tableTitle}>Support Tickets</h2>
+            <div className={styles.tabsContainer}>
+              <button 
+                className={`${styles.tab} ${activeTab === 'active' ? styles.activeTab : ''}`}
+                onClick={() => setActiveTab('active')}
+              >
+                My Active Tickets
+                <span className={styles.tabCount}>{activeTotal}</span>
+              </button>
+              <button 
+                className={`${styles.tab} ${activeTab === 'completed' ? styles.activeTab : ''}`}
+                onClick={() => setActiveTab('completed')}
+              >
+                My Completed Tickets
+                <span className={styles.tabCount}>{completedTotal}</span>
+              </button>
+            </div>
             <Button 
               size="sm" 
               onClick={() => navigate("/submit-ticket")}
@@ -269,7 +351,11 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
           {tickets.length === 0 ? (
             <div className={styles.emptyState}>
               <Inbox className={styles.emptyStateIcon} />
-              <p className={styles.emptyStateText}>No tickets available</p>
+              <p className={styles.emptyStateText}>
+                {activeTab === 'active' 
+                  ? "You don't have any active tickets assigned" 
+                  : "You haven't completed any tickets yet"}
+              </p>
             </div>
           ) : (
             <div className={styles.tableWrapper} ref={tableWrapperRef}>
@@ -331,7 +417,7 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
                               onValueChange={async (val) => {
                                 const updated = await updateTicketPriority(ticket.id, val);
                                 if (updated) {
-                                  setTickets(prev => prev.map(t => t.id === ticket.id ? updated : t));
+                                  updateTicketsState(updated);
                                 }
                               }}
                             >
@@ -362,7 +448,7 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
                                 const agentId = val === "unassigned" ? null : val;
                                 const updated = await assignTicket(ticket.id, agentId);
                                 if (updated) {
-                                  setTickets(prev => prev.map(t => t.id === ticket.id ? updated : t));
+                                  updateTicketsState(updated);
                                 }
                               }}
                             >
@@ -395,7 +481,7 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
                                       e.stopPropagation();
                                       const updated = await assignTicket(ticket.id, session.userId);
                                       if (updated) {
-                                        setTickets(prev => prev.map(t => t.id === ticket.id ? updated : t));
+                                        updateTicketsState(updated);
                                       }
                                     }}
                                   >

@@ -34,7 +34,7 @@
   justify-content: center;
   border-radius: 50%;
   background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-  border: 2px solid #0f0c29;
+  border: 2px solid #050b14;
   box-shadow: 0 0 10px rgba(239, 68, 68, 0.4);
   animation: badgePop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
@@ -81,7 +81,7 @@
 .markReadBtn {
   background: transparent !important;
   border: none !important;
-  color: #818cf8 !important;
+  color: #60a5fa !important;
   font-size: 12px !important;
   font-weight: 600 !important;
   padding: 4px 8px !important;
@@ -89,7 +89,7 @@
 }
 
 .markReadBtn:hover {
-  color: #a5b4fc !important;
+  color: #93c5fd !important;
   background: rgba(129, 140, 248, 0.1) !important;
   border-radius: 6px;
 }
@@ -135,7 +135,7 @@
   top: var(--space-4);
   bottom: var(--space-4);
   width: 3px;
-  background: #818cf8;
+  background: #60a5fa;
   border-radius: 0 4px 4px 0;
   box-shadow: 0 0 10px rgba(129, 140, 248, 0.5);
 }
@@ -148,13 +148,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #818cf8;
+  color: #60a5fa;
   flex-shrink: 0;
 }
 
 .unread .notificationIcon {
   background: rgba(129, 140, 248, 0.2);
-  color: #a5b4fc;
+  color: #93c5fd;
 }
 
 .notificationContent {
@@ -204,7 +204,7 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #818cf8;
+  background: #60a5fa;
   box-shadow: 0 0 8px rgba(129, 140, 248, 0.6);
 }
 

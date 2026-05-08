@@ -371,7 +371,7 @@ export default function RoleManagementSettings({ loaderData }: Route.ComponentPr
                                                     {user.name}
                                                 </span>
                                                 {user.id === currentUser.id && (
-                                                    <span style={{ fontSize: "0.65rem", color: "#a5b4fc", fontWeight: 800, textTransform: "uppercase", marginTop: "2px" }}>
+                                                    <span style={{ fontSize: "0.65rem", color: "#93c5fd", fontWeight: 800, textTransform: "uppercase", marginTop: "2px" }}>
                                                         Logged In
                                                     </span>
                                                 )}
