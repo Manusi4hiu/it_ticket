@@ -287,7 +287,7 @@ export default function TicketsList({ loaderData }: Route.ComponentProps) {
                   <tr 
                     key={ticket.id} 
                     className={styles.tableRow}
-                    onClick={() => navigate(`/ticket/${ticket.id}`)}
+                    onClick={() => navigate(`/ticket/${ticket.ticketCode || ticket.id}`)}
                   >
                     <td><span className={styles.ticketKey}>{ticket.ticketCode || ticket.id}</span></td>
                     <td><span className={styles.ticketSummary}>{ticket.title}</span></td>

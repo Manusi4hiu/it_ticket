@@ -61,10 +61,10 @@ export function NotificationBell({ userId }: NotificationBellProps) {
           .map((ticket) => ({
             id: `notif-${ticket.id}`,
             title: "Ticket Assigned to You",
-            message: `${ticket.id}: ${ticket.title}`,
+            message: `${ticket.ticketCode || ticket.id}: ${ticket.title}`,
             time: new Date(ticket.updatedAt || ticket.createdAt),
             read: false,
-            ticketId: ticket.id,
+            ticketId: ticket.ticketCode || ticket.id?.toString(),
           }))
           // Filter out those already read/dismissed
           .filter(notif => !readIds.has(notif.id));

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useToast } from "~/hooks/use-toast";
-import { useNavigate } from "react-router";
+import { useNavigate, useParams } from "react-router";
 import {
   ArrowLeft,
   User,
@@ -51,8 +51,19 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   const session = await getUserSession(request);
   const ticketId = params.id;
 
-  // Fetch ticket and agents (agents needed for staff profile modal in public view)
+  // If user injects numeric ID directly into URL (e.g. /ticket/105), block access
   const ticketId_val = params.id!;
+  if (/^\d+$/.test(ticketId_val)) {
+    return {
+      session,
+      ticket: null,
+      invalidNumericId: true,
+      agents: [],
+      priorities: [],
+      statuses: []
+    };
+  }
+
   const ticketPromise = getTicketById(ticketId_val);
   const agentsPromise = getAgents();
   const prioritiesPromise = session ? settingsApi.getPriorities() : Promise.resolve({ success: true, data: { data: [] } });
@@ -68,6 +79,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   return {
     session,
     ticket,
+    invalidNumericId: false,
     agents,
     priorities: (prioritiesRes.data?.data || []) as Priority[],
     statuses: (statusesRes.data?.data || []) as Status[]
@@ -76,7 +88,8 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 
 export default function TicketDetail({ loaderData }: Route.ComponentProps) {
   const navigate = useNavigate();
-  const { session, ticket: initialTicket, agents, priorities, statuses } = loaderData;
+  const params = useParams();
+  const { session, ticket: initialTicket, agents, priorities, statuses, invalidNumericId } = loaderData;
 
   // Determine view mode
   const isPublic = !session;
@@ -111,7 +124,7 @@ export default function TicketDetail({ loaderData }: Route.ComponentProps) {
   const [loadingStaffTickets, setLoadingStaffTickets] = useState(false);
   const [staffTickets, setStaffTickets] = useState<Ticket[]>([]);
 
-  if (!ticket) {
+  if (!ticket || invalidNumericId) {
     return (
       <div className={styles.container}>
         <div className={styles.header}>
@@ -127,8 +140,21 @@ export default function TicketDetail({ loaderData }: Route.ComponentProps) {
           </div>
         </div>
         <div style={{ padding: "var(--space-8)", textAlign: "center" }}>
-          <h2>Ticket not found</h2>
-          <p>The ticket ID you requested does not exist or has been removed.</p>
+          {invalidNumericId ? (
+            <>
+              <h2>Invalid Ticket Access</h2>
+              <p style={{ marginTop: "var(--space-2)", color: "var(--text-secondary)" }}>
+                Accessing tickets via numeric ID (e.g. {params.id}) is not allowed. Please use the valid Ticket Code (e.g. FIN-006).
+              </p>
+            </>
+          ) : (
+            <>
+              <h2>Ticket not found</h2>
+              <p style={{ marginTop: "var(--space-2)", color: "var(--text-secondary)" }}>
+                The ticket ID you requested does not exist or has been removed.
+              </p>
+            </>
+          )}
         </div>
       </div>
     );
@@ -1020,7 +1046,7 @@ export default function TicketDetail({ loaderData }: Route.ComponentProps) {
 
               <div className={styles.modalTicketsTitle}>
                 <TicketPlus size={18} />
-                Ongoing Tickets
+                In Progress Tickets
               </div>
 
               <div className={styles.modalTicketsList}>
@@ -1030,22 +1056,22 @@ export default function TicketDetail({ loaderData }: Route.ComponentProps) {
                   </div>
                 ) : staffTickets.length === 0 ? (
                   <div className={styles.modalNoTickets}>
-                    No ongoing tickets found for this staff.
+                    No tickets found for this staff.
                   </div>
                 ) : (
                   staffTickets
-                    .filter(t => t.status !== 'resolved' && t.status !== 'closed')
+                    .filter(t => t.status.toLowerCase() === 'in progress' || t.status.toLowerCase() === 'in-progress')
                     .map(t => (
                       <div
                         key={t.id}
                         className={styles.modalTicketItem}
                         onClick={() => {
                           setIsStaffModalOpen(false);
-                          navigate(`/ticket/${t.id}`);
+                          navigate(`/ticket/${t.ticketCode || t.id}`);
                         }}
                       >
                         <div className={styles.modalTicketHeader}>
-                          <span className={styles.modalTicketId}>{t.id}</span>
+                          <span className={styles.modalTicketId}>{t.ticketCode || t.id}</span>
                           <Badge variant="outline" style={{ fontSize: "0.6rem", height: "18px" }}>
                             {t.status}
                           </Badge>
@@ -1054,9 +1080,9 @@ export default function TicketDetail({ loaderData }: Route.ComponentProps) {
                       </div>
                     ))
                 )}
-                {staffTickets.length > 0 && staffTickets.filter(t => t.status !== 'resolved' && t.status !== 'closed').length === 0 && (
+                {staffTickets.length > 0 && staffTickets.filter(t => t.status.toLowerCase() === 'in progress' || t.status.toLowerCase() === 'in-progress').length === 0 && (
                   <div className={styles.modalNoTickets}>
-                    No ongoing tickets (all resolved).
+                    No tickets currently in progress.
                   </div>
                 )}
               </div>

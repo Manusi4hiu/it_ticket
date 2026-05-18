@@ -376,10 +376,10 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
                 <tbody>
                   {tickets.map((ticket) => (
                     <tr key={ticket.id} className={styles.tableRow}>
-                      <td onClick={() => navigate(`/ticket/${ticket.id}`)}>
+                      <td onClick={() => navigate(`/ticket/${ticket.ticketCode || ticket.id}`)}>
                         <span className={styles.ticketId}>{ticket.ticketCode || ticket.id}</span>
                       </td>
-                      <td onClick={() => navigate(`/ticket/${ticket.id}`)}>
+                      <td onClick={() => navigate(`/ticket/${ticket.ticketCode || ticket.id}`)}>
                         <span className={styles.ticketTitle}>{ticket.title}</span>
                       </td>
                       <td>

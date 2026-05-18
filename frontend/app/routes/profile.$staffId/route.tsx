@@ -101,11 +101,11 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
   const totalPending = pendingTickets.length;
 
   const renderTicketCard = (ticket: Ticket) => (
-    <Card key={ticket.id} className={styles.ticketCard} onClick={() => navigate(`/ticket/${ticket.id}`)}>
+    <Card key={ticket.id} className={styles.ticketCard} onClick={() => navigate(`/ticket/${ticket.ticketCode || ticket.id}`)}>
       <div className={styles.ticketHeader}>
         <div className={styles.ticketTitleSection}>
           <h4 className={styles.ticketTitle}>{ticket.title}</h4>
-          <span className={styles.ticketId}>{ticket.id}</span>
+          <span className={styles.ticketId}>{ticket.ticketCode || ticket.id}</span>
         </div>
         <Badge
           variant={
