@@ -64,7 +64,7 @@ export async function apiRequest<T>(
     endpoint: string,
     options: ApiRequestOptions = {}
 ): Promise<ApiResponse<T>> {
-    const { idempotencyKey, maxRetries = 0, ...fetchOptions } = options;
+    const { idempotencyKey, maxRetries = 3, ...fetchOptions } = options;
     const token = getAuthToken();
 
     const headers: Record<string, string> = {
@@ -84,10 +84,14 @@ export async function apiRequest<T>(
         headers['X-Idempotency-Key'] = idempotencyKey;
     }
 
+    const isServerSide = typeof window === 'undefined';
+    if (isServerSide) {
+        headers['Connection'] = 'close';
+    }
+
     // Ensure endpoint starts with /
     const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
     const fullUrl = `${API_BASE_URL}${normalizedEndpoint}`;
-    const isServerSide = typeof window === 'undefined';
 
     if (isServerSide) {
         console.log(`[API Request] SERVER-SIDE FETCH: ${fetchOptions.method || 'GET'} ${fullUrl}`);

@@ -25,6 +25,7 @@ import {
   UserCheck,
   Image as ImageIcon,
   TicketPlus,
+  Circle,
 } from "lucide-react";
 import { Button } from "~/components/ui/button/button";
 import { Label } from "~/components/ui/label/label";
