@@ -49,15 +49,15 @@ export async function action({ request }: Route.ActionArgs) {
     const email = formData.get("email") as string;
     const phone = formData.get("phone") as string;
     const department = formData.get("department") as string;
-    const category = formData.get("category") as string;
     const priority = formData.get("priority") as string || 'medium';
+    const category = formData.get("category") as string || "Uncategorized";
     const subject = formData.get("subject") as string;
     const description = formData.get("description") as string;
     const image = formData.get("image") as File | null;
 
     const idempotencyKey = formData.get("idempotencyKey") as string;
 
-    if (!name || !department || !category || !subject || !description) {
+    if (!name || !department || !subject || !description) {
         return { error: "All required fields must be filled" };
     }
 
@@ -232,24 +232,7 @@ export default function SubmitTicket({ actionData, loaderData }: Route.Component
                                             <FileText size={18} />
                                             Ticket Details
                                         </h3>
-                                        <div className={styles.formGroup}>
-                                            <Label htmlFor="category" className={styles.label}>
-                                                <Tag size={14} />
-                                                Category *
-                                            </Label>
-                                            <Select name="category" required>
-                                                <SelectTrigger className={styles.select}>
-                                                    <SelectValue placeholder="Select Category" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {categories.filter(c => c.isActive).map((c) => (
-                                                        <SelectItem key={c.id} value={c.name}>
-                                                            {c.name}
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
+                                        {/* Removed Category field */}
  
                                         <div className={styles.formGroup}>
                                             <Label htmlFor="priority" className={styles.label}>

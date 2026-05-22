@@ -40,7 +40,7 @@ import {
   DialogTitle,
 } from "~/components/ui/dialog/dialog";
 import { getTicketById, getTickets, getAgents, updateTicket, assignTicket, updateTicketStatus, addTicketNote, type Ticket, type TicketStatus } from "~/services/ticket.service";
-import { settingsApi, type Priority } from "~/services/settings.service";
+import { settingsApi, type Priority, type Category, type Status } from "~/services/settings.service";
 import { usersApi } from "~/services/api.service";
 import { getUserSession } from "~/services/session.service";
 import type { Route } from "./+types/route";
@@ -60,7 +60,8 @@ export async function loader({ request, params }: Route.LoaderArgs) {
       invalidNumericId: true,
       agents: [],
       priorities: [],
-      statuses: []
+      statuses: [],
+      categories: []
     };
   }
 
@@ -68,12 +69,14 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   const agentsPromise = getAgents();
   const prioritiesPromise = session ? settingsApi.getPriorities() : Promise.resolve({ success: true, data: { data: [] } });
   const statusesPromise = settingsApi.getStatuses();
+  const categoriesPromise = session ? settingsApi.getCategories() : Promise.resolve({ success: true, data: { data: [] } });
 
-  const [ticket, agents, prioritiesRes, statusesRes] = await Promise.all([
+  const [ticket, agents, prioritiesRes, statusesRes, categoriesRes] = await Promise.all([
     ticketPromise,
     agentsPromise,
     prioritiesPromise,
-    statusesPromise
+    statusesPromise,
+    categoriesPromise
   ]);
 
   return {
@@ -82,14 +85,15 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     invalidNumericId: false,
     agents,
     priorities: (prioritiesRes.data?.data || []) as Priority[],
-    statuses: (statusesRes.data?.data || []) as Status[]
+    statuses: (statusesRes.data?.data || []) as Status[],
+    categories: (categoriesRes.data?.data || []) as Category[]
   };
 }
 
 export default function TicketDetail({ loaderData }: Route.ComponentProps) {
   const navigate = useNavigate();
   const params = useParams();
-  const { session, ticket: initialTicket, agents, priorities, statuses, invalidNumericId } = loaderData;
+  const { session, ticket: initialTicket, agents, priorities, statuses, categories, invalidNumericId } = loaderData;
 
   // Determine view mode
   const isPublic = !session;
@@ -109,6 +113,7 @@ export default function TicketDetail({ loaderData }: Route.ComponentProps) {
   const [ticket, setTicket] = useState(initialTicket);
   const [status, setStatus] = useState<string>(initialTicket?.status || "New");
   const [priority, setPriority] = useState(initialTicket?.priority || "medium");
+  const [category, setCategory] = useState(initialTicket?.category || "Uncategorized");
   const [assignedTo, setAssignedTo] = useState(initialTicket?.assignedTo || "");
   const [collaborators, setCollaborators] = useState<string[]>(initialTicket?.collaborators || []);
   const [collaboratorIds, setCollaboratorIds] = useState<string[]>(initialTicket?.collaboratorIds || []);
@@ -235,6 +240,7 @@ export default function TicketDetail({ loaderData }: Route.ComponentProps) {
       const updatedTicket = await updateTicket(ticket.id, {
         status,
         priority, // Include priority in update
+        category, // Include category in update
         assignedToId: newAssignedId,
         collaboratorIds,
       });
@@ -244,6 +250,7 @@ export default function TicketDetail({ loaderData }: Route.ComponentProps) {
         setTicket(updatedTicket);
         setStatus(updatedTicket.status);
         setPriority(updatedTicket.priority);
+        setCategory(updatedTicket.category);
         setAssignedTo(updatedTicket.assignedTo || "");
         setCollaborators(updatedTicket.collaborators || []);
         setCollaboratorIds(updatedTicket.collaboratorIds || []);
@@ -804,6 +811,34 @@ export default function TicketDetail({ loaderData }: Route.ComponentProps) {
                         >
                           {ticket.priority === "critical" && <ArrowUpCircle style={{ width: "14px", height: "14px", marginRight: '6px' }} />}
                           {ticket.priority}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className={styles.formGroup}>
+                    <Label htmlFor="category">Ticket Category</Label>
+                    {!isManagement ? (
+                      <Select
+                        value={category}
+                        onValueChange={(value) => setCategory(value)}
+                      >
+                        <SelectTrigger id="category">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Uncategorized">Uncategorized</SelectItem>
+                          {categories.map((c) => (
+                            <SelectItem key={c.id} value={c.name}>
+                              {c.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <div className={styles.priorityContainer}>
+                        <span className={styles.priorityBadge} style={{ backgroundColor: 'var(--color-neutral-2)', color: 'var(--color-neutral-11)' }}>
+                          {ticket.category}
                         </span>
                       </div>
                     )}

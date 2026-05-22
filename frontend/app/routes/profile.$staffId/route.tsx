@@ -6,6 +6,7 @@ import { Card } from "~/components/ui/card/card";
 import { Badge } from "~/components/ui/badge/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs/tabs";
 import { getTickets, getAgents, type Ticket } from "~/services/ticket.service";
+import { usersApi } from "~/services/api.service";
 import { requireAuth } from "~/services/session.service";
 import type { Route } from "./+types/route";
 import styles from "./style.module.css";
@@ -15,31 +16,46 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   const staffId = params.staffId;
 
   // User can only view their own profile unless they are Admin or Management
-  const isAuthorized = session.userId === staffId || session.userRole === 'Administrator' || session.userRole === 'Management';
+  const isAuthorized = String(session.userId) === String(staffId) || session.userRole === 'Administrator' || session.userRole === 'Management';
   if (!isAuthorized) {
     throw new Response('Forbidden', { status: 403 });
   }
 
   // Fetch data from API
-  const [ticketResponse, agents] = await Promise.all([
+  const [ticketResponse, agents, userResponse] = await Promise.all([
     getTickets(),
-    getAgents()
+    getAgents(),
+    usersApi.getById(staffId as string)
   ]);
 
   // Find staff info
-  const staff = agents.find((a) => String(a.id) === String(staffId));
+  let staff: any = agents.find((a) => String(a.id) === String(staffId));
+  let isAgent = !!staff;
+
+  if (!staff && userResponse.success && userResponse.data) {
+     const u = userResponse.data.user;
+     staff = {
+       id: u.id,
+       name: u.full_name,
+       username: u.username,
+       email: u.email,
+       phone: u.phone,
+       role: u.role
+     };
+  }
 
   return {
     session,
     staffId,
     staff,
+    isAgent,
     tickets: ticketResponse.tickets,
     agents,
   };
 }
 
 export default function StaffProfile({ loaderData }: Route.ComponentProps) {
-  const { session, staffId, staff, tickets, agents } = loaderData;
+  const { session, staffId, staff, isAgent, tickets, agents } = loaderData;
   const navigate = useNavigate();
 
   if (!staff) {
@@ -55,7 +71,10 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
 
   // Get all tickets assigned to this staff - Memoized
   const staffTickets = useMemo(() => {
-    const assigned = tickets.filter((t) => t.assignedTo === staff.name);
+    const assigned = isAgent 
+      ? tickets.filter((t) => t.assignedTo === staff.name)
+      : tickets.filter((t) => t.submitterEmail === staff.email || t.submitterName === staff.name);
+
     const resolved = assigned.filter((t) => t.status.toLowerCase() === "resolved" || t.status.toLowerCase() === "closed");
     const inProgress = assigned.filter((t) => t.status.toLowerCase() === "in-progress");
     const pending = assigned.filter((t) => t.status.toLowerCase() === "assigned");
@@ -85,7 +104,7 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
       resolutionRate: resRate,
       slaCompliance: slaComp
     };
-  }, [tickets, staff.name]);
+  }, [tickets, staff.name, staff.email, isAgent]);
 
   const {
     assigned: assignedTickets,
@@ -174,7 +193,7 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
                   )}
                   <span className={styles.profileMetaItem}>
                     <Briefcase style={{ width: "16px", height: "16px" }} />
-                    IT Support Staff
+                    {staff.role || "IT Support Staff"}
                   </span>
                 </div>
               </div>
@@ -195,7 +214,7 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
               </div>
               <div className={styles.statContent}>
                 <div className={styles.statValue}>{totalAssigned}</div>
-                <div className={styles.statLabel}>Total Assigned</div>
+                <div className={styles.statLabel}>{isAgent ? "Total Assigned" : "Total Submitted"}</div>
               </div>
             </div>
 
@@ -285,7 +304,7 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
           <Tabs defaultValue="assigned">
             <TabsList className={styles.tabsList}>
               <TabsTrigger value="assigned">
-                Assigned ({totalAssigned})
+                {isAgent ? "Assigned" : "Submitted"} ({totalAssigned})
               </TabsTrigger>
               <TabsTrigger value="in-progress">
                 In Progress ({totalInProgress})
@@ -302,7 +321,7 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
               {assignedTickets.length === 0 ? (
                 <div className={styles.emptyState}>
                   <Target className={styles.emptyIcon} />
-                  <p>No assigned tickets</p>
+                  <p>No {isAgent ? "assigned" : "submitted"} tickets</p>
                 </div>
               ) : (
                 <div className={styles.ticketsGrid}>
