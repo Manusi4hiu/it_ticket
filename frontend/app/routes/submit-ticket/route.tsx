@@ -128,7 +128,7 @@ export default function SubmitTicket({ actionData, loaderData }: Route.Component
                                 Please save this ID to track your ticket status. We've also sent a confirmation to your email.
                             </p>
                             <div className={styles.successActions}>
-                                <Button onClick={() => navigate(`/ticket/${actionData.ticketId}`)}>
+                                <Button onClick={() => navigate(`/ticket/${actionData.ticketCode || actionData.ticketId}`)}>
                                     Track This Ticket
                                 </Button>
                                 <Button variant="outline" onClick={() => navigate("/")}>

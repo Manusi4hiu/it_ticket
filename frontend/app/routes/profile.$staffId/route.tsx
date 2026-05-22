@@ -27,7 +27,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   ]);
 
   // Find staff info
-  const staff = agents.find((a) => a.id === staffId);
+  const staff = agents.find((a) => String(a.id) === String(staffId));
 
   return {
     session,
@@ -59,6 +59,7 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
     const resolved = assigned.filter((t) => t.status.toLowerCase() === "resolved" || t.status.toLowerCase() === "closed");
     const inProgress = assigned.filter((t) => t.status.toLowerCase() === "in-progress");
     const pending = assigned.filter((t) => t.status.toLowerCase() === "assigned");
+    const breached = assigned.filter((t) => t.slaStatus === "breached");
 
     // Calculate resolution time
     const resTimes = resolved
@@ -79,6 +80,7 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
       resolved,
       inProgress,
       pending,
+      breached,
       avgResolutionTime: avgResTime,
       resolutionRate: resRate,
       slaCompliance: slaComp
@@ -90,6 +92,7 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
     resolved: resolvedTickets,
     inProgress: inProgressTickets,
     pending: pendingTickets,
+    breached: breachedTickets,
     avgResolutionTime,
     resolutionRate,
     slaCompliance
@@ -99,6 +102,7 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
   const totalResolved = resolvedTickets.length;
   const totalInProgress = inProgressTickets.length;
   const totalPending = pendingTickets.length;
+  const totalBreached = breachedTickets.length;
 
   const renderTicketCard = (ticket: Ticket) => (
     <Card key={ticket.id} className={styles.ticketCard} onClick={() => navigate(`/ticket/${ticket.ticketCode || ticket.id}`)}>
@@ -224,6 +228,16 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
                 <div className={styles.statLabel}>Pending</div>
               </div>
             </div>
+
+            <div className={styles.statCard}>
+              <div className={styles.statIcon} style={{ background: "var(--color-error-3)" }}>
+                <AlertCircle style={{ color: "var(--color-error-9)" }} />
+              </div>
+              <div className={styles.statContent}>
+                <div className={styles.statValue}>{totalBreached}</div>
+                <div className={styles.statLabel}>SLA Breached</div>
+              </div>
+            </div>
           </div>
 
           {/* Performance Metrics */}
@@ -279,6 +293,9 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
               <TabsTrigger value="resolved">
                 Resolved ({totalResolved})
               </TabsTrigger>
+              <TabsTrigger value="breached">
+                SLA Breached ({totalBreached})
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="assigned" className={styles.tabContent}>
@@ -316,6 +333,19 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
               ) : (
                 <div className={styles.ticketsGrid}>
                   {resolvedTickets.map(renderTicketCard)}
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="breached" className={styles.tabContent}>
+              {breachedTickets.length === 0 ? (
+                <div className={styles.emptyState}>
+                  <AlertCircle className={styles.emptyIcon} />
+                  <p>No SLA breached tickets</p>
+                </div>
+              ) : (
+                <div className={styles.ticketsGrid}>
+                  {breachedTickets.map(renderTicketCard)}
                 </div>
               )}
             </TabsContent>

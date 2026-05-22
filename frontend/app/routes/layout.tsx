@@ -11,6 +11,7 @@ import { NotificationBell } from "~/components/notification-bell";
 import { getUserSession, logout } from "~/services/session.service";
 import type { Route } from "./+types/layout";
 import styles from "./layout.module.css";
+import { useIdleTimeout } from "~/hooks/use-idle-timeout";
 
 export async function loader({ request }: Route.LoaderArgs) {
   const session = await getUserSession(request);
@@ -36,6 +37,8 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
   const { session } = loaderData;
   const navigate = useNavigate();
   const isAdministrator = session?.userRole === 'Administrator';
+
+  useIdleTimeout(10, !!session);
 
   return (
     <div className={styles.container}>

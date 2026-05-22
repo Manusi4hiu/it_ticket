@@ -377,6 +377,8 @@ export default function TicketDetail({ loaderData }: Route.ComponentProps) {
     if (ticket.status.toLowerCase() === "resolved" || ticket.status.toLowerCase() === "closed") {
       if (ticket.resolvedAt && ticket.createdAt) {
         return formatDuration(new Date(ticket.createdAt), new Date(ticket.resolvedAt));
+      } else if (ticket.updatedAt && ticket.createdAt) {
+        return formatDuration(new Date(ticket.createdAt), new Date(ticket.updatedAt));
       }
       return "Completed";
     }
@@ -732,7 +734,15 @@ export default function TicketDetail({ loaderData }: Route.ComponentProps) {
               <p
                 className={`${styles.slaDeadline} ${styles[`slaDeadline${ticket.slaStatus.charAt(0).toUpperCase() + ticket.slaStatus.slice(1)}`]}`}
               >
-                Deadline: {formatDate(ticket.slaDeadline)}
+                {ticket.status.toLowerCase() === "resolved" || ticket.status.toLowerCase() === "closed" ? (
+                  <>
+                    Total working time: {ticket.resolvedAt ? formatDuration(new Date(ticket.createdAt), new Date(ticket.resolvedAt)) : formatDuration(new Date(ticket.createdAt), new Date(ticket.updatedAt))}
+                    <br />
+                    Resolved at: {formatDate(ticket.resolvedAt || ticket.updatedAt)}
+                  </>
+                ) : (
+                  <>Deadline: {formatDate(ticket.slaDeadline)}</>
+                )}
               </p>
             </div>
 
