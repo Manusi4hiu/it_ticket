@@ -187,9 +187,10 @@ export async function updateTicketPriority(id: string, priority: string): Promis
 export async function updateTicketStatus(
     id: string,
     status: TicketStatus,
-    resolutionSummary?: string
+    resolutionSummary?: string,
+    resolvedAt?: string
 ): Promise<Ticket | null> {
-    const response = await ticketsApi.updateStatus(id, status, resolutionSummary);
+    const response = await ticketsApi.updateStatus(id, status, resolutionSummary, resolvedAt);
 
     if (!response.success || !response.data) {
         console.error('Failed to update ticket status:', response.error);

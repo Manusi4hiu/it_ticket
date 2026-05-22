@@ -153,6 +153,12 @@ class TicketService:
             ticket.category = data['category']
         if 'resolutionSummary' in data:
             ticket.resolution_summary = sanitize_html(data['resolutionSummary'])
+        if 'resolvedAt' in data and data['resolvedAt']:
+            try:
+                clean_str = data['resolvedAt'].replace('Z', '+00:00')
+                ticket.resolved_at = datetime.fromisoformat(clean_str).replace(tzinfo=None)
+            except ValueError:
+                pass
         if 'assignedToId' in data:
             ticket.assigned_to_id = data['assignedToId']
             # If assigned, change status from 'new' to 'assigned'
@@ -224,7 +230,7 @@ class TicketService:
         return ticket, None
 
     @staticmethod
-    def update_ticket_status(ticket_id, status, resolution_summary=None):
+    def update_ticket_status(ticket_id, status, resolution_summary=None, resolved_at_str=None):
         ticket = Ticket.query.get(ticket_id)
         if not ticket:
             return None
@@ -233,7 +239,16 @@ class TicketService:
         
         # Check if status is resolved (case-insensitive)
         if status.lower() == 'resolved':
-            ticket.resolved_at = datetime.utcnow()
+            if resolved_at_str:
+                try:
+                    # Handle Z suffix for UTC
+                    clean_str = resolved_at_str.replace('Z', '+00:00')
+                    ticket.resolved_at = datetime.fromisoformat(clean_str).replace(tzinfo=None)
+                except ValueError:
+                    ticket.resolved_at = datetime.utcnow()
+            else:
+                ticket.resolved_at = datetime.utcnow()
+                
             if resolution_summary:
                 ticket.resolution_summary = resolution_summary
         

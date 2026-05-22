@@ -353,10 +353,10 @@ export const ticketsApi = {
         });
     },
 
-    updateStatus: async (id: string, status: string, resolutionSummary?: string) => {
+    updateStatus: async (id: string, status: string, resolutionSummary?: string, resolvedAt?: string) => {
         return apiRequest(`/tickets/${id}/status`, {
             method: 'PUT',
-            body: JSON.stringify({ status, resolutionSummary }),
+            body: JSON.stringify({ status, resolutionSummary, resolvedAt }),
         });
     },
 

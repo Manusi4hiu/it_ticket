@@ -122,6 +122,11 @@ export default function TicketDetail({ loaderData }: Route.ComponentProps) {
   const [resolutionSummary, setResolutionSummary] = useState("");
   const [showResolveDialog, setShowResolveDialog] = useState(false);
   const [resolutionError, setResolutionError] = useState("");
+  const [resolveDate, setResolveDate] = useState<string>("");
+  
+  // Edit ResolvedAt State (SLA Card)
+  const [isEditingResolvedAt, setIsEditingResolvedAt] = useState(false);
+  const [editResolvedAtValue, setEditResolvedAtValue] = useState<string>("");
 
   // Staff Modal State
   const [isStaffModalOpen, setIsStaffModalOpen] = useState(false);
@@ -290,6 +295,17 @@ export default function TicketDetail({ loaderData }: Route.ComponentProps) {
     }
     setResolutionError("");
     setResolutionSummary("");
+    
+    // Set to current local time in ISO format for datetime-local input
+    const now = new Date();
+    // Format: YYYY-MM-DDThh:mm
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const mins = String(now.getMinutes()).padStart(2, '0');
+    setResolveDate(`${year}-${month}-${day}T${hours}:${mins}`);
+    
     setShowResolveDialog(true);
   };
 
@@ -304,7 +320,16 @@ export default function TicketDetail({ loaderData }: Route.ComponentProps) {
     }
 
     try {
-      const updatedTicket = await updateTicketStatus(ticket.id, "resolved", resolutionSummary);
+      // Convert local datetime input to ISO string
+      let resolvedAtISO: string | undefined;
+      if (resolveDate) {
+        const dateObj = new Date(resolveDate);
+        if (!isNaN(dateObj.getTime())) {
+          resolvedAtISO = dateObj.toISOString();
+        }
+      }
+
+      const updatedTicket = await updateTicketStatus(ticket.id, "resolved", resolutionSummary, resolvedAtISO);
 
       if (updatedTicket) {
         setTicket(updatedTicket);
@@ -738,19 +763,76 @@ export default function TicketDetail({ loaderData }: Route.ComponentProps) {
               >
                 {formatTimeRemaining(ticket.slaDeadline)}
               </div>
-              <p
+              <div
                 className={`${styles.slaDeadline} ${styles[`slaDeadline${ticket.slaStatus.charAt(0).toUpperCase() + ticket.slaStatus.slice(1)}`]}`}
               >
                 {ticket.status.toLowerCase() === "resolved" || ticket.status.toLowerCase() === "closed" ? (
-                  <>
-                    Total working time: {ticket.resolvedAt ? formatDuration(new Date(ticket.createdAt), new Date(ticket.resolvedAt)) : formatDuration(new Date(ticket.createdAt), new Date(ticket.updatedAt))}
-                    <br />
-                    Resolved at: {formatDate(ticket.resolvedAt || ticket.updatedAt)}
-                  </>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+                    <div>
+                      Total working time: {ticket.resolvedAt ? formatDuration(new Date(ticket.createdAt), new Date(ticket.resolvedAt)) : formatDuration(new Date(ticket.createdAt), new Date(ticket.updatedAt))}
+                    </div>
+                    {isEditingResolvedAt ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginTop: 'var(--space-1)' }}>
+                        <input
+                          type="datetime-local"
+                          value={editResolvedAtValue}
+                          onChange={(e) => setEditResolvedAtValue(e.target.value)}
+                          className={styles.input}
+                          style={{ padding: "var(--space-1)", fontSize: "0.8rem", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-neutral-4)" }}
+                        />
+                        <Button 
+                          size="sm" 
+                          onClick={async () => {
+                            if (!editResolvedAtValue) return;
+                            const dateObj = new Date(editResolvedAtValue);
+                            if (isNaN(dateObj.getTime())) return;
+                            try {
+                              const updated = await updateTicket(ticket.id.toString(), { resolvedAt: dateObj });
+                              if (updated) setTicket(updated);
+                              setIsEditingResolvedAt(false);
+                            } catch (e) {
+                              console.error(e);
+                            }
+                          }}
+                          style={{ padding: "0 8px", height: "28px" }}
+                        >Save</Button>
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          onClick={() => setIsEditingResolvedAt(false)}
+                          style={{ padding: "0 8px", height: "28px" }}
+                        >Cancel</Button>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                        Resolved at: {formatDate(ticket.resolvedAt || ticket.updatedAt)}
+                        {(isAdministrator || ticket.assignedTo === currentUser?.name) && !isManagement && (
+                          <button 
+                            type="button"
+                            className={styles.removeCollaboratorBtn}
+                            title="Edit Resolved Time"
+                            style={{ background: 'var(--color-neutral-2)', color: 'var(--color-neutral-11)', border: '1px solid var(--color-neutral-4)', borderRadius: '4px', padding: '2px 6px', cursor: 'pointer', fontSize: '0.7rem' }}
+                            onClick={() => {
+                              const d = ticket.resolvedAt ? new Date(ticket.resolvedAt) : new Date(ticket.updatedAt);
+                              const year = d.getFullYear();
+                              const month = String(d.getMonth() + 1).padStart(2, '0');
+                              const day = String(d.getDate()).padStart(2, '0');
+                              const hours = String(d.getHours()).padStart(2, '0');
+                              const mins = String(d.getMinutes()).padStart(2, '0');
+                              setEditResolvedAtValue(`${year}-${month}-${day}T${hours}:${mins}`);
+                              setIsEditingResolvedAt(true);
+                            }}
+                          >
+                            Edit
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 ) : (
                   <>Deadline: {formatDate(ticket.slaDeadline)}</>
                 )}
-              </p>
+              </div>
             </div>
 
             {/* Actions Panel */}
@@ -1033,6 +1115,18 @@ export default function TicketDetail({ loaderData }: Route.ComponentProps) {
           </DialogHeader>
 
           <div className={styles.dialogBody}>
+            <div style={{ marginBottom: "var(--space-4)" }}>
+              <Label htmlFor="resolve-date">Actual Time Resolve *</Label>
+              <input
+                type="datetime-local"
+                id="resolve-date"
+                className={styles.input}
+                style={{ width: "100%", padding: "var(--space-2)", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-neutral-4)", marginTop: "var(--space-1)" }}
+                value={resolveDate}
+                onChange={(e) => setResolveDate(e.target.value)}
+                required
+              />
+            </div>
             <Label htmlFor="resolution-summary">Resolution Summary *</Label>
             <Textarea
               id="resolution-summary"

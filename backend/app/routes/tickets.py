@@ -267,11 +267,12 @@ def update_ticket_status(ticket_id):
             return jsonify({'success': False, 'error': 'Status tidak valid'}), 400
         
     resolution_summary = data.get('resolutionSummary')
+    resolved_at_str = data.get('resolvedAt')
     
     ticket = get_ticket_or_404(ticket_id)
     if not ticket:
         return jsonify({'success': False, 'error': 'Ticket tidak ditemukan'}), 404
-    ticket = TicketService.update_ticket_status(ticket.id, status, resolution_summary)
+    ticket = TicketService.update_ticket_status(ticket.id, status, resolution_summary, resolved_at_str)
     
     if not ticket:
         return jsonify({'success': False, 'error': 'Ticket tidak ditemukan'}), 404
