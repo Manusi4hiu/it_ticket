@@ -98,8 +98,11 @@ export const settingsApi = {
     },
 
     // Departments
-    getDepartments: async () => {
-        return apiRequest<{ success: boolean; data: Department[] }>('/settings/departments');
+    getDepartments: async (page?: number, limit?: number) => {
+        const url = page !== undefined && limit !== undefined
+            ? `/settings/departments?page=${page}&limit=${limit}`
+            : '/settings/departments';
+        return apiRequest<{ success: boolean; data: Department[] }>(url);
     },
     createDepartment: async (data: Partial<Department>) => {
         return apiRequest<{ success: boolean; data: Department }>('/settings/departments', {

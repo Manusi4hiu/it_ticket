@@ -9,6 +9,7 @@ export default [
     route("staff-performance", "routes/staff-performance/route.tsx"),
     route("analytics", "routes/analytics/route.tsx"),
     route("ticket/:id", "routes/ticket.$id/route.tsx"),
+    route("dev-dashboard", "routes/dev-dashboard/route.tsx"),
     route("profile/:staffId", "routes/profile.$staffId/route.tsx"),
     route("submit-ticket", "routes/submit-ticket/route.tsx"),
     // Settings Routes
@@ -19,6 +20,7 @@ export default [
       route("departments", "routes/settings/departments/route.tsx"),
       route("statuses", "routes/settings/statuses/route.tsx"),
       route("logs", "routes/settings/logs/route.tsx"),
+      route("sla-policies", "routes/settings/sla-policies/route.tsx"),
     ]),
   ]),
   route("unauthorized", "routes/unauthorized/route.tsx"),

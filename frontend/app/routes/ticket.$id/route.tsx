@@ -396,8 +396,6 @@ export default function TicketDetail({ loaderData }: Route.ComponentProps) {
       setLoadingStaffTickets(false);
     }
   };
-  // --- Helpers ---
-
   const formatDuration = (start: Date, end: Date) => {
     const diff = end.getTime() - start.getTime();
     const hours = Math.floor(Math.abs(diff) / (1000 * 60 * 60));
@@ -405,7 +403,7 @@ export default function TicketDetail({ loaderData }: Route.ComponentProps) {
     return `${hours}h ${minutes}m`;
   };
 
-  const formatTimeRemaining = (deadline: Date) => {
+  const formatTimeRemaining = (deadline: Date | undefined) => {
     if (ticket.status.toLowerCase() === "resolved" || ticket.status.toLowerCase() === "closed") {
       if (ticket.resolvedAt && ticket.createdAt) {
         return formatDuration(new Date(ticket.createdAt), new Date(ticket.resolvedAt));
@@ -413,6 +411,10 @@ export default function TicketDetail({ loaderData }: Route.ComponentProps) {
         return formatDuration(new Date(ticket.createdAt), new Date(ticket.updatedAt));
       }
       return "Completed";
+    }
+
+    if (!deadline) {
+      return "Not started";
     }
 
     const now = new Date();
@@ -437,6 +439,9 @@ export default function TicketDetail({ loaderData }: Route.ComponentProps) {
   };
 
   const getSLAStatusClass = (slaStatus: string) => {
+    if (!ticket.slaDeadline && ticket.status.toLowerCase() !== "resolved" && ticket.status.toLowerCase() !== "closed") {
+      return styles.slaPending;
+    }
     switch (slaStatus) {
       case "good":
         return styles.slaGood;
@@ -450,6 +455,9 @@ export default function TicketDetail({ loaderData }: Route.ComponentProps) {
   };
 
   const getSLAIcon = () => {
+    if (!ticket.slaDeadline && ticket.status.toLowerCase() !== "resolved" && ticket.status.toLowerCase() !== "closed") {
+      return <Clock className={`${styles.slaIcon} ${styles.slaIconWarning}`} />;
+    }
     switch (ticket.slaStatus) {
       case "good":
         return <CheckCircle className={`${styles.slaIcon} ${styles.slaIconGood}`} />;
@@ -748,6 +756,8 @@ export default function TicketDetail({ loaderData }: Route.ComponentProps) {
                 >
                   {ticket.status.toLowerCase() === "resolved" || ticket.status.toLowerCase() === "closed"
                     ? "Resolution Time"
+                    : !ticket.slaDeadline
+                    ? "SLA Pending"
                     : (
                       <>
                         {ticket.slaStatus === "good" && "SLA On Track"}
@@ -829,6 +839,8 @@ export default function TicketDetail({ loaderData }: Route.ComponentProps) {
                       </div>
                     )}
                   </div>
+                ) : !ticket.slaDeadline ? (
+                  <>Awaiting IT User Assignment</>
                 ) : (
                   <>Deadline: {formatDate(ticket.slaDeadline)}</>
                 )}

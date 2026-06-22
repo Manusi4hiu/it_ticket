@@ -37,7 +37,7 @@ export interface Ticket {
     createdAt: Date;
     updatedAt: Date;
     resolvedAt?: Date;
-    slaDeadline: Date;
+    slaDeadline?: Date;
     slaStatus: SLAStatus;
     notes: TicketNote[];
     resolutionSummary?: string;
@@ -73,7 +73,7 @@ function mapApiTicket(apiTicket: Record<string, unknown>): Ticket {
         createdAt: new Date(apiTicket.createdAt as string),
         updatedAt: new Date(apiTicket.updatedAt as string),
         resolvedAt: apiTicket.resolvedAt ? new Date(apiTicket.resolvedAt as string) : undefined,
-        slaDeadline: new Date(apiTicket.slaDeadline as string),
+        slaDeadline: apiTicket.slaDeadline ? new Date(apiTicket.slaDeadline as string) : undefined,
         slaStatus: apiTicket.slaStatus as SLAStatus,
         notes: ((apiTicket.notes as Array<Record<string, unknown>>) || []).map(note => ({
             id: note.id as number,

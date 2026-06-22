@@ -290,6 +290,7 @@
 .slaGood::before { background: var(--color-resolved); }
 .slaWarning::before { background: var(--color-inprogress); }
 .slaBreached::before { background: #ef4444; }
+.slaPending::before { background: var(--color-closed); }
 
 .slaHeader {
   display: flex;

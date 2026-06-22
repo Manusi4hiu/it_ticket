@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Form, useLoaderData, useActionData } from "react-router";
 import type { Route } from "./+types/route";
 import { Button } from "~/components/ui/button/button";
@@ -13,8 +13,8 @@ import styles from "../style.module.css";
 import type { Department } from "~/services/settings.service";
 
 export async function loader({ request }: Route.LoaderArgs) {
-    const response = await settingsApi.getDepartments();
-    return { departments: response.data?.data || [] };
+    const response = await settingsApi.getDepartments(1, 5);
+    return { initialDepartments: response.data?.data || [] };
 }
 
 export async function action({ request }: Route.ActionArgs) {
@@ -58,10 +58,16 @@ export async function action({ request }: Route.ActionArgs) {
 }
 
 export default function DepartmentsSettings() {
-    const { departments } = useLoaderData() as { departments: Department[] };
+    const { initialDepartments } = useLoaderData() as { initialDepartments: Department[] };
     const actionData = useActionData() as { error?: string; success?: boolean } | undefined;
+    
+    const [displayedDepartments, setDisplayedDepartments] = useState<Department[]>(initialDepartments);
+    const [page, setPage] = useState(1);
+    const [hasMore, setHasMore] = useState(initialDepartments.length === 5);
+    const [loading, setLoading] = useState(false);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingDepartment, setEditingDepartment] = useState<Department | null>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
 
     const openCreateDialog = () => {
         setEditingDepartment(null);
@@ -72,6 +78,60 @@ export default function DepartmentsSettings() {
         setEditingDepartment(department);
         setIsDialogOpen(true);
     };
+
+    const loadMore = async () => {
+        if (loading || !hasMore) return;
+        setLoading(true);
+        const nextPage = page + 1;
+        const response = await settingsApi.getDepartments(nextPage, 5);
+        if (response.success && response.data?.data) {
+            const newDeps = response.data.data;
+            setDisplayedDepartments(prev => {
+                const existingIds = new Set(prev.map(d => d.id));
+                const filteredNew = newDeps.filter(d => !existingIds.has(d.id));
+                return [...prev, ...filteredNew];
+            });
+            setPage(nextPage);
+            if (newDeps.length < 5) {
+                setHasMore(false);
+            }
+        } else {
+            setHasMore(false);
+        }
+        setLoading(false);
+    };
+
+    const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+        const target = e.currentTarget;
+        if (target.scrollHeight - target.scrollTop <= target.clientHeight + 50) {
+            loadMore();
+        }
+    };
+
+    useEffect(() => {
+        if (actionData?.success) {
+            const reload = async () => {
+                setLoading(true);
+                const limitToFetch = page * 5;
+                const response = await settingsApi.getDepartments(1, limitToFetch);
+                if (response.success && response.data?.data) {
+                    setDisplayedDepartments(response.data.data);
+                    setHasMore(response.data.data.length >= limitToFetch);
+                }
+                setLoading(false);
+            };
+            reload();
+        }
+    }, [actionData]);
+
+    useEffect(() => {
+        const container = containerRef.current;
+        if (container) {
+            if (container.scrollHeight <= container.clientHeight && hasMore && !loading) {
+                loadMore();
+            }
+        }
+    }, [displayedDepartments, hasMore, loading]);
 
     return (
         <div>
@@ -96,64 +156,73 @@ export default function DepartmentsSettings() {
 
             <Card>
                 <CardContent>
-                    {departments.length === 0 ? (
+                    {displayedDepartments.length === 0 ? (
                         <div style={{ padding: 32, textAlign: 'center', color: 'var(--color-neutral-10)' }}>
                             No departments found. Create one to get started.
                         </div>
                     ) : (
                         <div className={styles.tableContainer}>
-                            <table className={styles.dataTable}>
-                                <thead>
-                                    <tr>
-                                        <th>Name</th>
-                                        <th>Code (ID Prefix)</th>
-                                        <th>Description</th>
-                                        <th>Status</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {departments.map((department) => (
-                                        <tr key={department.id}>
-                                            <td style={{ fontWeight: 500 }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                    <Building2 size={14} />
-                                                    {department.name}
-                                                </div>
-                                            </td>
-                                            <td>
-                                                <code className={styles.code}>
-                                                    {department.code || '-'}
-                                                </code>
-                                            </td>
-                                            <td>{department.description || '-'}</td>
-                                            <td>
-                                                <span className={department.isActive ? styles.statusActive : styles.statusInactive}>
-                                                    {department.isActive ? 'Active' : 'Inactive'}
-                                                </span>
-                                            </td>
-                                            <td>
-                                                <div style={{ display: 'flex', gap: 8 }}>
-                                                    <Button variant="outline" size="sm" onClick={() => openEditDialog(department)}>
-                                                        <Pencil size={14} />
-                                                    </Button>
-                                                    <Form method="post" onSubmit={(e) => {
-                                                        if (!confirm('Are you sure you want to delete this department?')) {
-                                                            e.preventDefault();
-                                                        }
-                                                    }}>
-                                                        <input type="hidden" name="intent" value="delete" />
-                                                        <input type="hidden" name="id" value={department.id} />
-                                                        <Button variant="outline" size="sm" style={{ color: 'var(--color-critical-9)' }}>
-                                                            <Trash2 size={14} />
-                                                        </Button>
-                                                    </Form>
-                                                </div>
-                                            </td>
+                            <div ref={containerRef} className={styles.scrollableArea} onScroll={handleScroll} style={{ maxHeight: '280px' }}>
+                                <table className={styles.dataTable}>
+                                    <thead>
+                                        <tr>
+                                            <th>Name</th>
+                                            <th>Code (ID Prefix)</th>
+                                            <th>Description</th>
+                                            <th>Status</th>
+                                            <th>Actions</th>
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                                    </thead>
+                                    <tbody>
+                                        {displayedDepartments.map((department) => (
+                                            <tr key={department.id}>
+                                                <td style={{ fontWeight: 500 }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                        <Building2 size={14} />
+                                                        {department.name}
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <code className={styles.code}>
+                                                        {department.code || '-'}
+                                                    </code>
+                                                </td>
+                                                <td>{department.description || '-'}</td>
+                                                <td>
+                                                    <span className={department.isActive ? styles.statusActive : styles.statusInactive}>
+                                                        {department.isActive ? 'Active' : 'Inactive'}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <div style={{ display: 'flex', gap: 8 }}>
+                                                        <Button variant="outline" size="sm" onClick={() => openEditDialog(department)}>
+                                                            <Pencil size={14} />
+                                                        </Button>
+                                                        <Form method="post" onSubmit={(e) => {
+                                                            if (!confirm('Are you sure you want to delete this department?')) {
+                                                                e.preventDefault();
+                                                            }
+                                                        }}>
+                                                            <input type="hidden" name="intent" value="delete" />
+                                                            <input type="hidden" name="id" value={department.id} />
+                                                            <Button variant="outline" size="sm" style={{ color: 'var(--color-critical-9)' }}>
+                                                                <Trash2 size={14} />
+                                                            </Button>
+                                                        </Form>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                        {loading && (
+                                            <tr>
+                                                <td colSpan={5} style={{ textAlign: 'center', padding: '16px', color: 'var(--color-neutral-9)' }}>
+                                                    Loading more departments...
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     )}
                 </CardContent>

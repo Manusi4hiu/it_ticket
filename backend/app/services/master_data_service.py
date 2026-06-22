@@ -150,8 +150,12 @@ class MasterDataService:
 
     # --- Departments ---
     @staticmethod
-    def get_departments():
-        return Department.query.order_by(Department.name).all()
+    def get_departments(page=None, limit=None):
+        query = Department.query.order_by(Department.name)
+        if page is not None and limit is not None:
+            offset = (page - 1) * limit
+            return query.offset(offset).limit(limit).all()
+        return query.all()
 
     @staticmethod
     def create_department(data):

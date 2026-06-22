@@ -129,7 +129,9 @@ def delete_sla_policy(id):
 
 @settings_bp.route('/departments', methods=['GET'])
 def get_departments():
-    departments = MasterDataService.get_departments()
+    page = request.args.get('page', default=None, type=int)
+    limit = request.args.get('limit', default=None, type=int)
+    departments = MasterDataService.get_departments(page=page, limit=limit)
     return jsonify({'success': True, 'data': [d.to_dict() for d in departments]})
 
 @settings_bp.route('/departments', methods=['POST'])

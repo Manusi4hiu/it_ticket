@@ -121,7 +121,7 @@ class UserService:
             return None
         
         # Get ticket stats for this user (Assigned or Collaborator)
-        user_tickets_query = Ticket.query.filter(
+        user_tickets_query = Ticket.query.filter(Ticket.category != 'Development').filter(
             (Ticket.assigned_to_id == user_id) | 
             (Ticket.collaborators.any(User.id == user_id))
         )
@@ -163,7 +163,7 @@ class UserService:
         results = []
         for user in users:
             # Get ticket stats for this user (Assigned or Collaborator)
-            involved_tickets = Ticket.query.filter(
+            involved_tickets = Ticket.query.filter(Ticket.category != 'Development').filter(
                 (Ticket.assigned_to_id == user.id) | 
                 (Ticket.collaborators.any(User.id == user.id))
             ).all()

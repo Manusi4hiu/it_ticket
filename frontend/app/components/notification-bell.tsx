@@ -1,11 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Bell } from "lucide-react";
 import { Button } from "~/components/ui/button/button";
 import { Badge } from "~/components/ui/badge/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "~/components/ui/popover/popover";
 import { getTickets } from "~/services/ticket.service";
 import styles from "./notification-bell.module.css";
-import { useNavigate } from "react-router";
+import { useNavigate, useLocation } from "react-router";
 
 interface Notification {
   id: string;
@@ -23,27 +23,45 @@ interface NotificationBellProps {
 export function NotificationBell({ userId }: NotificationBellProps) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isOpen, setIsOpen] = useState(false);
-  const [readIds, setReadIds] = useState<Set<string>>(new Set());
   const navigate = useNavigate();
+  const location = useLocation();
 
-  // Load read notification IDs from localStorage
-  useEffect(() => {
-    const savedReadIds = localStorage.getItem(`read_notifications_${userId}`);
-    if (savedReadIds) {
-      try {
-        setReadIds(new Set(JSON.parse(savedReadIds)));
-      } catch (e) {
-        console.error("Failed to parse read notifications", e);
+  // Lazy initialize readIds from localStorage
+  const [readIds, setReadIds] = useState<Set<string>>(() => {
+    if (typeof window !== "undefined") {
+      const savedReadIds = localStorage.getItem(`read_notifications_${userId}`);
+      if (savedReadIds) {
+        try {
+          return new Set(JSON.parse(savedReadIds));
+        } catch (e) {
+          console.error("Failed to parse read notifications", e);
+        }
       }
     }
-  }, [userId]);
+    return new Set();
+  });
 
-  // Save read notification IDs to localStorage whenever it changes
+  // Keep a Ref in sync with readIds to avoid stale closures in effects
+  const readIdsRef = useRef(readIds);
   useEffect(() => {
-    if (userId) {
-      localStorage.setItem(`read_notifications_${userId}`, JSON.stringify(Array.from(readIds)));
+    readIdsRef.current = readIds;
+  }, [readIds]);
+
+  // Load and sync read notification IDs from localStorage when userId changes
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const savedReadIds = localStorage.getItem(`read_notifications_${userId}`);
+      if (savedReadIds) {
+        try {
+          setReadIds(new Set(JSON.parse(savedReadIds)));
+          return;
+        } catch (e) {
+          console.error("Failed to parse read notifications", e);
+        }
+      }
     }
-  }, [readIds, userId]);
+    setReadIds(new Set());
+  }, [userId]);
 
   // Initialize notifications from assigned tickets (Real Data)
   useEffect(() => {
@@ -67,7 +85,7 @@ export function NotificationBell({ userId }: NotificationBellProps) {
             ticketId: ticket.ticketCode || ticket.id?.toString(),
           }))
           // Filter out those already read/dismissed
-          .filter(notif => !readIds.has(notif.id));
+          .filter(notif => !readIdsRef.current.has(notif.id));
 
         setNotifications(initialNotifications);
       } catch (error) {
@@ -84,7 +102,7 @@ export function NotificationBell({ userId }: NotificationBellProps) {
       if (userId) fetchNotifications();
     }, 60000);
     return () => clearInterval(interval);
-  }, [userId, readIds]);
+  }, [userId]);
 
   const unreadCount = notifications.length; // All notifications in state are unread/not-dismissed
 
@@ -92,6 +110,9 @@ export function NotificationBell({ userId }: NotificationBellProps) {
     setReadIds((prev) => {
       const next = new Set(prev);
       next.add(notificationId);
+      if (typeof window !== "undefined") {
+        localStorage.setItem(`read_notifications_${userId}`, JSON.stringify(Array.from(next)));
+      }
       return next;
     });
     setNotifications((prev) => prev.filter((n) => n.id !== notificationId));
@@ -110,10 +131,27 @@ export function NotificationBell({ userId }: NotificationBellProps) {
     setReadIds((prev) => {
       const next = new Set(prev);
       allIds.forEach(id => next.add(id));
+      if (typeof window !== "undefined") {
+        localStorage.setItem(`read_notifications_${userId}`, JSON.stringify(Array.from(next)));
+      }
       return next;
     });
     setNotifications([]);
   };
+
+  // Automatically mark notification as read if user is viewing the ticket
+  useEffect(() => {
+    const match = location.pathname.match(/\/ticket\/([^/]+)/);
+    if (match && notifications.length > 0) {
+      const currentTicketId = match[1];
+      const matchingNotif = notifications.find(
+        (n) => n.ticketId?.toLowerCase() === currentTicketId.toLowerCase()
+      );
+      if (matchingNotif) {
+        markAsRead(matchingNotif.id);
+      }
+    }
+  }, [location.pathname, notifications]);
 
   const formatTime = (date: Date) => {
     const now = new Date();

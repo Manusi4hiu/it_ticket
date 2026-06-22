@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { Outlet, useNavigate, Form, redirect, NavLink, useLocation } from "react-router";
 import {
   User,
@@ -5,7 +6,10 @@ import {
   BarChart3,
   Settings,
   LogOut,
-  Inbox
+  Inbox,
+  Kanban,
+  Terminal,
+  Clock
 } from "lucide-react";
 import { NotificationBell } from "~/components/notification-bell";
 import { getUserSession, logout } from "~/services/session.service";
@@ -36,7 +40,27 @@ export async function action({ request }: Route.ActionArgs) {
 export default function AppLayout({ loaderData }: Route.ComponentProps) {
   const { session } = loaderData;
   const navigate = useNavigate();
+  const location = useLocation();
   const isAdministrator = session?.userRole === 'Administrator';
+
+  const [isDevMode, setIsDevMode] = useState(false);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("app_mode_dev");
+    if (saved === "true") {
+      setIsDevMode(true);
+    }
+  }, []);
+
+  const handleToggleMode = (dev: boolean) => {
+    setIsDevMode(dev);
+    localStorage.setItem("app_mode_dev", String(dev));
+    if (dev) {
+      navigate("/dev-dashboard");
+    } else {
+      navigate("/dashboard");
+    }
+  };
 
   useIdleTimeout(10, !!session);
 
@@ -44,54 +68,119 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
     <div className={styles.container}>
       <header className={styles.header}>
         <div className={styles.headerContent}>
-          <div className={styles.headerLeft} onClick={() => navigate("/dashboard")} style={{ cursor: "pointer" }}>
+          <div className={styles.headerLeft} onClick={() => navigate(isDevMode ? "/dev-dashboard" : "/dashboard")} style={{ cursor: "pointer" }}>
             <div className={styles.logoContainer}>
               <img src="/logo/logo itani.png" alt="Logo" className={styles.headerIcon} />
             </div>
-            <h1 className={styles.headerTitle}>IT Aero Support</h1>
+            <h1 className={styles.headerTitle}>
+              {isDevMode ? "IT Aero Dev" : "IT Aero Support"}
+            </h1>
           </div>
 
           {session && (
             <nav className={styles.navBar}>
+              <div className={styles.modeToggle}>
+                <button
+                  type="button"
+                  className={`${styles.toggleBtn} ${!isDevMode ? styles.toggleBtnActive : ''}`}
+                  onClick={() => handleToggleMode(false)}
+                >
+                  Helpdesk
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.toggleBtn} ${isDevMode ? styles.toggleBtnActive : ''}`}
+                  onClick={() => handleToggleMode(true)}
+                >
+                  Dev Team
+                </button>
+              </div>
+
               <div className={styles.navGroup}>
-                <NavLink
-                  to="/tickets"
-                  className={({ isActive }) => `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`}
-                >
-                  <Inbox className={styles.navIcon} />
-                  <span className={styles.navLabel}>Tickets</span>
-                </NavLink>
-                <NavLink
-                  to={`/profile/${session.userId}`}
-                  className={({ isActive }) => `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`}
-                >
-                  <User className={styles.navIcon} />
-                  <span className={styles.navLabel}>Profile</span>
-                </NavLink>
-                <NavLink
-                  to="/staff-performance"
-                  className={({ isActive }) => `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`}
-                >
-                  <Users className={styles.navIcon} />
-                  <span className={styles.navLabel}>Performance</span>
-                </NavLink>
-                {(isAdministrator || session.userRole === 'Management') && (
-                  <NavLink
-                    to="/analytics"
-                    className={({ isActive }) => `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`}
-                  >
-                    <BarChart3 className={styles.navIcon} />
-                    <span className={styles.navLabel}>Analytics</span>
-                  </NavLink>
-                )}
-                {isAdministrator && (
-                  <NavLink
-                    to="/settings/role-management"
-                    className={({ isActive }) => `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`}
-                  >
-                    <Settings className={styles.navIcon} />
-                    <span className={styles.navLabel}>Settings</span>
-                  </NavLink>
+                {!isDevMode ? (
+                  <>
+                    <NavLink
+                      to="/tickets"
+                      className={({ isActive }) => `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`}
+                    >
+                      <Inbox className={styles.navIcon} />
+                      <span className={styles.navLabel}>Tickets</span>
+                    </NavLink>
+                    <NavLink
+                      to={`/profile/${session.userId}`}
+                      className={({ isActive }) => `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`}
+                    >
+                      <User className={styles.navIcon} />
+                      <span className={styles.navLabel}>Profile</span>
+                    </NavLink>
+                    <NavLink
+                      to="/staff-performance"
+                      className={({ isActive }) => `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`}
+                    >
+                      <Users className={styles.navIcon} />
+                      <span className={styles.navLabel}>Performance</span>
+                    </NavLink>
+                    {(isAdministrator || session.userRole === 'Management') && (
+                      <NavLink
+                        to="/analytics"
+                        className={({ isActive }) => `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`}
+                      >
+                        <BarChart3 className={styles.navIcon} />
+                        <span className={styles.navLabel}>Analytics</span>
+                      </NavLink>
+                    )}
+                    {isAdministrator && (
+                      <NavLink
+                        to="/settings/role-management"
+                        className={({ isActive }) => `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`}
+                      >
+                        <Settings className={styles.navIcon} />
+                        <span className={styles.navLabel}>Settings</span>
+                      </NavLink>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <NavLink
+                      to="/dev-dashboard"
+                      className={({ isActive }) => `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`}
+                    >
+                      <Kanban className={styles.navIcon} />
+                      <span className={styles.navLabel}>Dev Board</span>
+                    </NavLink>
+                    <NavLink
+                      to="/staff-performance"
+                      className={({ isActive }) => `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`}
+                    >
+                      <Users className={styles.navIcon} />
+                      <span className={styles.navLabel}>Performance</span>
+                    </NavLink>
+                    {isAdministrator && (
+                      <>
+                        <NavLink
+                          to="/settings/logs"
+                          className={({ isActive }) => `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`}
+                        >
+                          <Terminal className={styles.navIcon} />
+                          <span className={styles.navLabel}>System Logs</span>
+                        </NavLink>
+                        <NavLink
+                          to="/settings/sla-policies"
+                          className={({ isActive }) => `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`}
+                        >
+                          <Clock className={styles.navIcon} />
+                          <span className={styles.navLabel}>SLA Policies</span>
+                        </NavLink>
+                        <NavLink
+                          to="/settings/role-management"
+                          className={({ isActive }) => `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`}
+                        >
+                          <Settings className={styles.navIcon} />
+                          <span className={styles.navLabel}>Settings</span>
+                        </NavLink>
+                      </>
+                    )}
+                  </>
                 )}
               </div>
 

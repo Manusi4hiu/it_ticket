@@ -57,6 +57,8 @@ def get_tickets():
         query = query.filter(Ticket.priority == priority)
     if category:
         query = query.filter(Ticket.category == category)
+    else:
+        query = query.filter(Ticket.category != 'Development')
     if assigned_to:
         query = query.filter(Ticket.assigned_to_id == assigned_to)
     if search:
