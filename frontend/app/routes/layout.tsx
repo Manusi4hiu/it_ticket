@@ -8,8 +8,7 @@ import {
   LogOut,
   Inbox,
   Kanban,
-  Terminal,
-  Clock
+  Calendar
 } from "lucide-react";
 import { NotificationBell } from "~/components/notification-bell";
 import { getUserSession, logout } from "~/services/session.service";
@@ -155,22 +154,15 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
                       <Users className={styles.navIcon} />
                       <span className={styles.navLabel}>Performance</span>
                     </NavLink>
+                    <NavLink
+                      to="/calendar"
+                      className={({ isActive }) => `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`}
+                    >
+                      <Calendar className={styles.navIcon} />
+                      <span className={styles.navLabel}>Calendar</span>
+                    </NavLink>
                     {isAdministrator && (
                       <>
-                        <NavLink
-                          to="/settings/logs"
-                          className={({ isActive }) => `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`}
-                        >
-                          <Terminal className={styles.navIcon} />
-                          <span className={styles.navLabel}>System Logs</span>
-                        </NavLink>
-                        <NavLink
-                          to="/settings/sla-policies"
-                          className={({ isActive }) => `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`}
-                        >
-                          <Clock className={styles.navIcon} />
-                          <span className={styles.navLabel}>SLA Policies</span>
-                        </NavLink>
                         <NavLink
                           to="/settings/role-management"
                           className={({ isActive }) => `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`}

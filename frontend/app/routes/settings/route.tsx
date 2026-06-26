@@ -4,7 +4,6 @@ import {
     Users,
     Tag,
     Flag,
-    Clock,
     ArrowLeft,
     Building2,
     ClipboardList
@@ -73,22 +72,6 @@ export default function SettingsLayout() {
                     >
                         <ClipboardList size={18} />
                         Ticket Statuses
-                    </NavLink>
-
-                    <NavLink
-                        to="/settings/logs"
-                        className={({ isActive }) => `${styles.navItem} ${isActive ? styles.navItemActive : ''}`}
-                    >
-                        <ClipboardList size={18} />
-                        System Logs
-                    </NavLink>
-
-                    <NavLink 
-                        to="/settings/sla-policies" 
-                        className={({ isActive }) => `${styles.navItem} ${isActive ? styles.navItemActive : ''}`}
-                    >
-                        <Clock size={18} />
-                        SLA Policies
                     </NavLink>
                 </nav>
             </aside>
