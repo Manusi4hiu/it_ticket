@@ -61,7 +61,7 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
     }
   };
 
-  useIdleTimeout(10, !!session);
+  useIdleTimeout(480, !!session);
 
   return (
     <div className={styles.container}>

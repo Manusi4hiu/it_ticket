@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useSubmit } from 'react-router';
 
-export function useIdleTimeout(timeoutMinutes: number = 10, isAuth: boolean = true) {
+export function useIdleTimeout(timeoutMinutes: number = 480, isAuth: boolean = true) {
   const submit = useSubmit();
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
