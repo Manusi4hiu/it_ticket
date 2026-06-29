@@ -1,6 +1,6 @@
 import React from "react";
 import { v4 as uuidv4 } from "uuid";
-import { Form, Link, useNavigate, useNavigation } from "react-router";
+import { Form, Link, useNavigate, useNavigation, useSubmit } from "react-router";
 import type { Route } from "./+types/route";
 import { Button } from "~/components/ui/button/button";
 import { Input } from "~/components/ui/input/input";
@@ -28,6 +28,7 @@ import styles from "./style.module.css";
 
 import { createTicket } from "~/services/ticket.service";
 import { settingsApi, type Category, type Priority, type Department } from "~/services/settings.service";
+import { compressImage } from "~/utils/image-compression";
 
 export async function loader({ request }: Route.LoaderArgs) {
     const [categoriesRes, prioritiesRes, departmentsRes] = await Promise.all([
@@ -91,18 +92,34 @@ export default function SubmitTicket({ actionData, loaderData }: Route.Component
     const isSubmitting = navigation.state !== "idle";
     const [imagePreview, setImagePreview] = React.useState<string | null>(null);
     const idempotencyKey = React.useMemo(() => uuidv4(), []);
+    const submit = useSubmit();
+    const [compressedFile, setCompressedFile] = React.useState<File | null>(null);
 
-    const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
+            const compressed = await compressImage(file);
+            setCompressedFile(compressed);
             const reader = new FileReader();
             reader.onloadend = () => {
                 setImagePreview(reader.result as string);
             };
-            reader.readAsDataURL(file);
+            reader.readAsDataURL(compressed);
         } else {
             setImagePreview(null);
+            setCompressedFile(null);
         }
+    };
+
+    const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        const formData = new FormData(e.currentTarget);
+        if (compressedFile) {
+            formData.set("image", compressedFile);
+        } else {
+            formData.delete("image");
+        }
+        submit(formData, { method: "post", encType: "multipart/form-data" });
     };
 
     return (
@@ -148,7 +165,7 @@ export default function SubmitTicket({ actionData, loaderData }: Route.Component
                                 </CardDescription>
                             </CardHeader>
                             <CardContent>
-                                <Form method="post" encType="multipart/form-data" className={styles.form}>
+                                <Form method="post" encType="multipart/form-data" className={styles.form} onSubmit={handleSubmit}>
                                     <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
                                     {actionData?.error && (
                                         <Alert variant="destructive" className={styles.errorAlert}>

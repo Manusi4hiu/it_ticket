@@ -45,6 +45,7 @@ import { usersApi } from "~/services/api.service";
 import { getUserSession } from "~/services/session.service";
 import type { Route } from "./+types/route";
 import { Badge } from "~/components/ui/badge/badge";
+import { compressImage } from "~/utils/image-compression";
 import styles from "./style.module.css";
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:5000";
@@ -1027,9 +1028,11 @@ export default function TicketDetail({ loaderData }: Route.ComponentProps) {
                           type="file"
                           id="note-image"
                           accept="image/*"
-                          onChange={(e) => {
+                          onChange={async (e) => {
                             if (e.target.files && e.target.files[0]) {
-                              setNoteImage(e.target.files[0]);
+                              const originalFile = e.target.files[0];
+                              const compressed = await compressImage(originalFile);
+                              setNoteImage(compressed);
                             }
                           }}
                           className={styles.fileInput}
