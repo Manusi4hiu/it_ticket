@@ -386,17 +386,17 @@ class TicketService:
         }
         
         # Category breakdown
-        cats = db.session.query(Ticket.category, db.func.count(Ticket.id))\
-            .filter(Ticket.category != DEV_CATEGORY)\
-            .filter(Ticket.assigned_to_id == user_id if user_id else True)\
-            .group_by(Ticket.category).all()
+        cats_query = db.session.query(Ticket.category, db.func.count(Ticket.id)).filter(Ticket.category != DEV_CATEGORY)
+        if user_id:
+            cats_query = cats_query.filter(Ticket.assigned_to_id == user_id)
+        cats = cats_query.group_by(Ticket.category).all()
         by_category = {cat: count for cat, count in cats if cat}
         
         # Department breakdown
-        depts = db.session.query(Ticket.submitter_department, db.func.count(Ticket.id))\
-            .filter(Ticket.category != DEV_CATEGORY)\
-            .filter(Ticket.assigned_to_id == user_id if user_id else True)\
-            .group_by(Ticket.submitter_department).all()
+        depts_query = db.session.query(Ticket.submitter_department, db.func.count(Ticket.id)).filter(Ticket.category != DEV_CATEGORY)
+        if user_id:
+            depts_query = depts_query.filter(Ticket.assigned_to_id == user_id)
+        depts = depts_query.group_by(Ticket.submitter_department).all()
         by_department = {dept: count for dept, count in depts if dept}
         
         # Trend data (last 7 days)
@@ -437,7 +437,9 @@ class TicketService:
         res_times = []
         for t in resolved_all:
             if t.resolved_at and t.created_at:
-                diff = (t.resolved_at - t.created_at).total_seconds() / 3600
+                res_naive = t.resolved_at.replace(tzinfo=None)
+                cre_naive = t.created_at.replace(tzinfo=None)
+                diff = (res_naive - cre_naive).total_seconds() / 3600
                 res_times.append(diff)
         
         avg_res_time = sum(res_times) / len(res_times) if res_times else 0

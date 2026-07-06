@@ -185,7 +185,9 @@ class UserService:
             resolution_times = []
             for t in resolved_tickets:
                 if t.resolved_at and t.created_at:
-                    diff = (t.resolved_at - t.created_at).total_seconds() / 3600 # hours
+                    res_naive = t.resolved_at.replace(tzinfo=None)
+                    cre_naive = t.created_at.replace(tzinfo=None)
+                    diff = (res_naive - cre_naive).total_seconds() / 3600 # hours
                     resolution_times.append(diff)
             
             avg_resolution_time = sum(resolution_times) / len(resolution_times) if resolution_times else 0
