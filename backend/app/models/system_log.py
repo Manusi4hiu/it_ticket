@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 from app import db
 
@@ -8,7 +8,7 @@ class SystemLog(db.Model):
     __tablename__ = 'system_logs'
     
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    timestamp = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     action = db.Column(db.String(100), nullable=False)  # e.g., "Ticket Created", "User Login", "Ticket Updated"
     details = db.Column(db.Text, nullable=True)
     ip_address = db.Column(db.String(45), nullable=True)  # IPv6 can be up to 45 chars

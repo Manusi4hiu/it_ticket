@@ -17,7 +17,12 @@ def create_app(config_name=None):
     """Application factory"""
     if config_name is None:
         config_name = os.getenv('FLASK_ENV', 'development')
-    
+
+    # Fail fast on misconfigured production deployments
+    if config_name == 'production':
+        from app.config import ProductionConfig
+        ProductionConfig.validate()
+
     app = Flask(__name__)
     app.config.from_object(config[config_name])
     

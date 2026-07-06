@@ -56,12 +56,33 @@ def run_command(command, cwd, prefix, color):
     return process
 
 def main():
+    # ------------------------------------------------------------------
+    # Safety guard: this script is for local development only.
+    # Refuse to run if any environment variable signals a production env.
+    # ------------------------------------------------------------------
+    flask_env = os.getenv('FLASK_ENV', 'development').lower()
+    node_env = os.getenv('NODE_ENV', 'development').lower()
+    if flask_env == 'production' or node_env == 'production':
+        print(
+            f"{Colors.RED}[ERROR] run_all.py is a DEVELOPMENT-ONLY script.{Colors.END}\n"
+            f"{Colors.RED}        FLASK_ENV={flask_env!r}, NODE_ENV={node_env!r}{Colors.END}\n"
+            f"{Colors.RED}        Use a proper process manager (gunicorn, pm2) in production.{Colors.END}"
+        )
+        sys.exit(1)
+
     root_dir = os.path.dirname(os.path.abspath(__file__))
     backend_dir = os.path.join(root_dir, 'backend')
     frontend_dir = os.path.join(root_dir, 'frontend')
 
-    # Command for backend (Windows specific venv)
-    backend_cmd = r'.\venv\Scripts\activate && python run.py'
+    # Detect python path in venv more robustly
+    # Use absolute path to avoid issues with spaces and activation
+    backend_venv_python = os.path.join(backend_dir, 'venv', 'Scripts', 'python.exe')
+    
+    if os.path.exists(backend_venv_python):
+        backend_cmd = f'"{backend_venv_python}" run.py'
+    else:
+        # Fallback to system python if venv is missing
+        backend_cmd = 'python run.py'
     
     # Command for frontend
     frontend_cmd = 'npm run dev'
@@ -70,34 +91,34 @@ def main():
     if os.name == 'nt':
         os.system('color')
 
-    print(f"\n{Colors.BOLD}{Colors.CYAN}🚀 STARTING IT TICKET PROJECT...{Colors.END}")
-    print(f"{Colors.CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━{Colors.END}")
+    print(f"\n{Colors.BOLD}{Colors.CYAN}STARTING IT TICKET PROJECT...{Colors.END}")
+    print(f"{Colors.CYAN}-------------------------------------------------{Colors.END}")
     
     processes = []
     
     try:
-        print(f"{Colors.CYAN}📂 Backend: {backend_dir}{Colors.END}")
+        print(f"{Colors.CYAN}Backend: {backend_dir}{Colors.END}")
         backend_proc = run_command(backend_cmd, backend_dir, "BACKEND ", Colors.CYAN)
         processes.append(("BACKEND", backend_proc))
 
-        print(f"{Colors.YELLOW}📂 Frontend: {frontend_dir}{Colors.END}")
+        print(f"{Colors.YELLOW}Frontend: {frontend_dir}{Colors.END}")
         frontend_proc = run_command(frontend_cmd, frontend_dir, "FRONTEND", Colors.YELLOW)
         processes.append(("FRONTEND", frontend_proc))
 
-        print(f"\n{Colors.GREEN}✅ Both servers are starting up!{Colors.END}")
+        print(f"\n{Colors.GREEN}[OK] Both servers are starting up!{Colors.END}")
         print(f"{Colors.BOLD}Press Ctrl+C to stop both servers.{Colors.END}")
-        print(f"{Colors.CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n{Colors.END}")
+        print(f"{Colors.CYAN}-------------------------------------------------\n{Colors.END}")
 
         # Keep the script running until interrupted or a process crashes
         while True:
             for name, proc in processes:
                 if proc.poll() is not None:
-                    print(f"\n{Colors.RED}❌ CRITICAL ERROR: {name} (PID {proc.pid}) exited unexpectedly with code {proc.returncode}{Colors.END}")
+                    print(f"\n{Colors.RED}[ERROR] CRITICAL ERROR: {name} (PID {proc.pid}) exited unexpectedly with code {proc.returncode}{Colors.END}")
                     return
             time.sleep(1)
     
     except KeyboardInterrupt:
-        print(f"\n\n{Colors.RED}🛑 Stopping servers...{Colors.END}")
+        print(f"\n\n{Colors.RED}[STOP] Stopping servers...{Colors.END}")
         for name, proc in processes:
             print(f"Stopping {name} (PID {proc.pid})...")
             # On Windows, taskkill is more reliable for killing process trees

@@ -114,6 +114,10 @@ export default function DevDashboard() {
   const [editTaskAssigneeId, setEditTaskAssigneeId] = useState("unassigned");
   const [isTaskUpdating, setIsTaskUpdating] = useState(false);
 
+  // Delete Task Modal State
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isTaskDeleting, setIsTaskDeleting] = useState(false);
+
   const handleAddDevTask = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!addTaskTitle.trim() || !addTaskDesc.trim() || isTaskSubmitting) return;
@@ -157,13 +161,15 @@ export default function DevDashboard() {
   };
 
   // Event handlers for editing and deleting tasks
-  const handleDeleteTicket = async (ticketId: number) => {
-    if (!confirm("Are you sure you want to delete this dev task? This action cannot be undone.")) return;
+  const handleDeleteTicket = async () => {
+    if (!selectedTicket) return;
+    setIsTaskDeleting(true);
     
     try {
-      const success = await deleteTicket(ticketId.toString());
+      const success = await deleteTicket(selectedTicket.id.toString());
       if (success) {
-        setTickets((prev) => prev.filter((t) => t.id !== ticketId));
+        setTickets((prev) => prev.filter((t) => t.id !== selectedTicket.id));
+        setIsDeleteDialogOpen(false);
         setIsDetailOpen(false);
         setSelectedTicket(null);
       } else {
@@ -172,6 +178,8 @@ export default function DevDashboard() {
     } catch (err) {
       console.error("Failed to delete task:", err);
       alert("Failed to delete task. Please try again.");
+    } finally {
+      setIsTaskDeleting(false);
     }
   };
 
@@ -653,7 +661,7 @@ export default function DevDashboard() {
                 {canManage && (
                   <Button
                     variant="outline"
-                    onClick={() => handleDeleteTicket(selectedTicket.id)}
+                    onClick={() => setIsDeleteDialogOpen(true)}
                     style={{ color: 'var(--color-critical-9)', borderColor: 'rgba(239, 68, 68, 0.2)', marginRight: 'auto' }}
                   >
                     Delete Task
@@ -836,6 +844,38 @@ export default function DevDashboard() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent className={styles.addTaskModalWidth} style={{ maxWidth: 450 }}>
+          <DialogHeader>
+            <DialogTitle className={styles.detailTitle} style={{ color: 'var(--color-critical-9)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <AlertTriangle size={20} />
+                Delete Dev Task
+              </div>
+            </DialogTitle>
+          </DialogHeader>
+          <div style={{ padding: '16px 0', color: 'var(--color-text-dim)' }}>
+            <p style={{ marginBottom: 16 }}>
+              Are you sure you want to delete the task <strong>"{selectedTicket?.title}"</strong>?
+            </p>
+            <p>This action cannot be undone and will permanently remove the task from the dev board.</p>
+          </div>
+          <DialogFooter style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 16 }}>
+            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)} disabled={isTaskDeleting}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleDeleteTicket} 
+              disabled={isTaskDeleting}
+              style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.2)' }}
+            >
+              {isTaskDeleting ? "Deleting..." : "Confirm Delete"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

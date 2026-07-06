@@ -145,6 +145,16 @@ export default function Analytics({ loaderData }: Route.ComponentProps) {
             </div>
 
             <div className={styles.summaryCard}>
+              <div className={styles.summaryIcon} style={{ background: "rgba(239, 68, 68, 0.1)", border: "1px solid rgba(239, 68, 68, 0.2)" }}>
+                <Activity size={22} style={{ color: "#ef4444" }} />
+              </div>
+              <div className={styles.summaryContent}>
+                <span className={styles.summaryLabel}>Open Tickets</span>
+                <span className={styles.summaryValue}>{stats.open}</span>
+              </div>
+            </div>
+
+            <div className={styles.summaryCard}>
               <div className={styles.summaryIcon} style={{ background: "rgba(16, 185, 129, 0.1)", border: "1px solid rgba(16, 185, 129, 0.2)" }}>
                 <CheckCircle size={22} style={{ color: "#10b981" }} />
               </div>

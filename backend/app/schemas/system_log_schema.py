@@ -16,6 +16,6 @@ class SystemLogSchema(Schema):
         if obj.metadata_json:
             try:
                 return json.loads(obj.metadata_json)
-            except:
+            except Exception:
                 return {}
         return None

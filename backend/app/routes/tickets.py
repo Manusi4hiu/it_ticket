@@ -4,6 +4,7 @@ from app import db
 from app.models.ticket import Ticket
 from app.services.ticket_service import TicketService
 from app.services.file_service import FileService
+from app.constants import DEV_CATEGORY
 
 tickets_bp = Blueprint('tickets', __name__)
 
@@ -58,17 +59,21 @@ def get_tickets():
     if category:
         query = query.filter(Ticket.category == category)
     else:
-        query = query.filter(Ticket.category != 'Development')
+        query = query.filter(Ticket.category != DEV_CATEGORY)
     if assigned_to:
         query = query.filter(Ticket.assigned_to_id == assigned_to)
     if search:
-        search_term = f"%{search}%"
+        # PostgreSQL Full-Text Search
+        # Convert "server down" -> "server & down:*"
+        search_query = ' & '.join(search.split()) + ':*'
         query = query.filter(
             db.or_(
-                Ticket.title.ilike(search_term),
-                Ticket.description.ilike(search_term),
-                Ticket.submitter_name.ilike(search_term),
-                Ticket.ticket_code.ilike(search_term)
+                Ticket.ticket_code.ilike(f"%{search}%"),
+                db.func.to_tsvector('english', 
+                    Ticket.title + ' ' + 
+                    Ticket.description + ' ' + 
+                    Ticket.submitter_name
+                ).match(search_query, postgresql_regconfig='english')
             )
         )
     
@@ -78,7 +83,7 @@ def get_tickets():
         verify_jwt_in_request(optional=True)
         if get_jwt_identity():
             is_authenticated = True
-    except:
+    except Exception:
         pass
 
     if not is_authenticated:
@@ -132,7 +137,7 @@ def get_ticket(ticket_id):
         verify_jwt_in_request(optional=True)
         if get_jwt_identity():
             is_authenticated = True
-    except:
+    except Exception:
         pass
 
     ticket_data = ticket.to_dict()

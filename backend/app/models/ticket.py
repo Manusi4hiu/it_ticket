@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 from app import db
 
@@ -20,9 +20,9 @@ class Ticket(db.Model):
     code_counter = db.Column(db.Integer, nullable=True) # Per department sequence
     title = db.Column(db.String(255), nullable=False)
     description = db.Column(db.Text, nullable=False)
-    status = db.Column(db.String(20), nullable=False, default='new')  # new, triaged, assigned, in-progress, resolved, closed
-    priority = db.Column(db.String(20), nullable=False, default='medium')  # low, medium, high, critical
-    category = db.Column(db.String(50), nullable=False)  # Hardware, Software, Network, Other
+    status = db.Column(db.String(20), nullable=False, default='new', index=True)  # new, triaged, assigned, in-progress, resolved, closed
+    priority = db.Column(db.String(20), nullable=False, default='medium', index=True)  # low, medium, high, critical
+    category = db.Column(db.String(50), nullable=False, index=True)  # Hardware, Software, Network, Other
     image_url = db.Column(db.String(255), nullable=True)
     idempotency_key = db.Column(db.String(36), unique=True, nullable=True)
     
@@ -33,7 +33,7 @@ class Ticket(db.Model):
     submitter_department = db.Column(db.String(100), nullable=True)
     
     # Assignment
-    assigned_to_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    assigned_to_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True, index=True)
     assigned_user = db.relationship('User', back_populates='assigned_tickets', foreign_keys=[assigned_to_id])
     
     # Collaborators (many-to-many)
@@ -46,11 +46,11 @@ class Ticket(db.Model):
     
     # Resolution
     resolution_summary = db.Column(db.Text, nullable=True)
-    resolved_at = db.Column(db.DateTime, nullable=True)
+    resolved_at = db.Column(db.DateTime, nullable=True, index=True)
     
     # Timestamps
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True)
+    updated_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
     # Notes relationship
     notes = db.relationship('TicketNote', back_populates='ticket', cascade='all, delete-orphan', order_by='TicketNote.created_at')
@@ -101,7 +101,7 @@ class TicketNote(db.Model):
     author_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     image_url = db.Column(db.String(255), nullable=True)
     is_internal = db.Column(db.Boolean, default=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     
     # Relationships
     ticket = db.relationship('Ticket', back_populates='notes')

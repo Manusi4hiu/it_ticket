@@ -227,6 +227,7 @@ export async function addTicketNote(
 
 export async function getTicketStats(personal: boolean = false): Promise<{
     total: number;
+    open: number;
     new: number;
     assigned: number;
     resolved: number;

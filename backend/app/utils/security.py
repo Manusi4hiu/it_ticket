@@ -1,15 +1,16 @@
-from markupsafe import escape
 import json
 
 def sanitize_html(text):
     """
-    Sanitize text to prevent XSS by escaping HTML tags.
+    Pass-through function.
+    In this project, XSS protection is handled automatically by the React frontend during rendering.
+    We store the raw strings in the database to prevent double-escaping issues (like & becoming &amp;).
     """
     if text is None:
         return None
     if not isinstance(text, str):
         return text
-    return str(escape(text))
+    return str(text)
 
 def sanitize_dict(data, fields_to_sanitize=None):
     """

@@ -1,6 +1,7 @@
 from app import db
 from app.models.user import User
 from app.models.ticket import Ticket
+from app.constants import DEV_CATEGORY
 from sqlalchemy import or_
 
 class UserService:
@@ -121,7 +122,7 @@ class UserService:
             return None
         
         # Get ticket stats for this user (Assigned or Collaborator)
-        user_tickets_query = Ticket.query.filter(Ticket.category != 'Development').filter(
+        user_tickets_query = Ticket.query.filter(Ticket.category != DEV_CATEGORY).filter(
             (Ticket.assigned_to_id == user_id) | 
             (Ticket.collaborators.any(User.id == user_id))
         )
@@ -163,7 +164,7 @@ class UserService:
         results = []
         for user in users:
             # Get ticket stats for this user (Assigned or Collaborator)
-            involved_tickets = Ticket.query.filter(Ticket.category != 'Development').filter(
+            involved_tickets = Ticket.query.filter(Ticket.category != DEV_CATEGORY).filter(
                 (Ticket.assigned_to_id == user.id) | 
                 (Ticket.collaborators.any(User.id == user.id))
             ).all()

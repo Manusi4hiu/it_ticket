@@ -4,7 +4,8 @@ from app.models.user import User
 from app.models.master_data import Department, Status
 from app.utils.logging import log_activity
 from app.utils.security import sanitize_html
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from app.constants import DEV_CATEGORY, RESOLVED_STATUSES
 import uuid
 
 class TicketService:
@@ -15,9 +16,18 @@ class TicketService:
         """Calculate SLA status based on deadline and resolution time"""
         if not sla_deadline:
             return 'good'
+            
+        # Ensure sla_deadline is timezone-aware
+        if sla_deadline.tzinfo is None:
+            sla_deadline = sla_deadline.replace(tzinfo=timezone.utc)
         
         # If resolved, compare deadline with resolution time instead of current time
-        comparison_time = resolved_at if resolved_at else datetime.utcnow()
+        comparison_time = resolved_at if resolved_at else datetime.now(timezone.utc)
+        
+        # Ensure comparison_time is timezone-aware
+        if comparison_time.tzinfo is None:
+            comparison_time = comparison_time.replace(tzinfo=timezone.utc)
+            
         time_remaining = sla_deadline - comparison_time
         
         if time_remaining.total_seconds() < 0:
@@ -84,7 +94,7 @@ class TicketService:
             sla_deadline = None
             if assigned_to_id:
                 hours = TicketService.get_sla_hours_for_ticket(priority, data.get('category'))
-                sla_deadline = datetime.utcnow() + timedelta(hours=hours)
+                sla_deadline = datetime.now(timezone.utc) + timedelta(hours=hours)
             
             # Fetch department info
             dept_code = "TKT"
@@ -186,7 +196,7 @@ class TicketService:
         if 'status' in data:
             ticket.status = data['status']
             if data['status'].lower() in ['resolved', 'closed']:
-                ticket.resolved_at = datetime.utcnow()
+                ticket.resolved_at = datetime.now(timezone.utc)
         if 'priority' in data:
             ticket.priority = data['priority']
             priority_changed = True
@@ -213,13 +223,13 @@ class TicketService:
             if ticket.assigned_to_id:
                 if not prev_assigned_id or not ticket.sla_deadline:
                     hours = TicketService.get_sla_hours_for_ticket(ticket.priority, ticket.category)
-                    ticket.sla_deadline = datetime.utcnow() + timedelta(hours=hours)
+                    ticket.sla_deadline = datetime.now(timezone.utc) + timedelta(hours=hours)
             else:
                 ticket.sla_deadline = None
         elif (priority_changed or category_changed) and ticket.assigned_to_id:
             # If priority/category changed and ticket is assigned, recalculate deadline
             hours = TicketService.get_sla_hours_for_ticket(ticket.priority, ticket.category)
-            ticket.sla_deadline = datetime.utcnow() + timedelta(hours=hours)
+            ticket.sla_deadline = datetime.now(timezone.utc) + timedelta(hours=hours)
             
         if 'collaboratorIds' in data:
             # Clear existing collaborators and add new ones
@@ -229,7 +239,7 @@ class TicketService:
                 if user:
                     ticket.collaborators.append(user)
         
-        ticket.updated_at = datetime.utcnow()
+        ticket.updated_at = datetime.now(timezone.utc)
         ticket.sla_status = TicketService.calculate_sla_status(ticket.sla_deadline, ticket.resolved_at)
         db.session.commit()
         
@@ -274,7 +284,7 @@ class TicketService:
             # Postpone SLA deadline calculation until it is assigned (taken)
             if not ticket.sla_deadline:
                 hours = TicketService.get_sla_hours_for_ticket(ticket.priority, ticket.category)
-                ticket.sla_deadline = datetime.utcnow() + timedelta(hours=hours)
+                ticket.sla_deadline = datetime.now(timezone.utc) + timedelta(hours=hours)
             
             # Try to find an "Assigned" status in master data, otherwise use 'Assigned'
             assigned_status = Status.query.filter(Status.name.ilike('%assigned%')).first()
@@ -290,7 +300,7 @@ class TicketService:
             default_status = Status.query.filter_by(is_default=True).first()
             ticket.status = default_status.name if default_status else 'New'
         
-        ticket.updated_at = datetime.utcnow()
+        ticket.updated_at = datetime.now(timezone.utc)
         db.session.commit()
         return ticket, None
 
@@ -310,14 +320,14 @@ class TicketService:
                     clean_str = resolved_at_str.replace('Z', '+00:00')
                     ticket.resolved_at = datetime.fromisoformat(clean_str).replace(tzinfo=None)
                 except ValueError:
-                    ticket.resolved_at = datetime.utcnow()
+                    ticket.resolved_at = datetime.now(timezone.utc)
             else:
-                ticket.resolved_at = datetime.utcnow()
+                ticket.resolved_at = datetime.now(timezone.utc)
                 
             if resolution_summary:
                 ticket.resolution_summary = resolution_summary
         
-        ticket.updated_at = datetime.utcnow()
+        ticket.updated_at = datetime.now(timezone.utc)
         ticket.sla_status = TicketService.calculate_sla_status(ticket.sla_deadline, ticket.resolved_at)
         db.session.commit()
         return ticket
@@ -337,14 +347,14 @@ class TicketService:
         )
         
         db.session.add(note)
-        ticket.updated_at = datetime.utcnow()
+        ticket.updated_at = datetime.now(timezone.utc)
         db.session.commit()
         return note
 
     @staticmethod
     def get_stats(user_id=None):
         """Get ticket statistics for dashboard, optionally filtered by user"""
-        base_query = Ticket.query.filter(Ticket.category != 'Development')
+        base_query = Ticket.query.filter(Ticket.category != DEV_CATEGORY)
         if user_id:
             base_query = base_query.filter(Ticket.assigned_to_id == user_id)
             
@@ -360,6 +370,9 @@ class TicketService:
         assigned = total - new - resolved
         worked_on = total - new
         
+        open_status_names = ['new', 'assign', 'assigned', 'inprogress', 'in progress']
+        open_count = base_query.filter(db.func.lower(Ticket.status).in_(open_status_names)).count()
+        
         # SLA stats
         breached = base_query.filter_by(sla_status='breached').count()
         warning = base_query.filter_by(sla_status='warning').count()
@@ -374,14 +387,14 @@ class TicketService:
         
         # Category breakdown
         cats = db.session.query(Ticket.category, db.func.count(Ticket.id))\
-            .filter(Ticket.category != 'Development')\
+            .filter(Ticket.category != DEV_CATEGORY)\
             .filter(Ticket.assigned_to_id == user_id if user_id else True)\
             .group_by(Ticket.category).all()
         by_category = {cat: count for cat, count in cats if cat}
         
         # Department breakdown
         depts = db.session.query(Ticket.submitter_department, db.func.count(Ticket.id))\
-            .filter(Ticket.category != 'Development')\
+            .filter(Ticket.category != DEV_CATEGORY)\
             .filter(Ticket.assigned_to_id == user_id if user_id else True)\
             .group_by(Ticket.submitter_department).all()
         by_department = {dept: count for dept, count in depts if dept}
@@ -389,11 +402,18 @@ class TicketService:
         # Trend data (last 7 days)
         trend = []
         for i in range(6, -1, -1):
-            date = (datetime.utcnow() - timedelta(days=i)).date()
+            date = (datetime.now(timezone.utc) - timedelta(days=i)).date()
             date_str = date.strftime('%a')
             
-            created_q = Ticket.query.filter(Ticket.category != 'Development').filter(db.func.date(Ticket.created_at) == date)
-            resolved_q = Ticket.query.filter(Ticket.category != 'Development').filter(db.func.date(Ticket.resolved_at) == date)
+            start_of_day = datetime.combine(date, datetime.min.time()).replace(tzinfo=timezone.utc)
+            end_of_day = datetime.combine(date, datetime.max.time()).replace(tzinfo=timezone.utc)
+            
+            created_q = Ticket.query.filter(Ticket.category != DEV_CATEGORY).filter(
+                Ticket.created_at >= start_of_day, Ticket.created_at <= end_of_day
+            )
+            resolved_q = Ticket.query.filter(Ticket.category != DEV_CATEGORY).filter(
+                Ticket.resolved_at >= start_of_day, Ticket.resolved_at <= end_of_day
+            )
             
             if user_id:
                 created_q = created_q.filter(Ticket.assigned_to_id == user_id)
@@ -409,7 +429,7 @@ class TicketService:
             })
         
         # All resolved tickets (for compliance)
-        resolved_all_q = Ticket.query.filter(Ticket.category != 'Development').filter(db.func.lower(Ticket.status).in_(resolved_status_names))
+        resolved_all_q = Ticket.query.filter(Ticket.category != DEV_CATEGORY).filter(db.func.lower(Ticket.status).in_(resolved_status_names))
         if user_id:
             resolved_all_q = resolved_all_q.filter(Ticket.assigned_to_id == user_id)
         
@@ -424,6 +444,7 @@ class TicketService:
         
         return {
             'total': total,
+            'open': open_count,
             'new': new,
             'assigned': assigned,
             'resolved': resolved,
