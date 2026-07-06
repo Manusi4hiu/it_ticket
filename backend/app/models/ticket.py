@@ -2,6 +2,15 @@ from datetime import datetime, timezone
 import uuid
 from app import db
 
+def format_iso_date(dt):
+    if not dt:
+        return None
+    iso_str = dt.isoformat()
+    if iso_str.endswith('+00:00'):
+        return iso_str[:-6] + 'Z'
+    if '+' not in iso_str.split('T')[-1] and '-' not in iso_str.split('T')[-1]:
+        return iso_str + 'Z'
+    return iso_str
 
 # Association table for ticket collaborators (many-to-many)
 ticket_collaborators = db.Table(
@@ -74,12 +83,12 @@ class Ticket(db.Model):
             'assignedToId': self.assigned_to_id,
             'collaborators': [u.full_name for u in self.collaborators],
             'collaboratorIds': [u.id for u in self.collaborators],
-            'slaDeadline': self.sla_deadline.isoformat() + "Z" if self.sla_deadline else None,
+            'slaDeadline': format_iso_date(self.sla_deadline),
             'slaStatus': self.sla_status,
             'resolutionSummary': self.resolution_summary,
-            'resolvedAt': self.resolved_at.isoformat() + "Z" if self.resolved_at else None,
-            'createdAt': self.created_at.isoformat() + "Z" if self.created_at else None,
-            'updatedAt': self.updated_at.isoformat() + "Z" if self.updated_at else None,
+            'resolvedAt': format_iso_date(self.resolved_at),
+            'createdAt': format_iso_date(self.created_at),
+            'updatedAt': format_iso_date(self.updated_at),
         }
         
         if include_notes:
@@ -117,7 +126,7 @@ class TicketNote(db.Model):
             'authorId': self.author_id,
             'imageUrl': self.image_url,
             'isInternal': self.is_internal,
-            'createdAt': self.created_at.isoformat() + "Z" if self.created_at else None,
+            'createdAt': format_iso_date(self.created_at),
         }
     
     def __repr__(self):

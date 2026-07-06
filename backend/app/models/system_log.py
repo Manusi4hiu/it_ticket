@@ -23,9 +23,28 @@ class SystemLog(db.Model):
     
     def to_dict(self):
         """Convert log to dictionary"""
+        
+        def format_iso_date(dt):
+            if not dt:
+                return None
+            iso_str = dt.isoformat()
+            if iso_str.endswith('+00:00'):
+                return iso_str[:-6] + 'Z'
+            if '+' not in iso_str.split('T')[-1] and '-' not in iso_str.split('T')[-1]:
+                return iso_str + 'Z'
+            return iso_str
+            
+        import json
+        metadata = None
+        if self.metadata_json:
+            try:
+                metadata = json.loads(self.metadata_json)
+            except:
+                pass
+                
         return {
             'id': self.id,
-            'timestamp': self.timestamp.isoformat() + "Z" if self.timestamp else None,
+            'timestamp': format_iso_date(self.timestamp),
             'action': self.action,
             'details': self.details,
             'ipAddress': self.ip_address,
