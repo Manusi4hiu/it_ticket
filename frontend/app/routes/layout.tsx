@@ -12,9 +12,11 @@ import {
 } from "lucide-react";
 import { NotificationBell } from "~/components/notification-bell";
 import { getUserSession, logout } from "~/services/session.service";
+import { setAuthToken } from "~/services/api.service";
 import type { Route } from "./+types/layout";
 import styles from "./layout.module.css";
 import { useIdleTimeout } from "~/hooks/use-idle-timeout";
+import { SessionWarningModal } from "~/components/session-warning-modal";
 
 export async function loader({ request }: Route.LoaderArgs) {
   const session = await getUserSession(request);
@@ -51,6 +53,16 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
     }
   }, []);
 
+  // ── KRITIS: Sync JWT token dari SSR session ke in-memory client-side ──
+  // `getUserSession()` hanya berjalan di server. Setelah browser hydration,
+  // `authToken` di api.service.ts kembali null. useEffect ini memastikan
+  // token selalu tersedia untuk semua client-side API call di setiap route.
+  useEffect(() => {
+    if (session?.authToken) {
+      setAuthToken(session.authToken);
+    }
+  }, [session]);
+
   const handleToggleMode = (dev: boolean) => {
     setIsDevMode(dev);
     localStorage.setItem("app_mode_dev", String(dev));
@@ -61,7 +73,12 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
     }
   };
 
-  useIdleTimeout(480, !!session);
+  const WARNING_MINUTES = 2; // tampilkan warning 2 menit sebelum logout
+  const { showWarning, secondsLeft, extendSession, logoutNow } = useIdleTimeout(
+    480,
+    !!session,
+    WARNING_MINUTES
+  );
 
   return (
     <div className={styles.container}>
@@ -195,6 +212,15 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
       <main className={styles.main}>
         <Outlet />
       </main>
+
+      {showWarning && (
+        <SessionWarningModal
+          secondsLeft={secondsLeft}
+          totalSeconds={WARNING_MINUTES * 60}
+          onExtend={extendSession}
+          onLogout={logoutNow}
+        />
+      )}
     </div>
   );
 }
