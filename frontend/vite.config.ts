@@ -11,6 +11,7 @@ export default defineConfig(({ mode }) => {
     base: mode === "production" ? "/it_ticket/frontend/" : "/",
     plugins: [reactRouter(), tsconfigPaths()],
     server: {
+      allowedHosts: ["it-ticket.ani.co.id"],
       proxy: {
         "/api": {
           target: env.VITE_PROXY_TARGET || "http://127.0.0.1:5000",
