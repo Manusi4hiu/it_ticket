@@ -104,6 +104,17 @@
   color: #93c5fd;
 }
 
+.ghost {
+  background: transparent;
+  color: rgba(255, 255, 255, 0.5);
+  border: none;
+}
+
+.ghost:hover {
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.05);
+}
+
 /* Sizes */
 .sizeDefault {
   padding: var(--space-1) var(--space-4);

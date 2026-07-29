@@ -1,12 +1,12 @@
 import { useState, useEffect, useMemo } from "react";
 import { useSearchParams, useNavigate } from "react-router";
 import type { Route } from "./+types/route";
-import { 
-  Search, 
-  Filter, 
-  X, 
-  ChevronLeft, 
-  ChevronRight, 
+import {
+  Search,
+  Filter,
+  X,
+  ChevronLeft,
+  ChevronRight,
   Inbox,
   AlertCircle,
   Clock,
@@ -19,20 +19,28 @@ import {
 } from "lucide-react";
 import { Button } from "~/components/ui/button/button";
 import { Badge } from "~/components/ui/badge/badge";
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
 } from "~/components/ui/select/select";
-import { 
-  getTickets, 
-  getAgents, 
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "~/components/ui/dialog/dialog";
+import {
+  getTickets,
+  getAgents,
   assignTicket,
   deleteTicket,
-  type Ticket, 
-  type Agent 
+  type Ticket,
+  type Agent
 } from "~/services/ticket.service";
 import { settingsApi } from "~/services/settings.service";
 import { requireAuth } from "~/services/session.service";
@@ -90,6 +98,7 @@ export default function TicketsList({ loaderData }: Route.ComponentProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const [searchValue, setSearchValue] = useState(initialFilters.search || "");
+  const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
 
   // Debounce search
   useEffect(() => {
@@ -137,14 +146,18 @@ export default function TicketsList({ loaderData }: Route.ComponentProps) {
   };
 
   const handleDeleteTicket = async (ticketId: number) => {
-    if (confirm("Are you sure you want to delete this ticket? This action cannot be undone.")) {
-      const success = await deleteTicket(ticketId.toString());
-      if (success) {
-        setTickets(prev => prev.filter(t => t.id !== ticketId));
-      } else {
-        alert("Failed to delete ticket. Please check your permissions.");
-      }
+    setDeleteTargetId(ticketId);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTargetId) return;
+    const success = await deleteTicket(deleteTargetId.toString());
+    if (success) {
+      setTickets(prev => prev.filter(t => t.id !== deleteTargetId));
+    } else {
+      alert("Failed to delete ticket. Please check your permissions.");
     }
+    setDeleteTargetId(null);
   };
 
   const totalPages = Math.ceil(totalTickets / initialFilters.per_page);
@@ -411,6 +424,29 @@ export default function TicketsList({ loaderData }: Route.ComponentProps) {
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog
+        open={deleteTargetId !== null}
+        onOpenChange={(open) => { if (!open) setDeleteTargetId(null); }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Hapus Ticket</DialogTitle>
+            <DialogDescription>
+              Apakah kamu yakin ingin menghapus ticket ini? Aksi ini tidak bisa dibatalkan.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTargetId(null)}>
+              Batal
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteConfirm}>
+              Hapus
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

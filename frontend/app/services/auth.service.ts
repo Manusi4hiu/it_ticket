@@ -1,5 +1,5 @@
 import { authApi, setAuthToken, clearAuthToken, getAuthToken } from './api.service';
-import type { UserRole } from '~/data/auth';
+import type { UserRole } from '~/types/user.types';
 
 export interface LoginCredentials {
   username: string;
@@ -8,7 +8,7 @@ export interface LoginCredentials {
 
 export interface AuthUser {
   id: string | number;
-  email: string;
+  email: string | null;
   username: string;
   full_name: string;
   role: UserRole;

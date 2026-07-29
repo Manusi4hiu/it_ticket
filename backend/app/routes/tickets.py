@@ -258,10 +258,24 @@ def assign_ticket(ticket_id):
 @tickets_bp.route('/<ticket_id>/status', methods=['PUT'])
 @jwt_required()
 def update_ticket_status(ticket_id):
-    """Update ticket status"""
-    data = request.get_json()
-    status = data.get('status')
-    
+    """Update ticket status - supports JSON and multipart/form-data"""
+    # Handle both JSON and multipart/form-data
+    if request.is_json:
+        data = request.get_json()
+        status = data.get('status')
+        resolution_summary = data.get('resolutionSummary')
+        resolved_at_str = data.get('resolvedAt')
+        reason = data.get('reason')
+        resolution_image_url = None
+    else:
+        data = request.form.to_dict()
+        status = data.get('status')
+        resolution_summary = data.get('resolutionSummary')
+        resolved_at_str = data.get('resolvedAt')
+        reason = data.get('reason')
+        image_file = request.files.get('resolutionImage')
+        resolution_image_url = FileService.save_file(image_file, 'resolutions')
+
     # Validate against master data
     from app.models.master_data import Status
     valid_status = Status.query.filter_by(name=status).first()
@@ -272,20 +286,17 @@ def update_ticket_status(ticket_id):
             status = valid_status.name # Use the canonical name
         else:
             return jsonify({'success': False, 'error': 'Status tidak valid'}), 400
-        
-    resolution_summary = data.get('resolutionSummary')
-    resolved_at_str = data.get('resolvedAt')
-    reason = data.get('reason')
+
     user_id = get_jwt_identity()
-    
+
     ticket = get_ticket_or_404(ticket_id)
     if not ticket:
         return jsonify({'success': False, 'error': 'Ticket tidak ditemukan'}), 404
-    ticket = TicketService.update_ticket_status(ticket.id, status, resolution_summary, resolved_at_str, reason, user_id)
-    
+    ticket = TicketService.update_ticket_status(ticket.id, status, resolution_summary, resolved_at_str, reason, user_id, resolution_image_url)
+
     if not ticket:
         return jsonify({'success': False, 'error': 'Ticket tidak ditemukan'}), 404
-    
+
     return jsonify({
         'success': True,
         'ticket': ticket.to_dict(),

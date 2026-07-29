@@ -136,10 +136,10 @@ export default function Home({ loaderData }: Route.ComponentProps) {
       </section>
 
       {/* Stats Section */}
-      <section className={styles.statsSection}>
+      {/* <section className={styles.statsSection}>
         <div className={styles.statsGrid}>
           <div className={styles.statCard}>
-            <div className={styles.statValue}>24/7</div>
+            <div className={styles.statValue}>8/5</div>
             <div className={styles.statLabel}>Support Available</div>
           </div>
           <div className={styles.statCard}>
@@ -155,7 +155,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
             <div className={styles.statLabel}>Tickets Resolved</div>
           </div>
         </div>
-      </section>
+      </section> */}
 
       {/* Footer */}
       <footer className={styles.footer}>

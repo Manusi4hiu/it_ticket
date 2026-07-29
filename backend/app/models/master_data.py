@@ -43,22 +43,6 @@ class Priority(db.Model):
             'isActive': self.is_active
         }
 
-class SLAConfig(db.Model):
-    """SLA Configuration (global overrides or specific settings)"""
-    __tablename__ = 'sla_configs'
-
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    name = db.Column(db.String(50), nullable=False) # e.g. "Default", "Weekend"
-    config_json = db.Column(db.JSON, nullable=False) # Store flexible config here if needed
-    is_active = db.Column(db.Boolean, default=True)
-    
-    # Or strict columns if we prefer:
-    response_time_hours = db.Column(db.Integer, default=1)
-    resolution_time_hours = db.Column(db.Integer, default=24)
-    # We can link this to priority or category if needed, but for now let's keep it simple or stick to Priority's sla_hours for simplicity first. 
-    # The User requested "Master Data SLA", usually this means mapping Priority + Category -> Time.
-    # Let's make it a mapping: Priority ID + Category ID -> Resolution Time.
-
 class SLAPolicy(db.Model):
     """SLA Policy mapping Priority and/or Category to limits"""
     __tablename__ = 'sla_policies'
@@ -114,6 +98,7 @@ class Status(db.Model):
     is_default = db.Column(db.Boolean, default=False) # Only one should be true
     requires_reason = db.Column(db.Boolean, default=False)
     pauses_sla = db.Column(db.Boolean, default=False)
+    show_on_devboard = db.Column(db.Boolean, default=False)
 
     def to_dict(self):
         return {
@@ -123,5 +108,6 @@ class Status(db.Model):
             'order': self.order,
             'isDefault': self.is_default,
             'requiresReason': self.requires_reason,
-            'pausesSla': self.pauses_sla
+            'pausesSla': self.pauses_sla,
+            'showOnDevboard': self.show_on_devboard
         }

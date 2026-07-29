@@ -254,11 +254,22 @@ export const ticketsApi = {
     assign: async (id: string, userId: string | null) =>
         apiRequest(`/tickets/${id}/assign`, { method: 'PUT', body: JSON.stringify({ userId }) }),
 
-    updateStatus: async (id: string, status: string, resolutionSummary?: string, resolvedAt?: string) =>
-        apiRequest(`/tickets/${id}/status`, {
+    updateStatus: async (id: string, status: string, resolutionSummary?: string, resolvedAt?: string, image?: File) => {
+        if (image) {
+            const formData = new FormData();
+            formData.append('status', status);
+            if (resolutionSummary) formData.append('resolutionSummary', resolutionSummary);
+            if (resolvedAt) formData.append('resolvedAt', resolvedAt);
+            formData.append('resolutionImage', image);
+            return apiRequest(`/tickets/${id}/status`, {
+                method: 'PUT', body: formData, headers: {},
+            });
+        }
+        return apiRequest(`/tickets/${id}/status`, {
             method: 'PUT',
             body: JSON.stringify({ status, resolutionSummary, resolvedAt }),
-        }),
+        });
+    },
 
     addNote: async (id: string, content: string, isInternal: boolean = false, image?: File) => {
         if (image) {

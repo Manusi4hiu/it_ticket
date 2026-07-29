@@ -37,10 +37,11 @@ export async function action({ request }: Route.ActionArgs) {
         const isDefault = formData.get("isDefault") === "true";
         const requiresReason = formData.get("requiresReason") === "true";
         const pausesSla = formData.get("pausesSla") === "true";
+        const showOnDevboard = formData.get("showOnDevboard") === "true";
 
         if (!name) return { error: "Status name is required" };
 
-        const response = await settingsApi.createStatus({ name, color, order, isDefault, requiresReason, pausesSla });
+        const response = await settingsApi.createStatus({ name, color, order, isDefault, requiresReason, pausesSla, showOnDevboard });
         if (!response.success) return { error: response.error };
         return { success: true };
     }
@@ -53,10 +54,11 @@ export async function action({ request }: Route.ActionArgs) {
         const isDefault = formData.get("isDefault") === "true";
         const requiresReason = formData.get("requiresReason") === "true";
         const pausesSla = formData.get("pausesSla") === "true";
+        const showOnDevboard = formData.get("showOnDevboard") === "true";
 
         if (!id || !name) return { error: "ID and Name are required" };
 
-        const response = await settingsApi.updateStatus(id, { name, color, order, isDefault, requiresReason, pausesSla });
+        const response = await settingsApi.updateStatus(id, { name, color, order, isDefault, requiresReason, pausesSla, showOnDevboard });
         if (!response.success) return { error: response.error };
         return { success: true };
     }
@@ -163,7 +165,8 @@ export default function StatusesSettings() {
                                                     <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                                                         {status.requiresReason && <span style={{ fontSize: '0.7rem', padding: '2px 6px', background: 'rgba(255,255,255,0.1)', borderRadius: 4 }}>Reason Req.</span>}
                                                         {status.pausesSla && <span style={{ fontSize: '0.7rem', padding: '2px 6px', background: 'rgba(239, 68, 68, 0.2)', color: '#fca5a5', borderRadius: 4 }}>Pauses SLA</span>}
-                                                        {!status.requiresReason && !status.pausesSla && '-'}
+                                                        {status.showOnDevboard && <span style={{ fontSize: '0.7rem', padding: '2px 6px', background: 'rgba(59, 130, 246, 0.2)', color: '#93c5fd', borderRadius: 4 }}>Dev Board</span>}
+                                                        {!status.requiresReason && !status.pausesSla && !status.showOnDevboard && '-'}
                                                     </div>
                                                 </td>
                                                 <td>
@@ -279,6 +282,17 @@ export default function StatusesSettings() {
                                     defaultChecked={editingStatus?.pausesSla}
                                 />
                                 <Label htmlFor="pausesSla">Pause SLA timer while in this status</Label>
+                            </div>
+
+                            <div className={styles.formFullWidth} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+                                <input
+                                    type="checkbox"
+                                    id="showOnDevboard"
+                                    name="showOnDevboard"
+                                    value="true"
+                                    defaultChecked={editingStatus?.showOnDevboard}
+                                />
+                                <Label htmlFor="showOnDevboard">Show on Dev Board</Label>
                             </div>
                         </div>
                     </div>

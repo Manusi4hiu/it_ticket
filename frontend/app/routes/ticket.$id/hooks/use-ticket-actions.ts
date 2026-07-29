@@ -23,6 +23,7 @@ import { usersApi } from "~/services/api.service";
 import { compressImage } from "~/utils/image-compression";
 import { toDatetimeLocalString } from "~/utils/date";
 import type { Agent } from "~/services/ticket.service";
+import type { Status } from "~/services/settings.service";
 import type { StaffInfo, CurrentUser } from "../types";
 
 // ─────────────────────────────────────────────
@@ -78,6 +79,7 @@ export function useTicketActions({
   const [showResolveDialog, setShowResolveDialog] = useState(false);
   const [resolutionError, setResolutionError] = useState("");
   const [resolveDate, setResolveDate] = useState<string>("");
+  const [resolutionImage, setResolutionImage] = useState<File | null>(null);
 
   // ── Reason Dialog State ──
   const [showReasonDialog, setShowReasonDialog] = useState(false);
@@ -284,6 +286,7 @@ export function useTicketActions({
 
     setResolutionError("");
     setResolutionSummary("");
+    setResolutionImage(null);
     setResolveDate(toDatetimeLocalString(new Date()));
     setShowResolveDialog(true);
   };
@@ -313,7 +316,8 @@ export function useTicketActions({
         String(ticket.id),
         "resolved",
         resolutionSummary,
-        resolvedAtISO
+        resolvedAtISO,
+        resolutionImage || undefined
       );
 
       if (updated) {
@@ -321,6 +325,7 @@ export function useTicketActions({
         setStatus(updated.status);
         setShowResolveDialog(false);
         setResolutionSummary("");
+        setResolutionImage(null);
 
         toast({
           title: "Ticket Resolved! 🎉",
@@ -348,7 +353,10 @@ export function useTicketActions({
    * @param staffId - ID staff (string)
    */
   const handleStaffClick = async (staffId: string) => {
-    let staffInfo: StaffInfo | undefined = agents.find((a) => String(a.id) === staffId);
+    const agent = agents.find((a) => String(a.id) === staffId);
+    let staffInfo: StaffInfo | undefined = agent
+      ? { id: String(agent.id), name: agent.name, email: agent.email, phone: agent.phone, username: agent.username }
+      : undefined;
 
     if (!staffInfo) {
       try {
@@ -396,6 +404,12 @@ export function useTicketActions({
   const handleNoteImageChange = async (file: File) => {
     const compressed = await compressImage(file);
     setNoteImage(compressed);
+  };
+
+  const handleResolutionImageChange = async (file: File | null) => {
+    if (!file) { setResolutionImage(null); return; }
+    const compressed = await compressImage(file);
+    setResolutionImage(compressed);
   };
 
   /**
@@ -505,6 +519,8 @@ export function useTicketActions({
     showResolveDialog, setShowResolveDialog,
     resolutionError,
     resolveDate, setResolveDate,
+    resolutionImage, setResolutionImage,
+    handleResolutionImageChange,
     isEditingResolvedAt, setIsEditingResolvedAt,
     editResolvedAtValue, setEditResolvedAtValue,
     isStaffModalOpen, setIsStaffModalOpen,

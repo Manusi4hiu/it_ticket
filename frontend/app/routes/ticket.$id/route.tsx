@@ -268,6 +268,8 @@ export default function TicketDetail({ loaderData }: Route.ComponentProps) {
           resolutionSummary={actions.resolutionSummary}
           onSummaryChange={actions.setResolutionSummary}
           resolutionError={actions.resolutionError}
+          resolutionImage={actions.resolutionImage}
+          onResolutionImageChange={actions.handleResolutionImageChange}
           onSubmit={actions.handleSubmitResolution}
         />
 

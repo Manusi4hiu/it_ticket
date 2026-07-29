@@ -21,7 +21,8 @@ import {
   Layers,
   ArrowRight,
   ExternalLink,
-  Activity
+  Activity,
+  Hourglass
 } from "lucide-react";
 import { Button } from "~/components/ui/button/button";
 import { Badge } from "~/components/ui/badge/badge";
@@ -31,6 +32,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "~
 import { Textarea } from "~/components/ui/textarea/textarea";
 import { Alert, AlertDescription } from "~/components/ui/alert/alert";
 import {
+  getTicketById,
   getTickets,
   getAgents,
   assignTicket,
@@ -43,23 +45,19 @@ import {
   type Agent
 } from "~/services/ticket.service";
 import { settingsApi } from "~/services/settings.service";
+import { ReasonDialog } from "~/routes/ticket.$id/components/ReasonDialog";
+import { ResolveDialog } from "~/routes/ticket.$id/components/ResolveDialog";
 import { requireAuth } from "~/services/session.service";
 import styles from "./style.module.css";
 
-// Column definition
-interface KanbanColumn {
-  id: string; // matches DB status name (case-insensitive checks)
-  title: string;
-  icon: React.ReactNode;
-  color: string;
-}
-
-const COLUMNS: KanbanColumn[] = [
-  { id: "New", title: "New Issues", icon: <Inbox size={18} />, color: "#3B82F6" },
-  { id: "Assigned", title: "Assigned", icon: <UserCheck size={18} />, color: "#F59E0B" },
-  { id: "In Progress", title: "In Progress", icon: <Clock size={18} />, color: "#10B981" },
-  { id: "Resolved", title: "Resolved & Closed", icon: <CheckCircle size={18} />, color: "#8B5CF6" }
-];
+// ── Status icons per name (lowercase key) ──
+const STATUS_ICONS_MAP: Record<string, React.ReactNode> = {
+  new: <Inbox size={18} />,
+  assigned: <UserCheck size={18} />,
+  "in progress": <Clock size={18} />,
+  pending: <Hourglass size={18} />,
+  resolved: <CheckCircle size={18} />,
+};
 
 export async function loader({ request }: Route.LoaderArgs) {
   const session = await requireAuth(request);
@@ -117,6 +115,21 @@ export default function DevDashboard() {
   // Delete Task Modal State
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isTaskDeleting, setIsTaskDeleting] = useState(false);
+
+  // Status Change State
+  const [showReasonDialog, setShowReasonDialog] = useState(false);
+  const [statusReason, setStatusReason] = useState("");
+  const [pendingStatusUpdate, setPendingStatusUpdate] = useState<{ticketId: number, targetStatus: string} | null>(null);
+
+  const [showResolveDialog, setShowResolveDialog] = useState(false);
+  const [resolveDate, setResolveDate] = useState(() => {
+    const d = new Date();
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().slice(0, 16);
+  });
+  const [resolutionSummary, setResolutionSummary] = useState("");
+  const [resolutionError, setResolutionError] = useState("");
+  const [resolutionImage, setResolutionImage] = useState<File | null>(null);
 
   const handleAddDevTask = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -256,8 +269,54 @@ export default function DevDashboard() {
     }
   };
 
+  const handleUpdateStatusDirect = async (ticketId: number, targetStatus: string, reason?: string) => {
+    const originalTicket = tickets.find((t) => t.id === ticketId);
+    if (!originalTicket) return;
+
+    setTickets((prev) =>
+      prev.map((t) => (t.id === ticketId ? { ...t, status: targetStatus } : t))
+    );
+
+    try {
+      const updated = await updateTicket(ticketId.toString(), {
+        status: targetStatus,
+        reason: reason || undefined,
+      });
+      if (updated) {
+        setTickets((prev) => prev.map((t) => (t.id === ticketId ? updated : t)));
+      } else {
+        setTickets((prev) => prev.map((t) => (t.id === ticketId ? originalTicket : t)));
+      }
+    } catch (err) {
+      console.error("Failed to update status:", err);
+      setTickets((prev) => prev.map((t) => (t.id === ticketId ? originalTicket : t)));
+    }
+  };
+
+  const handleResolveDirect = async (ticketId: number, summary: string, date: string, image: File | null) => {
+    const originalTicket = tickets.find((t) => t.id === ticketId);
+    if (!originalTicket) return;
+
+    setTickets((prev) =>
+      prev.map((t) => (t.id === ticketId ? { ...t, status: "Resolved", resolvedAt: new Date(date) } : t))
+    );
+
+    try {
+      const updated = await updateTicketStatus(ticketId.toString(), "Resolved", summary, new Date(date).toISOString(), image || undefined);
+      if (updated) {
+        setTickets((prev) => prev.map((t) => (t.id === ticketId ? updated : t)));
+      } else {
+        setTickets((prev) => prev.map((t) => (t.id === ticketId ? originalTicket : t)));
+      }
+    } catch (err) {
+      console.error("Failed to resolve:", err);
+      setTickets((prev) => prev.map((t) => (t.id === ticketId ? originalTicket : t)));
+    }
+  };
+
   const handleDrop = async (e: React.DragEvent, targetStatus: string) => {
     e.preventDefault();
+    setDraggedTicketId(null);
     setActiveDragColumn(null);
     const ticketIdStr = e.dataTransfer.getData("text/plain") || draggedTicketId?.toString();
     if (!ticketIdStr) return;
@@ -269,25 +328,46 @@ export default function DevDashboard() {
     // Skip if status is unchanged
     if (originalTicket.status.toLowerCase() === targetStatus.toLowerCase()) return;
 
-    // Optimistic Update
-    setTickets((prev) =>
-      prev.map((t) => (t.id === ticketId ? { ...t, status: targetStatus, resolvedAt: targetStatus.toLowerCase() === 'resolved' ? new Date() : undefined } : t))
-    );
+    const isResolvingWithoutSummary =
+      (targetStatus.toLowerCase() === "resolved" || targetStatus.toLowerCase() === "closed") &&
+      !originalTicket.resolutionSummary;
 
-    try {
-      const updated = await updateTicketStatus(ticketId.toString(), targetStatus);
-      if (!updated) {
-        // Rollback on failure
-        setTickets((prev) => prev.map((t) => (t.id === ticketId ? originalTicket : t)));
-      } else {
-        // Update local ticket with correct resolution summary/timestamps from server
-        setTickets((prev) => prev.map((t) => (t.id === ticketId ? updated : t)));
-      }
-    } catch (err) {
-      console.error("Failed to update status:", err);
-      // Rollback
-      setTickets((prev) => prev.map((t) => (t.id === ticketId ? originalTicket : t)));
+    if (isResolvingWithoutSummary) {
+      setPendingStatusUpdate({ ticketId, targetStatus });
+      setShowResolveDialog(true);
+      return;
     }
+
+    const statusConfig = statuses.find((s: any) => s.name.toLowerCase() === targetStatus.toLowerCase());
+    if (statusConfig?.requiresReason) {
+      setPendingStatusUpdate({ ticketId, targetStatus });
+      setShowReasonDialog(true);
+      return;
+    }
+
+    handleUpdateStatusDirect(ticketId, targetStatus);
+  };
+
+  const handleSubmitReason = async () => {
+    if (!pendingStatusUpdate || !statusReason.trim()) return;
+    await handleUpdateStatusDirect(pendingStatusUpdate.ticketId, pendingStatusUpdate.targetStatus, statusReason);
+    setShowReasonDialog(false);
+    setStatusReason("");
+    setPendingStatusUpdate(null);
+  };
+
+  const handleSubmitResolution = async () => {
+    if (!pendingStatusUpdate) return;
+    if (resolutionSummary.trim().length < 20) {
+      setResolutionError("Summary must be at least 20 characters.");
+      return;
+    }
+    setResolutionError("");
+    await handleResolveDirect(pendingStatusUpdate.ticketId, resolutionSummary, resolveDate, resolutionImage);
+    setShowResolveDialog(false);
+    setResolutionSummary("");
+    setResolutionImage(null);
+    setPendingStatusUpdate(null);
   };
 
   const getPriorityColor = (priority: string) => {
@@ -303,10 +383,21 @@ export default function DevDashboard() {
     return status?.color || "#6B7280";
   };
 
-  const handleOpenDetail = (ticket: Ticket) => {
+  const handleOpenDetail = async (ticket: Ticket) => {
+    // Fetch fresh detail to get notes (list endpoint excludes them), use stale as fallback
     setSelectedTicket(ticket);
     setIsDetailOpen(true);
     setNewNoteContent("");
+    try {
+      const detailed = await getTicketById(ticket.id.toString());
+      if (detailed) {
+        setSelectedTicket(detailed);
+        // Also sync the tickets state so other cards reflect any changes
+        setTickets((prev) => prev.map((t) => (t.id === detailed.id ? detailed : t)));
+      }
+    } catch {
+      // fallback to original ticket data
+    }
   };
 
   const handleAssignChange = async (agentIdStr: string) => {
@@ -329,14 +420,7 @@ export default function DevDashboard() {
     try {
       const newNote = await addTicketNote(selectedTicket.id.toString(), newNoteContent, isNoteInternal);
       if (newNote) {
-        // Fetch updated ticket to keep notes list accurate
-        const updatedTickets = await getTickets({ category: "Development", per_page: 150 });
-        setTickets(updatedTickets.tickets);
-
-        const updatedSelected = updatedTickets.tickets.find((t) => t.id === selectedTicket.id);
-        if (updatedSelected) {
-          setSelectedTicket(updatedSelected);
-        }
+        setSelectedTicket((prev) => prev ? { ...prev, notes: [...(prev.notes || []), newNote] } : prev);
         setNewNoteContent("");
       }
     } catch (err) {
@@ -372,29 +456,37 @@ export default function DevDashboard() {
 
       {/* Kanban Board Layout */}
       <div className={styles.kanbanBoard}>
-        {COLUMNS.map((column) => {
-          // Map DB statuses (e.g. status === "closed" mapped to Resolved column for simplicity)
+        {(statuses as any[])
+          .filter((s: any) => s.showOnDevboard)
+          .sort((a: any, b: any) => a.order - b.order)
+          .map((statusDef: any) => {
+          const colName = statusDef.name;
+          const color = statusDef.color || "#6B7280";
+          const iconKey = colName.toLowerCase();
+          const columnIcon = STATUS_ICONS_MAP[iconKey] || <Inbox size={18} />;
+
+          // "Resolved" column also includes "closed" tickets
           const columnTickets = filteredTickets.filter((ticket) => {
             const status = ticket.status.toLowerCase();
-            if (column.id === "Resolved") {
+            if (iconKey === "resolved") {
               return status === "resolved" || status === "closed";
             }
-            return status === column.id.toLowerCase();
+            return status === iconKey;
           });
 
-          const isColumnOver = activeDragColumn === column.id;
+          const isColumnOver = activeDragColumn === colName;
 
           return (
             <div
-              key={column.id}
+              key={colName}
               className={`${styles.kanbanColumn} ${isColumnOver ? styles.columnDragOver : ""}`}
-              onDragOver={(e) => handleDragOver(e, column.id)}
-              onDrop={(e) => handleDrop(e, column.id)}
+              onDragOver={(e) => handleDragOver(e, colName)}
+              onDrop={(e) => handleDrop(e, colName)}
             >
-              <div className={styles.columnHeader} style={{ borderTop: `3px solid ${column.color}` }}>
+              <div className={styles.columnHeader} style={{ borderTop: `3px solid ${color}` }}>
                 <div className={styles.columnHeaderLeft}>
-                  <span className={styles.columnIcon} style={{ color: column.color }}>{column.icon}</span>
-                  <h3 className={styles.columnTitle}>{column.title}</h3>
+                  <span className={styles.columnIcon} style={{ color }}>{columnIcon}</span>
+                  <h3 className={styles.columnTitle}>{colName}</h3>
                 </div>
                 <span className={styles.columnCount}>{columnTickets.length}</span>
               </div>
@@ -831,6 +923,42 @@ export default function DevDashboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ReasonDialog
+        open={showReasonDialog}
+        onOpenChange={(open) => {
+          setShowReasonDialog(open);
+          if (!open) {
+            setStatusReason("");
+            setPendingStatusUpdate(null);
+          }
+        }}
+        reason={statusReason}
+        onReasonChange={setStatusReason}
+        onSubmit={handleSubmitReason}
+        targetStatus={pendingStatusUpdate?.targetStatus || ""}
+      />
+
+      <ResolveDialog
+        open={showResolveDialog}
+        onOpenChange={(open) => {
+          setShowResolveDialog(open);
+          if (!open) {
+            setResolutionSummary("");
+            setResolutionImage(null);
+            setPendingStatusUpdate(null);
+            setResolutionError("");
+          }
+        }}
+        resolveDate={resolveDate}
+        onResolveDateChange={setResolveDate}
+        resolutionSummary={resolutionSummary}
+        onSummaryChange={setResolutionSummary}
+        resolutionError={resolutionError}
+        resolutionImage={resolutionImage}
+        onResolutionImageChange={setResolutionImage}
+        onSubmit={handleSubmitResolution}
+      />
     </div>
   );
 }

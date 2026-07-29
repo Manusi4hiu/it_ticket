@@ -39,6 +39,10 @@ interface ResolveDialogProps {
   onSummaryChange: (value: string) => void;
   /** Pesan error validasi (kosong jika tidak ada error) */
   resolutionError: string;
+  /** File gambar resolusi (opsional) */
+  resolutionImage: File | null;
+  /** Callback saat file gambar dipilih */
+  onResolutionImageChange: (file: File | null) => void;
   /** Callback submit form resolve */
   onSubmit: () => void;
 }
@@ -73,6 +77,8 @@ export function ResolveDialog({
   resolutionSummary,
   onSummaryChange,
   resolutionError,
+  resolutionImage,
+  onResolutionImageChange,
   onSubmit,
 }: ResolveDialogProps) {
   return (
@@ -123,6 +129,32 @@ export function ResolveDialog({
           />
           {resolutionError && (
             <p className={styles.errorText}>{resolutionError}</p>
+          )}
+
+          {/* Resolution Image */}
+          <Label htmlFor="resolution-image" style={{ marginTop: "var(--space-3)", display: "block" }}>
+            Resolution Image (optional)
+          </Label>
+          <input
+            type="file"
+            id="resolution-image"
+            accept="image/jpeg,image/png,image/gif"
+            style={{
+              width: "100%",
+              padding: "var(--space-1)",
+              borderRadius: "var(--radius-sm)",
+              border: "1px solid var(--color-neutral-4)",
+              marginTop: "var(--space-1)",
+            }}
+            onChange={(e) => {
+              const file = e.target.files?.[0] || null;
+              onResolutionImageChange(file);
+            }}
+          />
+          {resolutionImage && (
+            <p style={{ fontSize: "var(--font-size-sm)", color: "var(--text-secondary)", marginTop: "var(--space-1)" }}>
+              Selected: {resolutionImage.name}
+            </p>
           )}
         </div>
 

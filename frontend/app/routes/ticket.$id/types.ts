@@ -29,7 +29,7 @@ export interface StaffInfo {
   id: string;
   name: string;
   email: string;
-  phone?: string;
+  phone?: string | null;
   username?: string;
 }
 

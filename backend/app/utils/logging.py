@@ -36,6 +36,10 @@ def log_activity(action, details=None, user_id=None, target_id=None, metadata=No
         else:
             db.session.flush()
     except Exception as e:
-        # Don't let logging failures crash the main process
-        print(f"Failed to log activity: {str(e)}")
-        db.session.rollback()
+        import traceback
+        print(f"[ERROR] log_activity failed: {e}")
+        traceback.print_exc()
+        try:
+            db.session.rollback()
+        except Exception:
+            pass

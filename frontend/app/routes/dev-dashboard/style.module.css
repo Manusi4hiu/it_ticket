@@ -162,8 +162,8 @@
 /* Kanban Layout */
 .kanbanBoard {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
   flex: 1;
   min-height: 0;
   overflow: hidden;

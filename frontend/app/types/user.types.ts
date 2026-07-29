@@ -5,6 +5,8 @@
  * Import from here instead of defining inline types per service/component.
  */
 
+export type UserRole = 'Administrator' | 'Management' | 'Staff';
+
 export interface User {
     id: string;
     email: string | null;
@@ -17,7 +19,7 @@ export interface User {
 }
 
 export interface Agent {
-    id: string;
+    id: number;
     name: string;
     username: string;
     email: string;

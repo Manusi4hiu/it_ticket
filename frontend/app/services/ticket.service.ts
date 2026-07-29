@@ -1,68 +1,32 @@
 /**
  * Ticket Service - Using backend API
+ *
+ * Domain service — converts raw API responses (snake_case, strings) into
+ * app-level types (camelCase, Date objects).
+ *
+ * Types are imported from ~/types/*, NOT defined here.
  */
 
 import { ticketsApi, usersApi } from './api.service';
+import type { Ticket, TicketNote, SLAStatus } from '~/types/ticket.types';
+import type { Agent } from '~/types/user.types';
 
-export type TicketStatus = string;
-export type TicketPriority = string;
-export type SLAStatus = "good" | "warning" | "breached";
-export type TicketCategory = string;
+// ── Backward-compat re-exports (routes import these from service) ──
+export type { Ticket, TicketNote, Agent, SLAStatus };
 
-export interface TicketNote {
-    id: number;
-    content: string;
-    author: string;
-    createdAt: Date;
-    isInternal: boolean;
-    imageUrl?: string;
-}
+// ─────────────────────────────────────────────
+// Mapper: raw API record → domain Ticket
+// ─────────────────────────────────────────────
 
-export interface Ticket {
-    id: number;
-    ticketCode?: string;
-    title: string;
-    description: string;
-    status: TicketStatus;
-    priority: TicketPriority;
-    category: TicketCategory;
-    submitterName: string;
-    submitterEmail: string;
-    submitterPhone?: string;
-    submitterDepartment?: string;
-    assignedTo?: string;
-    assignedToId?: number;
-    collaborators: string[];
-    collaboratorIds: number[];
-    createdAt: Date;
-    updatedAt: Date;
-    resolvedAt?: Date;
-    slaDeadline?: Date;
-    slaPausedAt?: Date;
-    slaStatus: SLAStatus;
-    notes: TicketNote[];
-    resolutionSummary?: string;
-    imageUrl?: string;
-}
-
-export interface Agent {
-    id: number;
-    name: string;
-    username: string;
-    email: string;
-    phone?: string;
-}
-
-// Convert API response to Ticket interface
 function mapApiTicket(apiTicket: Record<string, unknown>): Ticket {
     return {
         id: apiTicket.id as number,
         ticketCode: apiTicket.ticketCode as string | undefined,
         title: apiTicket.title as string,
         description: apiTicket.description as string,
-        status: apiTicket.status as TicketStatus,
-        priority: apiTicket.priority as TicketPriority,
-        category: apiTicket.category as TicketCategory,
+        status: apiTicket.status as string,
+        priority: apiTicket.priority as string,
+        category: apiTicket.category as string,
         submitterName: apiTicket.submitterName as string,
         submitterEmail: apiTicket.submitterEmail as string,
         submitterPhone: apiTicket.submitterPhone as string | undefined,
@@ -86,9 +50,14 @@ function mapApiTicket(apiTicket: Record<string, unknown>): Ticket {
             imageUrl: note.imageUrl as string | undefined,
         })),
         resolutionSummary: apiTicket.resolutionSummary as string | undefined,
+        resolutionImageUrl: apiTicket.resolutionImageUrl as string | undefined,
         imageUrl: apiTicket.imageUrl as string | undefined,
     };
 }
+
+// ─────────────────────────────────────────────
+// Queries
+// ─────────────────────────────────────────────
 
 export async function getTickets(filters?: {
     status?: string;
@@ -127,8 +96,8 @@ export async function getTicketById(id: string): Promise<Ticket | null> {
 export async function createTicket(ticket: {
     title: string;
     description: string;
-    category: TicketCategory;
-    priority?: TicketPriority;
+    category: string;
+    priority?: string;
     submitterName: string;
     submitterEmail: string;
     submitterPhone?: string;
@@ -145,7 +114,7 @@ export async function createTicket(ticket: {
     return mapApiTicket(data.ticket);
 }
 
-export async function updateTicket(id: string, data: Partial<Ticket>): Promise<Ticket | null> {
+export async function updateTicket(id: string, data: Partial<Record<string, unknown>>): Promise<Ticket | null> {
     const response = await ticketsApi.update(id, data as Record<string, unknown>);
 
     if (!response.success || !response.data) {
@@ -188,11 +157,12 @@ export async function updateTicketPriority(id: string, priority: string): Promis
 
 export async function updateTicketStatus(
     id: string,
-    status: TicketStatus,
+    status: string,
     resolutionSummary?: string,
-    resolvedAt?: string
+    resolvedAt?: string,
+    resolutionImage?: File
 ): Promise<Ticket | null> {
-    const response = await ticketsApi.updateStatus(id, status, resolutionSummary, resolvedAt);
+    const response = await ticketsApi.updateStatus(id, status, resolutionSummary, resolvedAt, resolutionImage);
 
     if (!response.success || !response.data) {
         console.error('Failed to update ticket status:', response.error);
@@ -216,9 +186,9 @@ export async function addTicketNote(
         return null;
     }
 
-    const data = response.data as { note: Record<string, unknown> };
+    const data = response.data as unknown as { note: Record<string, unknown> };
     return {
-        id: data.note.id as string,
+        id: data.note.id as number,
         content: data.note.content as string,
         author: data.note.author as string,
         createdAt: new Date(data.note.createdAt as string),
@@ -256,7 +226,28 @@ export async function getTicketStats(personal: boolean = false): Promise<{
         return null;
     }
 
-    return response.data.stats;
+    return response.data.stats as unknown as {
+        total: number;
+        open: number;
+        new: number;
+        assigned: number;
+        resolved: number;
+        workedOn: number;
+        sla: {
+            breached: number;
+            warning: number;
+            healthy: number;
+        };
+        byPriority: Record<string, number>;
+        byCategory: Record<string, number>;
+        byDepartment: Record<string, number>;
+        trend: Array<{
+            day: string;
+            created: number;
+            resolved: number;
+        }>;
+        avgResolutionTime: number;
+    };
 }
 
 export async function getAgents(): Promise<Agent[]> {

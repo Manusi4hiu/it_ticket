@@ -39,8 +39,9 @@ class SystemLog(db.Model):
         if self.metadata_json:
             try:
                 metadata = json.loads(self.metadata_json)
-            except:
-                pass
+            except json.JSONDecodeError:
+                print(f"[WARN] Invalid metadata_json for log {self.id}: not valid JSON")
+                metadata = None
                 
         return {
             'id': self.id,

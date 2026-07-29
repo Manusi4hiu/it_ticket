@@ -56,6 +56,7 @@ class Ticket(db.Model):
     
     # Resolution
     resolution_summary = db.Column(db.Text, nullable=True)
+    resolution_image_url = db.Column(db.String(255), nullable=True)
     resolved_at = db.Column(db.DateTime, nullable=True, index=True)
     
     # Timestamps
@@ -88,6 +89,7 @@ class Ticket(db.Model):
             'slaStatus': self.sla_status,
             'slaPausedAt': format_iso_date(self.sla_paused_at),
             'resolutionSummary': self.resolution_summary,
+            'resolutionImageUrl': self.resolution_image_url,
             'resolvedAt': format_iso_date(self.resolved_at),
             'createdAt': format_iso_date(self.created_at),
             'updatedAt': format_iso_date(self.updated_at),

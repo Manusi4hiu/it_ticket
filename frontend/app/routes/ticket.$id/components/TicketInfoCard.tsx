@@ -348,6 +348,21 @@ export function TicketInfoCard({
               Resolution Summary
             </h3>
             <p className={styles.resolutionText}>{ticket.resolutionSummary}</p>
+            {ticket.resolutionImageUrl && (
+              <div style={{ marginTop: "var(--space-3)" }}>
+                <a
+                  href={`${BACKEND_URL}${ticket.resolutionImageUrl}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <img
+                    src={`${BACKEND_URL}${ticket.resolutionImageUrl}`}
+                    alt="Resolution Attachment"
+                    style={{ maxWidth: "100%", maxHeight: "300px", borderRadius: "var(--radius-sm)", objectFit: "contain" }}
+                  />
+                </a>
+              </div>
+            )}
           </div>
         )}
       </div>

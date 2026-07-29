@@ -3,10 +3,9 @@ from app.models.ticket import Ticket, TicketNote
 from app.models.user import User
 from app.models.master_data import Department, Status
 from app.utils.logging import log_activity
-from app.utils.security import sanitize_html
+from app.utils.security import sanitize_html, NOTE_ALLOWED_TAGS
 from datetime import datetime, timedelta, timezone
-from app.constants import DEV_CATEGORY, RESOLVED_STATUSES
-import uuid
+from app.constants import DEV_CATEGORY
 
 class TicketService:
     # Removed get_next_ticket_id as IDs are now auto-incrementing integers
@@ -231,13 +230,12 @@ class TicketService:
                     if reason:
                         note_content += f"<p>Reason: {reason}</p>"
                         
-                    note = TicketNote(
+                    ticket.notes.append(TicketNote(
                         ticket_id=ticket.id,
-                        content=note_content,
+                        content=sanitize_html(note_content, allowed_tags=NOTE_ALLOWED_TAGS),
                         author_id=user_id,
                         is_internal=True
-                    )
-                    ticket.notes.append(note)
+                    ))
 
             ticket.status = status
             if status.lower() in ['resolved', 'closed']:
@@ -250,6 +248,8 @@ class TicketService:
             category_changed = True
         if 'resolutionSummary' in data:
             ticket.resolution_summary = sanitize_html(data['resolutionSummary'])
+        if 'resolutionImageUrl' in data:
+            ticket.resolution_image_url = data['resolutionImageUrl']
         if 'resolvedAt' in data and data['resolvedAt']:
             try:
                 clean_str = data['resolvedAt'].replace('Z', '+00:00')
@@ -350,7 +350,7 @@ class TicketService:
         return ticket, None
 
     @staticmethod
-    def update_ticket_status(ticket_id, status, resolution_summary=None, resolved_at_str=None, reason=None, user_id=None):
+    def update_ticket_status(ticket_id, status, resolution_summary=None, resolved_at_str=None, reason=None, user_id=None, resolution_image_url=None):
         ticket = Ticket.query.get(ticket_id)
         if not ticket:
             return None
@@ -389,11 +389,12 @@ class TicketService:
                 ticket_id=ticket.id,
                 content=note_content,
                 author_id=user_id,
-                is_internal=True
+                is_internal=True,
+                is_system_note=True
             )
 
         ticket.status = status
-        
+
         # Check if status is resolved (case-insensitive)
         if status.lower() == 'resolved':
             if resolved_at_str:
@@ -408,21 +409,27 @@ class TicketService:
                 
             if resolution_summary:
                 ticket.resolution_summary = resolution_summary
-        
+            if resolution_image_url:
+                ticket.resolution_image_url = resolution_image_url
+
         ticket.updated_at = datetime.now(timezone.utc)
         ticket.sla_status = TicketService.calculate_sla_status(ticket.sla_deadline, ticket.resolved_at, ticket.sla_paused_at)
         db.session.commit()
         return ticket
 
     @staticmethod
-    def add_note(ticket_id, content, author_id, is_internal=False, image_url=None):
+    def add_note(ticket_id, content, author_id, is_internal=False, image_url=None, is_system_note=False):
         ticket = Ticket.query.get(ticket_id)
         if not ticket:
             return None
-            
+
+        # System-generated notes (status changes) keep safe HTML formatting
+        # User-written notes get all HTML stripped
+        cleaned = sanitize_html(content, allowed_tags=NOTE_ALLOWED_TAGS if is_system_note else None)
+
         note = TicketNote(
             ticket_id=ticket_id,
-            content=sanitize_html(content),
+            content=cleaned,
             author_id=author_id,
             image_url=image_url,
             is_internal=is_internal

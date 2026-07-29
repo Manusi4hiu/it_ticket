@@ -26,6 +26,7 @@ export interface Status {
     isDefault: boolean;
     requiresReason: boolean;
     pausesSla: boolean;
+    showOnDevboard: boolean;
 }
 
 export interface SLAPolicy {
@@ -161,6 +162,7 @@ export interface SystemLog {
 export interface Department {
     id: string;
     name: string;
+    code?: string;
     description?: string;
     isActive: boolean;
 }

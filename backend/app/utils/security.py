@@ -1,27 +1,35 @@
-import json
+import bleach
 
-def sanitize_html(text):
+# Tags allowed in note content (system-generated status change notes use HTML)
+NOTE_ALLOWED_TAGS = ['p', 'strong', 'br', 'em', 'ul', 'li', 'ol']
+# Strip everything from plain user input
+ALLOWED_TAGS_USER = set()
+
+
+def sanitize_html(text, allowed_tags=None):
     """
-    Pass-through function.
-    In this project, XSS protection is handled automatically by the React frontend during rendering.
-    We store the raw strings in the database to prevent double-escaping issues (like & becoming &amp;).
+    Sanitize user-provided text, stripping unsafe HTML.
+
+    System-generated notes (status changes) pass allowed_tags=NOTE_ALLOWED_TAGS
+    so formatting like <p><strong>Status changed from ...</strong></p> is preserved.
+
+    User input (titles, descriptions, user-written notes) uses the default
+    allowed_tags=None → all HTML is stripped.
     """
     if text is None:
         return None
     if not isinstance(text, str):
         return text
-    return str(text)
+    return bleach.clean(text, tags=allowed_tags or ALLOWED_TAGS_USER, strip=True)
+
 
 def sanitize_dict(data, fields_to_sanitize=None):
-    """
-    Sanitize specific fields in a dictionary.
-    """
+    """Sanitize specific fields in a dictionary."""
     if not data:
         return data
-        
+
     sanitized = data.copy()
-    
-    # If no fields specified, sanitize all string values
+
     if fields_to_sanitize is None:
         for key, value in sanitized.items():
             if isinstance(value, str):
@@ -30,5 +38,5 @@ def sanitize_dict(data, fields_to_sanitize=None):
         for field in fields_to_sanitize:
             if field in sanitized and isinstance(sanitized[field], str):
                 sanitized[field] = sanitize_html(sanitized[field])
-                
+
     return sanitized

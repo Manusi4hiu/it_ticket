@@ -64,7 +64,7 @@ export async function getUserSession(request: Request) {
   }
 
   return {
-    userId,
+    userId: String(userId),
     userEmail,
     userRole,
     userName,

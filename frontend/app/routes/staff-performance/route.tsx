@@ -188,7 +188,7 @@ export default function StaffPerformance({ loaderData }: Route.ComponentProps) {
               <div className={styles.summaryContent}>
                 <div className={styles.summaryLabel}>Total Assists</div>
                 <div className={styles.summaryValue}>
-                  {sortedStats.reduce((sum, staff) => sum + (staff.totalAssists || 0), 0)}
+                  {sortedStats.reduce((sum, staff) => sum + (staff.totalAssigned || 0), 0)}
                 </div>
               </div>
             </Card>

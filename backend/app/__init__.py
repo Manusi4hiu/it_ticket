@@ -63,23 +63,4 @@ def create_app(config_name=None):
     @app.route('/api/health')
     def health_check():
         return {'status': 'healthy', 'message': 'IT Ticket Backend is running'}
-        
-    with app.app_context():
-        from sqlalchemy import text
-        try:
-            db.session.execute(text('ALTER TABLE statuses ADD COLUMN requires_reason BOOLEAN DEFAULT FALSE;'))
-            db.session.commit()
-        except:
-            db.session.rollback()
-        try:
-            db.session.execute(text('ALTER TABLE statuses ADD COLUMN pauses_sla BOOLEAN DEFAULT FALSE;'))
-            db.session.commit()
-        except:
-            db.session.rollback()
-        try:
-            db.session.execute(text('ALTER TABLE tickets ADD COLUMN sla_paused_at TIMESTAMP WITHOUT TIME ZONE;'))
-            db.session.commit()
-        except:
-            db.session.rollback()
-    
     return app

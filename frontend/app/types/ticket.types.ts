@@ -1,29 +1,43 @@
 /**
- * Shared Ticket Types
+ * Shared Ticket Types — SINGLE SOURCE OF TRUTH
  *
- * Single source of truth for all Ticket-related interfaces.
- * Import from here instead of defining inline types per service/component.
+ * SEMUA komponen dan service import dari sini, bukan inline define.
  */
 
+// ─────────────────────────────────────────────
+// Enums / Literal Unions
+// ─────────────────────────────────────────────
+
+export type SLAStatus = "good" | "warning" | "breached";
+export type TicketStatus = string;
+export type TicketPriority = string;
+export type TicketCategory = string;
+
+// ─────────────────────────────────────────────
+// Note
+// ─────────────────────────────────────────────
+
 export interface TicketNote {
-    id: string;
-    ticketId?: string;
+    id: number;
     content: string;
     author: string;
-    authorId?: number;
-    imageUrl?: string;
-    createdAt: string;
+    createdAt: Date;
     isInternal: boolean;
+    imageUrl?: string;
 }
 
+// ─────────────────────────────────────────────
+// Ticket
+// ─────────────────────────────────────────────
+
 export interface Ticket {
-    id: string;
+    id: number;
     ticketCode?: string;
     title: string;
     description: string;
-    status: string;
-    priority: string;
-    category: string;
+    status: TicketStatus;
+    priority: TicketPriority;
+    category: TicketCategory;
     submitterName: string;
     submitterEmail: string;
     submitterPhone?: string;
@@ -32,15 +46,21 @@ export interface Ticket {
     assignedTo?: string;
     assignedToId?: number;
     collaborators: string[];
-    collaboratorIds?: number[];
-    slaDeadline?: string;
-    slaStatus: string;
+    collaboratorIds: number[];
+    slaDeadline?: Date;
+    slaPausedAt?: Date;
+    slaStatus: SLAStatus;
     resolutionSummary?: string;
-    resolvedAt?: string;
-    createdAt: string;
-    updatedAt: string;
-    notes?: TicketNote[];
+    resolutionImageUrl?: string;
+    resolvedAt?: Date;
+    createdAt: Date;
+    updatedAt: Date;
+    notes: TicketNote[];
 }
+
+// ─────────────────────────────────────────────
+// Stats
+// ─────────────────────────────────────────────
 
 export interface TicketSLA {
     breached: number;
@@ -67,6 +87,10 @@ export interface TicketStats {
     trend: TicketTrend[];
     avgResolutionTime: number;
 }
+
+// ─────────────────────────────────────────────
+// Payloads
+// ─────────────────────────────────────────────
 
 export interface CreateTicketPayload {
     title: string;
