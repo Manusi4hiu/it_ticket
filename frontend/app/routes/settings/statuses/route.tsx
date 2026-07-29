@@ -1,3 +1,12 @@
+/**
+ * route.tsx — Statuses Settings
+ *
+ * Halaman pengaturan status ticket.
+ * Mendukung operasi CRUD untuk master data status.
+ * 
+ * @module settings/statuses
+ */
+
 import { useState } from "react";
 import { Form, useLoaderData, useActionData } from "react-router";
 import type { Route } from "./+types/route";
@@ -26,10 +35,12 @@ export async function action({ request }: Route.ActionArgs) {
         const color = formData.get("color") as string;
         const order = parseInt(formData.get("order") as string) || 0;
         const isDefault = formData.get("isDefault") === "true";
+        const requiresReason = formData.get("requiresReason") === "true";
+        const pausesSla = formData.get("pausesSla") === "true";
 
         if (!name) return { error: "Status name is required" };
 
-        const response = await settingsApi.createStatus({ name, color, order, isDefault });
+        const response = await settingsApi.createStatus({ name, color, order, isDefault, requiresReason, pausesSla });
         if (!response.success) return { error: response.error };
         return { success: true };
     }
@@ -40,10 +51,12 @@ export async function action({ request }: Route.ActionArgs) {
         const color = formData.get("color") as string;
         const order = parseInt(formData.get("order") as string) || 0;
         const isDefault = formData.get("isDefault") === "true";
+        const requiresReason = formData.get("requiresReason") === "true";
+        const pausesSla = formData.get("pausesSla") === "true";
 
         if (!id || !name) return { error: "ID and Name are required" };
 
-        const response = await settingsApi.updateStatus(id, { name, color, order, isDefault });
+        const response = await settingsApi.updateStatus(id, { name, color, order, isDefault, requiresReason, pausesSla });
         if (!response.success) return { error: response.error };
         return { success: true };
     }
@@ -103,69 +116,79 @@ export default function StatusesSettings() {
                         </div>
                     ) : (
                         <div className={styles.tableContainer}>
-                            <table className={styles.dataTable}>
-                                <thead>
-                                    <tr>
-                                        <th>Order</th>
-                                        <th>Status Name</th>
-                                        <th>Color</th>
-                                        <th>Default</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {statuses.map((status) => (
-                                        <tr key={status.id}>
-                                            <td style={{ width: 60 }}>{status.order}</td>
-                                            <td style={{ fontWeight: 500 }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                    <Circle size={12} fill={status.color} stroke={status.color} />
-                                                    {status.name}
-                                                </div>
-                                            </td>
-                                            <td>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                    <div 
-                                                        style={{ 
-                                                            width: 20, 
-                                                            height: 20, 
-                                                            borderRadius: '50%', 
-                                                            backgroundColor: status.color,
-                                                            border: '1px solid var(--color-neutral-4)' 
-                                                        }} 
-                                                    />
-                                                    <code style={{ fontSize: '0.8rem' }}>{status.color}</code>
-                                                </div>
-                                            </td>
-                                            <td>
-                                                {status.isDefault ? (
-                                                    <span style={{ color: 'var(--color-primary-9)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                                                        <Check size={14} /> Yes
-                                                    </span>
-                                                ) : '-'}
-                                            </td>
-                                            <td>
-                                                <div style={{ display: 'flex', gap: 8 }}>
-                                                    <Button variant="outline" size="sm" onClick={() => openEditDialog(status)}>
-                                                        <Pencil size={14} />
-                                                    </Button>
-                                                    <Form method="post" onSubmit={(e) => {
-                                                        if (!confirm('Are you sure you want to delete this status?')) {
-                                                            e.preventDefault();
-                                                        }
-                                                    }}>
-                                                        <input type="hidden" name="intent" value="delete" />
-                                                        <input type="hidden" name="id" value={status.id} />
-                                                        <Button variant="outline" size="sm" style={{ color: 'var(--color-critical-9)' }}>
-                                                            <Trash2 size={14} />
-                                                        </Button>
-                                                    </Form>
-                                                </div>
-                                            </td>
+                            <div className={styles.scrollableArea}>
+                                <table className={styles.dataTable}>
+                                    <thead>
+                                        <tr>
+                                            <th>Order</th>
+                                            <th>Status Name</th>
+                                            <th>Color</th>
+                                            <th>Default</th>
+                                            <th>Flags</th>
+                                            <th>Actions</th>
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                                    </thead>
+                                    <tbody>
+                                        {statuses.map((status) => (
+                                            <tr key={status.id}>
+                                                <td style={{ width: 60 }}>{status.order}</td>
+                                                <td style={{ fontWeight: 500 }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                        <Circle size={12} fill={status.color} stroke={status.color} />
+                                                        {status.name}
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                        <div 
+                                                            style={{ 
+                                                                width: 20, 
+                                                                height: 20, 
+                                                                borderRadius: '50%', 
+                                                                backgroundColor: status.color,
+                                                                border: '1px solid var(--color-neutral-4)' 
+                                                            }} 
+                                                        />
+                                                        <code style={{ fontSize: '0.8rem' }}>{status.color}</code>
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    {status.isDefault ? (
+                                                        <span style={{ color: 'var(--color-primary-9)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                            <Check size={14} /> Yes
+                                                        </span>
+                                                    ) : '-'}
+                                                </td>
+                                                <td>
+                                                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                                                        {status.requiresReason && <span style={{ fontSize: '0.7rem', padding: '2px 6px', background: 'rgba(255,255,255,0.1)', borderRadius: 4 }}>Reason Req.</span>}
+                                                        {status.pausesSla && <span style={{ fontSize: '0.7rem', padding: '2px 6px', background: 'rgba(239, 68, 68, 0.2)', color: '#fca5a5', borderRadius: 4 }}>Pauses SLA</span>}
+                                                        {!status.requiresReason && !status.pausesSla && '-'}
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <div style={{ display: 'flex', gap: 8 }}>
+                                                        <Button variant="outline" size="sm" onClick={() => openEditDialog(status)}>
+                                                            <Pencil size={14} />
+                                                        </Button>
+                                                        <Form method="post" onSubmit={(e) => {
+                                                            if (!confirm('Are you sure you want to delete this status?')) {
+                                                                e.preventDefault();
+                                                            }
+                                                        }}>
+                                                            <input type="hidden" name="intent" value="delete" />
+                                                            <input type="hidden" name="id" value={status.id} />
+                                                            <Button variant="outline" size="sm" style={{ color: 'var(--color-critical-9)' }}>
+                                                                <Trash2 size={14} />
+                                                            </Button>
+                                                        </Form>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     )}
                 </CardContent>
@@ -234,6 +257,28 @@ export default function StatusesSettings() {
                                     defaultChecked={editingStatus?.isDefault}
                                 />
                                 <Label htmlFor="isDefault">Set as default for new tickets</Label>
+                            </div>
+
+                            <div className={styles.formFullWidth} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+                                <input 
+                                    type="checkbox" 
+                                    id="requiresReason" 
+                                    name="requiresReason" 
+                                    value="true"
+                                    defaultChecked={editingStatus?.requiresReason}
+                                />
+                                <Label htmlFor="requiresReason">Require reason when status changes to this</Label>
+                            </div>
+
+                            <div className={styles.formFullWidth} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+                                <input 
+                                    type="checkbox" 
+                                    id="pausesSla" 
+                                    name="pausesSla" 
+                                    value="true"
+                                    defaultChecked={editingStatus?.pausesSla}
+                                />
+                                <Label htmlFor="pausesSla">Pause SLA timer while in this status</Label>
                             </div>
                         </div>
                     </div>

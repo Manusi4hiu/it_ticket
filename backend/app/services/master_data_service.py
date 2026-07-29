@@ -232,7 +232,9 @@ class MasterDataService:
             name=data['name'],
             color=data.get('color', '#6B7280'),
             order=data.get('order', 0),
-            is_default=data.get('isDefault', False)
+            is_default=data.get('isDefault', False),
+            requires_reason=data.get('requiresReason', False),
+            pauses_sla=data.get('pausesSla', False)
         )
         db.session.add(status)
         db.session.commit()
@@ -252,6 +254,8 @@ class MasterDataService:
             
         if 'color' in data: status.color = data['color']
         if 'order' in data: status.order = data['order']
+        if 'requiresReason' in data: status.requires_reason = data['requiresReason']
+        if 'pausesSla' in data: status.pauses_sla = data['pausesSla']
         
         if 'isDefault' in data and data['isDefault']:
             Status.query.update({Status.is_default: False})

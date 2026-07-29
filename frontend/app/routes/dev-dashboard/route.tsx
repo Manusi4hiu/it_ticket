@@ -348,54 +348,7 @@ export default function DevDashboard() {
 
   return (
     <div className={styles.container}>
-      {/* Dev Server Metrics Banner - Replaced with Developer Resource Center */}
-      <div className={styles.metricsBanner}>
-        <div className={styles.bannerLeft}>
-          <Layers className={styles.pulseIcon} size={20} />
-          <div>
-            <h2 className={styles.bannerTitle}>Developer Resource Center</h2>
-            <p className={styles.bannerSubtitle}>Quick guidelines, local services configuration, and system references</p>
-          </div>
-        </div>
-        <div className={styles.statsGrid}>
-          <div className={styles.statItem}>
-            <div className={styles.statIcon} style={{ background: "rgba(59, 130, 246, 0.1)", color: "#3B82F6" }}>
-              <Server size={16} />
-            </div>
-            <div>
-              <div className={styles.statLabel}>LOCAL DEV PORTS</div>
-              <div className={styles.statValue}>API: 5000 | Web: 5173</div>
-            </div>
-          </div>
-          <div className={styles.statItem}>
-            <div className={styles.statIcon} style={{ background: "rgba(16, 185, 129, 0.1)", color: "#10B981" }}>
-              <Database size={16} />
-            </div>
-            <div>
-              <div className={styles.statLabel}>DATABASE SYSTEM</div>
-              <div className={styles.statValue}>PostgreSQL (Connected)</div>
-            </div>
-          </div>
-          <div className={styles.statItem}>
-            <div className={styles.statIcon} style={{ background: "rgba(139, 92, 246, 0.1)", color: "#8B5CF6" }}>
-              <Clock size={16} />
-            </div>
-            <div>
-              <div className={styles.statLabel}>SLA STANDARDS</div>
-              <div className={styles.statValue}>Crit: 1h | High: 4h | Med: 24h</div>
-            </div>
-          </div>
-          <div className={styles.statItem}>
-            <div className={styles.statIcon} style={{ background: "rgba(245, 158, 11, 0.1)", color: "#F59E0B" }}>
-              <Activity size={16} />
-            </div>
-            <div>
-              <div className={styles.statLabel}>DEV TASK BACKLOG</div>
-              <div className={styles.statValue}>{tickets.length} Tasks Active</div>
-            </div>
-          </div>
-        </div>
-      </div>
+
 
       {/* Search and Action Bar */}
       <div className={styles.actionRow}>

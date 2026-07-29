@@ -112,6 +112,8 @@ class Status(db.Model):
     color = db.Column(db.String(20), nullable=True, default='#6B7280') # Default gray
     order = db.Column(db.Integer, default=0) # For custom ordering in UI
     is_default = db.Column(db.Boolean, default=False) # Only one should be true
+    requires_reason = db.Column(db.Boolean, default=False)
+    pauses_sla = db.Column(db.Boolean, default=False)
 
     def to_dict(self):
         return {
@@ -119,5 +121,7 @@ class Status(db.Model):
             'name': self.name,
             'color': self.color,
             'order': self.order,
-            'isDefault': self.is_default
+            'isDefault': self.is_default,
+            'requiresReason': self.requires_reason,
+            'pausesSla': self.pauses_sla
         }

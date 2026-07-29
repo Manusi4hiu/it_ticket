@@ -364,12 +364,26 @@
     backdrop-filter: blur(20px);
     border: 1px solid rgba(59, 130, 246, 0.2);
     border-radius: 16px;
-    overflow: hidden;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
 }
 
+.tableContainer::-webkit-scrollbar {
+    height: 8px;
+}
+
+.tableContainer::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.tableContainer::-webkit-scrollbar-thumb {
+    background: rgba(59, 130, 246, 0.3);
+    border-radius: 4px;
+}
+
 .scrollableArea {
-    max-height: 600px;
+    max-height: 350px;
     overflow-y: auto;
     overflow-x: auto;
 }

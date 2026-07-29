@@ -1,3 +1,12 @@
+/**
+ * route.tsx — SLA Policies Settings
+ *
+ * Halaman pengaturan Service Level Agreement (SLA) berdasarkan 
+ * kombinasi Priority dan Category.
+ * 
+ * @module settings/sla-policies
+ */
+
 import { useState } from "react";
 import { Form, useLoaderData, useActionData } from "react-router";
 import type { Route } from "./+types/route";

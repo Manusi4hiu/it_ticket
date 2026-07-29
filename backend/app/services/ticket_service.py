@@ -12,7 +12,7 @@ class TicketService:
     # Removed get_next_ticket_id as IDs are now auto-incrementing integers
 
     @staticmethod
-    def calculate_sla_status(sla_deadline, resolved_at=None):
+    def calculate_sla_status(sla_deadline, resolved_at=None, sla_paused_at=None):
         """Calculate SLA status based on deadline and resolution time"""
         if not sla_deadline:
             return 'good'
@@ -22,7 +22,13 @@ class TicketService:
             sla_deadline = sla_deadline.replace(tzinfo=timezone.utc)
         
         # If resolved, compare deadline with resolution time instead of current time
-        comparison_time = resolved_at if resolved_at else datetime.now(timezone.utc)
+        # If paused, compare deadline with pause time
+        if resolved_at:
+            comparison_time = resolved_at
+        elif sla_paused_at:
+            comparison_time = sla_paused_at
+        else:
+            comparison_time = datetime.now(timezone.utc)
         
         # Ensure comparison_time is timezone-aware
         if comparison_time.tzinfo is None:
@@ -179,7 +185,7 @@ class TicketService:
             print(f"Transaction failed: {str(e)}")
             raise e
     @staticmethod
-    def update_ticket(ticket_id, data):
+    def update_ticket(ticket_id, data, user_id=None):
         """Update a ticket's details"""
         ticket = Ticket.query.get(ticket_id)
         if not ticket:
@@ -187,6 +193,7 @@ class TicketService:
         
         priority_changed = False
         category_changed = False
+        old_status_name = ticket.status
         
         # Update fields if provided
         if 'title' in data:
@@ -194,8 +201,46 @@ class TicketService:
         if 'description' in data:
             ticket.description = sanitize_html(data['description'])
         if 'status' in data:
-            ticket.status = data['status']
-            if data['status'].lower() in ['resolved', 'closed']:
+            status = data['status']
+            if old_status_name != status:
+                old_status = Status.query.filter(Status.name.ilike(old_status_name)).first()
+                new_status = Status.query.filter(Status.name.ilike(status)).first()
+                
+                # SLA Logic
+                if old_status and getattr(old_status, 'pauses_sla', False) and ticket.sla_paused_at and ticket.sla_deadline:
+                    paused_at_aware = ticket.sla_paused_at
+                    if paused_at_aware.tzinfo is None:
+                        paused_at_aware = paused_at_aware.replace(tzinfo=timezone.utc)
+                    time_paused = datetime.now(timezone.utc) - paused_at_aware
+                    
+                    sla_deadline_aware = ticket.sla_deadline
+                    if sla_deadline_aware.tzinfo is None:
+                        sla_deadline_aware = sla_deadline_aware.replace(tzinfo=timezone.utc)
+                        
+                    ticket.sla_deadline = sla_deadline_aware + time_paused
+                    
+                if new_status and getattr(new_status, 'pauses_sla', False):
+                    ticket.sla_paused_at = datetime.now(timezone.utc)
+                else:
+                    ticket.sla_paused_at = None
+
+                # Note Logic
+                if user_id:
+                    note_content = f"<p><strong>Status changed from {old_status_name} to {status}</strong></p>"
+                    reason = data.get('reason')
+                    if reason:
+                        note_content += f"<p>Reason: {reason}</p>"
+                        
+                    note = TicketNote(
+                        ticket_id=ticket.id,
+                        content=note_content,
+                        author_id=user_id,
+                        is_internal=True
+                    )
+                    ticket.notes.append(note)
+
+            ticket.status = status
+            if status.lower() in ['resolved', 'closed']:
                 ticket.resolved_at = datetime.now(timezone.utc)
         if 'priority' in data:
             ticket.priority = data['priority']
@@ -240,7 +285,7 @@ class TicketService:
                     ticket.collaborators.append(user)
         
         ticket.updated_at = datetime.now(timezone.utc)
-        ticket.sla_status = TicketService.calculate_sla_status(ticket.sla_deadline, ticket.resolved_at)
+        ticket.sla_status = TicketService.calculate_sla_status(ticket.sla_deadline, ticket.resolved_at, ticket.sla_paused_at)
         db.session.commit()
         
         return ticket
@@ -305,11 +350,48 @@ class TicketService:
         return ticket, None
 
     @staticmethod
-    def update_ticket_status(ticket_id, status, resolution_summary=None, resolved_at_str=None):
+    def update_ticket_status(ticket_id, status, resolution_summary=None, resolved_at_str=None, reason=None, user_id=None):
         ticket = Ticket.query.get(ticket_id)
         if not ticket:
             return None
             
+        # Handle SLA Pausing
+        old_status_name = ticket.status
+        old_status = Status.query.filter(Status.name.ilike(old_status_name)).first()
+        new_status = Status.query.filter(Status.name.ilike(status)).first()
+        
+        # If moving out of a paused state
+        if old_status and getattr(old_status, 'pauses_sla', False) and ticket.sla_paused_at and ticket.sla_deadline:
+            paused_at_aware = ticket.sla_paused_at
+            if paused_at_aware.tzinfo is None:
+                paused_at_aware = paused_at_aware.replace(tzinfo=timezone.utc)
+            time_paused = datetime.now(timezone.utc) - paused_at_aware
+            
+            sla_deadline_aware = ticket.sla_deadline
+            if sla_deadline_aware.tzinfo is None:
+                sla_deadline_aware = sla_deadline_aware.replace(tzinfo=timezone.utc)
+                
+            ticket.sla_deadline = sla_deadline_aware + time_paused
+            
+        # If moving into a paused state
+        if new_status and getattr(new_status, 'pauses_sla', False):
+            ticket.sla_paused_at = datetime.now(timezone.utc)
+        else:
+            ticket.sla_paused_at = None
+            
+        # Log status change as note if status actually changed
+        if old_status_name != status and user_id:
+            note_content = f"<p><strong>Status changed from {old_status_name} to {status}</strong></p>"
+            if reason:
+                note_content += f"<p>Reason: {reason}</p>"
+                
+            TicketService.add_note(
+                ticket_id=ticket.id,
+                content=note_content,
+                author_id=user_id,
+                is_internal=True
+            )
+
         ticket.status = status
         
         # Check if status is resolved (case-insensitive)
@@ -328,7 +410,7 @@ class TicketService:
                 ticket.resolution_summary = resolution_summary
         
         ticket.updated_at = datetime.now(timezone.utc)
-        ticket.sla_status = TicketService.calculate_sla_status(ticket.sla_deadline, ticket.resolved_at)
+        ticket.sla_status = TicketService.calculate_sla_status(ticket.sla_deadline, ticket.resolved_at, ticket.sla_paused_at)
         db.session.commit()
         return ticket
 

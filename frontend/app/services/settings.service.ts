@@ -24,6 +24,8 @@ export interface Status {
     color: string;
     order: number;
     isDefault: boolean;
+    requiresReason: boolean;
+    pausesSla: boolean;
 }
 
 export interface SLAPolicy {

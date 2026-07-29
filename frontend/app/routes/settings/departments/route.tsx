@@ -1,3 +1,12 @@
+/**
+ * route.tsx — Departments Settings
+ *
+ * Halaman pengaturan departemen.
+ * Mendukung operasi CRUD untuk master data department.
+ * 
+ * @module settings/departments
+ */
+
 import { useState, useEffect, useRef } from "react";
 import { Form, useLoaderData, useActionData } from "react-router";
 import type { Route } from "./+types/route";

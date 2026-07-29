@@ -106,7 +106,7 @@ def get_tickets():
     
     # Update SLA status for each ticket
     for ticket in tickets:
-        ticket.sla_status = TicketService.calculate_sla_status(ticket.sla_deadline, ticket.resolved_at)
+        ticket.sla_status = TicketService.calculate_sla_status(ticket.sla_deadline, ticket.resolved_at, ticket.sla_paused_at)
     
     db.session.commit()
     
@@ -128,7 +128,7 @@ def get_ticket(ticket_id):
         return jsonify({'success': False, 'error': 'Ticket tidak ditemukan'}), 404
     
     # Update SLA status
-    ticket.sla_status = TicketService.calculate_sla_status(ticket.sla_deadline, ticket.resolved_at)
+    ticket.sla_status = TicketService.calculate_sla_status(ticket.sla_deadline, ticket.resolved_at, ticket.sla_paused_at)
     db.session.commit()
     
     # Filter internal notes if not authenticated
@@ -201,8 +201,8 @@ def update_ticket(ticket_id):
     ticket = get_ticket_or_404(ticket_id)
     if not ticket:
         return jsonify({'success': False, 'error': 'Ticket tidak ditemukan'}), 404
-        
-    ticket = TicketService.update_ticket(ticket.id, data)
+    user_id = get_jwt_identity()
+    ticket = TicketService.update_ticket(ticket.id, data, user_id=user_id)
     
     if not ticket:
         return jsonify({'success': False, 'error': 'Ticket tidak ditemukan'}), 404
@@ -275,11 +275,13 @@ def update_ticket_status(ticket_id):
         
     resolution_summary = data.get('resolutionSummary')
     resolved_at_str = data.get('resolvedAt')
+    reason = data.get('reason')
+    user_id = get_jwt_identity()
     
     ticket = get_ticket_or_404(ticket_id)
     if not ticket:
         return jsonify({'success': False, 'error': 'Ticket tidak ditemukan'}), 404
-    ticket = TicketService.update_ticket_status(ticket.id, status, resolution_summary, resolved_at_str)
+    ticket = TicketService.update_ticket_status(ticket.id, status, resolution_summary, resolved_at_str, reason, user_id)
     
     if not ticket:
         return jsonify({'success': False, 'error': 'Ticket tidak ditemukan'}), 404

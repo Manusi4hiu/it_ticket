@@ -52,6 +52,7 @@ class Ticket(db.Model):
     # SLA
     sla_deadline = db.Column(db.DateTime, nullable=True)
     sla_status = db.Column(db.String(20), default='good')  # good, warning, breached
+    sla_paused_at = db.Column(db.DateTime, nullable=True)
     
     # Resolution
     resolution_summary = db.Column(db.Text, nullable=True)
@@ -85,6 +86,7 @@ class Ticket(db.Model):
             'collaboratorIds': [u.id for u in self.collaborators],
             'slaDeadline': format_iso_date(self.sla_deadline),
             'slaStatus': self.sla_status,
+            'slaPausedAt': format_iso_date(self.sla_paused_at),
             'resolutionSummary': self.resolution_summary,
             'resolvedAt': format_iso_date(self.resolved_at),
             'createdAt': format_iso_date(self.created_at),

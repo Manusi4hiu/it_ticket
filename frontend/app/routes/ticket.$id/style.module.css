@@ -713,3 +713,134 @@
   border: 1px dashed rgba(255, 255, 255, 0.08);
   border-radius: 12px;
 }
+
+/* ─────────────────────────────────────────────
+ * Tracking Timeline (Status History)
+ * ───────────────────────────────────────────── */
+
+.trackingTimelineSection {
+  background-color: var(--color-neutral-1);
+  border: 1px solid var(--color-neutral-3);
+  border-radius: var(--radius-3);
+  padding: var(--space-4);
+}
+
+.trackingTimeline {
+  display: flex;
+  flex-direction: column;
+  max-height: 300px;
+  overflow-y: auto;
+  padding-right: var(--space-2);
+}
+
+.trackingTimeline::-webkit-scrollbar {
+  width: 6px;
+}
+.trackingTimeline::-webkit-scrollbar-track {
+  background: transparent;
+}
+.trackingTimeline::-webkit-scrollbar-thumb {
+  background: var(--color-neutral-4);
+  border-radius: 10px;
+}
+.trackingTimeline::-webkit-scrollbar-thumb:hover {
+  background: var(--color-neutral-5);
+}
+
+.trackingItem {
+  display: flex;
+  position: relative;
+  min-height: 60px;
+  flex-shrink: 0;
+}
+
+.trackingTime {
+  display: flex;
+  flex-direction: column;
+  width: 60px;
+  min-width: 60px;
+  text-align: right;
+  padding-right: var(--space-3);
+  padding-top: 2px;
+}
+
+.trackingDate {
+  font-size: 0.75rem;
+  color: var(--color-neutral-11);
+}
+
+.trackingHour {
+  font-size: 0.7rem;
+  color: var(--color-neutral-9);
+}
+
+.trackingNode {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 20px;
+  min-width: 20px;
+}
+
+.trackingDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: var(--color-neutral-6);
+  margin-top: 6px;
+  z-index: 2;
+}
+
+.trackingItemActive .trackingDot {
+  background-color: var(--color-success-9);
+  box-shadow: 0 0 0 3px var(--color-success-3);
+}
+
+.trackingLine {
+  position: absolute;
+  top: 16px;
+  bottom: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 2px;
+  background-color: var(--color-neutral-4);
+  z-index: 1;
+}
+
+.trackingItem:last-child .trackingLine {
+  display: none;
+}
+
+.trackingContent {
+  flex: 1;
+  padding-left: var(--space-3);
+  padding-bottom: var(--space-4);
+}
+
+.trackingStatus {
+  font-size: 0.85rem;
+  color: var(--color-neutral-11);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.trackingItemActive .trackingStatus {
+  color: var(--color-success-11);
+}
+
+.trackingReason {
+  font-size: 0.8rem;
+  color: var(--color-neutral-11);
+  margin: var(--space-1) 0 0 0;
+  padding: var(--space-2);
+  background-color: var(--color-neutral-2);
+  border-radius: var(--radius-2);
+  border-left: 3px solid var(--color-neutral-6);
+}
+
+.trackingStaff {
+  font-size: 0.75rem;
+  color: var(--color-neutral-9);
+  margin: var(--space-1) 0 0 0;
+}

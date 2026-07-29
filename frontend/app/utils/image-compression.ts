@@ -1,3 +1,20 @@
+/**
+ * image-compression.ts
+ *
+ * Utility untuk mengkompresi gambar sebelum di-upload ke server.
+ * Menggunakan Canvas API — hanya berjalan di browser (bukan SSR/Node.js).
+ */
+
+/**
+ * Kompres gambar ke dalam batas resolusi dan kualitas yang ditentukan.
+ * Output selalu dalam format JPEG dengan background putih (transparan ditutup).
+ *
+ * @param file - File gambar asli dari input
+ * @param options.maxWidth - Lebar maksimal output (default: 1920)
+ * @param options.maxHeight - Tinggi maksimal output (default: 1080)
+ * @param options.quality - Kualitas JPEG 0–1 (default: 0.7)
+ * @returns File hasil kompresi (atau file asli jika bukan gambar / canvas gagal)
+ */
 export async function compressImage(file: File, options = { maxWidth: 1920, maxHeight: 1080, quality: 0.7 }): Promise<File> {
     if (!file.type.startsWith('image/')) {
         return file;

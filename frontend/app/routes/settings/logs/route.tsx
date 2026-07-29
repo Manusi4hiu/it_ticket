@@ -1,3 +1,11 @@
+/**
+ * route.tsx — System Logs
+ *
+ * Halaman untuk melihat log aktivitas sistem.
+ * 
+ * @module settings/logs
+ */
+
 import { useState } from "react";
 import { useLoaderData } from "react-router";
 import type { Route } from "./+types/route";
