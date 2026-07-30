@@ -72,7 +72,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     tickets: ticketResponse.tickets,
     totalTickets: ticketResponse.total,
     agents,
-    statuses: statusResponse.data?.data || [],
+    statuses: (statusResponse.data?.data || []).filter((s: any) => s.showOnItHelpdesk !== false),
     categories: categoryResponse.data?.data || [],
     filters
   };

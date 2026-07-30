@@ -83,7 +83,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     invalidNumericId: false,
     agents,
     priorities: (prioritiesRes.data?.data || []) as Priority[],
-    statuses: (statusesRes.data?.data || []) as Status[],
+    statuses: ((statusesRes.data?.data || []) as Status[]).filter(s => s.showOnItHelpdesk !== false),
     categories: (categoriesRes.data?.data || []) as Category[],
   };
 }

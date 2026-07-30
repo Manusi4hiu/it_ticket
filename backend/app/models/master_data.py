@@ -99,6 +99,7 @@ class Status(db.Model):
     requires_reason = db.Column(db.Boolean, default=False)
     pauses_sla = db.Column(db.Boolean, default=False)
     show_on_devboard = db.Column(db.Boolean, default=False)
+    show_on_it_helpdesk = db.Column(db.Boolean, default=True)
 
     def to_dict(self):
         return {
@@ -109,5 +110,6 @@ class Status(db.Model):
             'isDefault': self.is_default,
             'requiresReason': self.requires_reason,
             'pausesSla': self.pauses_sla,
-            'showOnDevboard': self.show_on_devboard
+            'showOnDevboard': self.show_on_devboard,
+            'showOnItHelpdesk': self.show_on_it_helpdesk
         }

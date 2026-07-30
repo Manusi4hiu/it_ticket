@@ -235,7 +235,8 @@ class MasterDataService:
             is_default=data.get('isDefault', False),
             requires_reason=data.get('requiresReason', False),
             pauses_sla=data.get('pausesSla', False),
-            show_on_devboard=data.get('showOnDevboard', False)
+            show_on_devboard=data.get('showOnDevboard', False),
+            show_on_it_helpdesk=data.get('showOnItHelpdesk', False)
         )
         db.session.add(status)
         db.session.commit()
@@ -258,6 +259,7 @@ class MasterDataService:
         if 'requiresReason' in data: status.requires_reason = data['requiresReason']
         if 'pausesSla' in data: status.pauses_sla = data['pausesSla']
         if 'showOnDevboard' in data: status.show_on_devboard = data['showOnDevboard']
+        if 'showOnItHelpdesk' in data: status.show_on_it_helpdesk = data['showOnItHelpdesk']
 
         if 'isDefault' in data and data['isDefault']:
             Status.query.update({Status.is_default: False})

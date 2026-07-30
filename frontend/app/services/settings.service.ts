@@ -27,6 +27,7 @@ export interface Status {
     requiresReason: boolean;
     pausesSla: boolean;
     showOnDevboard: boolean;
+    showOnItHelpdesk: boolean;
 }
 
 export interface SLAPolicy {
