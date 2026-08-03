@@ -155,7 +155,7 @@ export function SlaCard({
         className={`${styles.slaTime} ${styles[`slaTime${slaStatusKey}`] ?? ""}`}
       >
         {isResolved
-          ? formatDuration(ticket.createdAt, ticket.resolvedAt || ticket.updatedAt)
+          ? formatDuration(ticket.takenAt ?? ticket.createdAt, ticket.resolvedAt || ticket.updatedAt)
           : formatTimeRemaining(ticket.slaDeadline, ticket.slaPausedAt)}
       </div>
 
@@ -217,7 +217,7 @@ function ResolvedTimeSection({
       <div>
         Total working time:{" "}
         {formatDuration(
-          ticket.createdAt,
+          ticket.takenAt ?? ticket.createdAt,
           ticket.resolvedAt || ticket.updatedAt
         )}
       </div>

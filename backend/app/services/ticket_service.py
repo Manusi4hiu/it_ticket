@@ -100,6 +100,9 @@ class TicketService:
             if assigned_to_id:
                 hours = TicketService.get_sla_hours_for_ticket(priority, data.get('category'))
                 sla_deadline = datetime.now(timezone.utc) + timedelta(hours=hours)
+                sla_taken_at = datetime.now(timezone.utc)
+            else:
+                sla_taken_at = None
             
             # Fetch department info
             dept_code = "TKT"
@@ -139,6 +142,7 @@ class TicketService:
                 idempotency_key=idempotency_key,
                 sla_deadline=sla_deadline,
                 sla_status='good',
+                taken_at=sla_taken_at,
                 ticket_code=ticket_code,
                 code_counter=new_counter,
                 assigned_to_id=assigned_to_id
@@ -269,8 +273,12 @@ class TicketService:
                 if not prev_assigned_id or not ticket.sla_deadline:
                     hours = TicketService.get_sla_hours_for_ticket(ticket.priority, ticket.category)
                     ticket.sla_deadline = datetime.now(timezone.utc) + timedelta(hours=hours)
+                # Set taken_at only on first assignment
+                if not prev_assigned_id and not ticket.taken_at:
+                    ticket.taken_at = datetime.now(timezone.utc)
             else:
                 ticket.sla_deadline = None
+                ticket.taken_at = None
         elif (priority_changed or category_changed) and ticket.assigned_to_id:
             # If priority/category changed and ticket is assigned, recalculate deadline
             hours = TicketService.get_sla_hours_for_ticket(ticket.priority, ticket.category)
@@ -330,6 +338,9 @@ class TicketService:
             if not ticket.sla_deadline:
                 hours = TicketService.get_sla_hours_for_ticket(ticket.priority, ticket.category)
                 ticket.sla_deadline = datetime.now(timezone.utc) + timedelta(hours=hours)
+            # Set taken_at only on first assignment
+            if not ticket.taken_at:
+                ticket.taken_at = datetime.now(timezone.utc)
             
             # Try to find an "Assigned" status in master data, otherwise use 'Assigned'
             assigned_status = Status.query.filter(Status.name.ilike('%assigned%')).first()
@@ -341,6 +352,7 @@ class TicketService:
             ticket.assigned_to_id = None
             ticket.sla_deadline = None
             ticket.sla_status = 'good'
+            ticket.taken_at = None
             # Revert to default status
             default_status = Status.query.filter_by(is_default=True).first()
             ticket.status = default_status.name if default_status else 'New'
@@ -525,10 +537,12 @@ class TicketService:
         resolved_all = resolved_all_q.all()
         res_times = []
         for t in resolved_all:
-            if t.resolved_at and t.created_at:
+            if t.resolved_at:
+                # Use taken_at (when ticket was first assigned) as start; fallback to created_at
+                start_time = t.taken_at or t.created_at
                 res_naive = t.resolved_at.replace(tzinfo=None)
-                cre_naive = t.created_at.replace(tzinfo=None)
-                diff = (res_naive - cre_naive).total_seconds() / 3600
+                start_naive = start_time.replace(tzinfo=None)
+                diff = (res_naive - start_naive).total_seconds() / 3600
                 res_times.append(diff)
         
         avg_res_time = sum(res_times) / len(res_times) if res_times else 0
