@@ -20,7 +20,9 @@ def sanitize_html(text, allowed_tags=None):
         return None
     if not isinstance(text, str):
         return text
-    return bleach.clean(text, tags=allowed_tags or ALLOWED_TAGS_USER, strip=True)
+    import html
+    cleaned = bleach.clean(text, tags=allowed_tags or ALLOWED_TAGS_USER, strip=True)
+    return html.unescape(cleaned)
 
 
 def sanitize_dict(data, fields_to_sanitize=None):
