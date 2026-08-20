@@ -62,22 +62,24 @@ const STATUS_ICONS_MAP: Record<string, React.ReactNode> = {
 export async function loader({ request }: Route.LoaderArgs) {
   const session = await requireAuth(request);
 
-  const [ticketsRes, agents, statusesRes] = await Promise.all([
+  const [ticketsRes, agents, statusesRes, categoriesRes] = await Promise.all([
     getTickets({ category: "Development", per_page: 150 }), // Only show Development-scoped tracking tasks
     getAgents(),
-    settingsApi.getStatuses()
+    settingsApi.getStatuses(),
+    settingsApi.getCategories()
   ]);
 
   return {
     session,
     initialTickets: ticketsRes.tickets,
     agents,
-    statuses: (statusesRes.data?.data || []).filter((s: any) => s.showOnDevboard)
+    statuses: (statusesRes.data?.data || []).filter((s: any) => s.showOnDevboard),
+    categories: (categoriesRes.data?.data || [])
   };
 }
 
 export default function DevDashboard() {
-  const { session, initialTickets, agents, statuses } = useLoaderData() as typeof loader extends (...args: any[]) => Promise<infer T> ? T : any;
+  const { session, initialTickets, agents, statuses, categories } = useLoaderData() as typeof loader extends (...args: any[]) => Promise<infer T> ? T : any;
   const navigate = useNavigate();
 
   // Kanban tickets state
@@ -130,6 +132,8 @@ export default function DevDashboard() {
   const [resolutionSummary, setResolutionSummary] = useState("");
   const [resolutionError, setResolutionError] = useState("");
   const [resolutionImage, setResolutionImage] = useState<File | null>(null);
+  const [resolveCategory, setResolveCategory] = useState("");
+  const [resolveCategoryError, setResolveCategoryError] = useState("");
 
   const handleAddDevTask = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -333,6 +337,8 @@ export default function DevDashboard() {
       !originalTicket.resolutionSummary;
 
     if (isResolvingWithoutSummary) {
+      setResolveCategory(originalTicket?.category || "Development");
+      setResolveCategoryError("");
       setPendingStatusUpdate({ ticketId, targetStatus });
       setShowResolveDialog(true);
       return;
@@ -948,8 +954,14 @@ export default function DevDashboard() {
             setResolutionImage(null);
             setPendingStatusUpdate(null);
             setResolutionError("");
+            setResolveCategory("");
+            setResolveCategoryError("");
           }
         }}
+        categories={categories}
+        resolveCategory={resolveCategory}
+        onResolveCategoryChange={setResolveCategory}
+        resolveCategoryError={resolveCategoryError}
         resolveDate={resolveDate}
         onResolveDateChange={setResolveDate}
         resolutionSummary={resolutionSummary}

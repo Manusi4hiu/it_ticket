@@ -13,7 +13,7 @@
  */
 
 import { useState } from "react";
-import { User, UserPlus, Pencil, Trash2, AlertTriangle } from "lucide-react";
+import { User, UserPlus, Pencil, Trash2, AlertTriangle, Power } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -60,6 +60,7 @@ export async function loader({ request }: Route.LoaderArgs) {
       username: u.username,
       name: u.full_name,
       role: u.role as UserRole,
+      isActive: u.is_active !== false,
     })) as ManagedUser[],
   };
 }
@@ -119,12 +120,13 @@ export default function RoleManagementSettings({
           <table className={styles.customTable}>
             <thead>
               <tr>
-                <th style={{ width: "25%", minWidth: "200px" }}>User Information</th>
-                <th style={{ width: "15%", minWidth: "120px" }}>Username</th>
-                <th style={{ width: "20%", minWidth: "180px" }}>Email</th>
-                <th style={{ width: "15%", minWidth: "150px" }}>Current Role</th>
-                <th style={{ width: "15%", minWidth: "160px" }}>Change Role</th>
-                <th style={{ width: "10%", minWidth: "100px" }}>Actions</th>
+                <th style={{ minWidth: "160px" }}>User Information</th>
+                <th style={{ minWidth: "90px" }}>Username</th>
+                <th style={{ minWidth: "140px" }}>Email</th>
+                <th style={{ minWidth: "90px" }}>Status</th>
+                <th style={{ minWidth: "110px" }}>Current Role</th>
+                <th style={{ minWidth: "140px" }}>Change Role</th>
+                <th style={{ minWidth: "120px" }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -167,6 +169,13 @@ export default function RoleManagementSettings({
                   {/* Email */}
                   <td>
                     <span className={styles.userEmail}>{user.email}</span>
+                  </td>
+
+                  {/* Status badge only */}
+                  <td>
+                    <div className={user.isActive ? styles.statusActive : styles.statusInactive}>
+                      {user.isActive ? "Active" : "Inactive"}
+                    </div>
                   </td>
 
                   {/* Current Role badge */}
@@ -224,9 +233,37 @@ export default function RoleManagementSettings({
                     )}
                   </td>
 
-                  {/* Actions: Edit + Delete */}
+                  {/* Actions: Toggle Active + Edit + Delete */}
                   <td>
-                    <div style={{ display: "flex", gap: "8px" }}>
+                    <div style={{ display: "flex", gap: "6px", flexWrap: "nowrap" }}>
+                      {user.id !== currentUser.id && (
+                        <button
+                          onClick={() => rm.handleToggleActive(user.id)}
+                          disabled={rm.togglingActiveId === user.id}
+                          title={user.isActive ? "Deactivate user" : "Activate user"}
+                          style={{
+                            background: user.isActive
+                              ? "rgba(239,68,68,0.1)"
+                              : "rgba(34,197,94,0.1)",
+                            border: user.isActive
+                              ? "1px solid rgba(239,68,68,0.3)"
+                              : "1px solid rgba(34,197,94,0.3)",
+                            color: user.isActive ? "#f87171" : "#4ade80",
+                            borderRadius: "6px",
+                            width: "32px",
+                            height: "32px",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            cursor: rm.togglingActiveId === user.id ? "not-allowed" : "pointer",
+                            opacity: rm.togglingActiveId === user.id ? 0.5 : 1,
+                            transition: "all 0.2s",
+                            flexShrink: 0,
+                          }}
+                        >
+                          <Power size={14} />
+                        </button>
+                      )}
                       <Button
                         variant="outline"
                         size="sm"

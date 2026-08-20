@@ -24,6 +24,7 @@ export interface ManagedUser {
   username: string;
   name: string;
   role: UserRole;
+  isActive: boolean;
 }
 
 interface NewUserForm {
@@ -96,6 +97,9 @@ export function useRoleManagement(
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [userToDelete, setUserToDelete] = useState<ManagedUser | null>(null);
+
+  // ── Toggle Active ──
+  const [togglingActiveId, setTogglingActiveId] = useState<string | null>(null);
 
   // ─────────────────────────────────────────────
   // Role Change
@@ -382,6 +386,49 @@ export function useRoleManagement(
     }
   };
 
+  /**
+   * Toggle active/inactive status user via API.
+   */
+  const handleToggleActive = async (userId: string) => {
+    if (userId === currentUserId) {
+      toast({
+        title: "Action Not Allowed",
+        description: "You cannot change your own active status.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setTogglingActiveId(userId);
+    try {
+      const response = await usersApi.toggleActive(userId);
+      if (response.success && response.data) {
+        const updatedUser = (response.data as { user: { is_active: boolean } }).user;
+        setUserList((prev) =>
+          prev.map((u) =>
+            u.id === userId ? { ...u, isActive: updatedUser.is_active } : u
+          )
+        );
+        const target = userList.find((u) => u.id === userId);
+        toast({
+          title: updatedUser.is_active ? "User Activated" : "User Deactivated",
+          description: `${target?.name} has been ${updatedUser.is_active ? 'activated' : 'deactivated'}.`,
+          variant: updatedUser.is_active ? "default" : "destructive",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: response.error || "Failed to toggle user status",
+          variant: "destructive",
+        });
+      }
+    } catch {
+      toast({ title: "Error", description: "Failed to toggle user status", variant: "destructive" });
+    } finally {
+      setTogglingActiveId(null);
+    }
+  };
+
   return {
     // State
     userList,
@@ -407,5 +454,7 @@ export function useRoleManagement(
     handleUpdateUser,
     openDeleteDialog,
     handleDeleteUser,
+    handleToggleActive,
+    togglingActiveId,
   };
 }

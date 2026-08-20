@@ -50,8 +50,19 @@ export async function loader({ request }: Route.LoaderArgs) {
   const session = await requireAuth(request);
   const url = new URL(request.url);
   
+  const [agents, statusResponse, categoryResponse] = await Promise.all([
+    getAgents(),
+    settingsApi.getStatuses(),
+    settingsApi.getCategories()
+  ]);
+
+  const allStatuses = statusResponse.data?.data || [];
+  const defaultStatusObj = allStatuses.find((s: any) => s.isDefault);
+  const defaultStatusName = defaultStatusObj ? defaultStatusObj.name : "NEW";
+
+  const statusParam = url.searchParams.get("status");
   const filters = {
-    status: url.searchParams.get("status") || undefined,
+    status: statusParam === "all" ? undefined : (statusParam || defaultStatusName),
     priority: url.searchParams.get("priority") || undefined,
     category: url.searchParams.get("category") || undefined,
     assignedTo: url.searchParams.get("assignedTo") || undefined,
@@ -60,21 +71,17 @@ export async function loader({ request }: Route.LoaderArgs) {
     per_page: 15
   };
 
-  const [ticketResponse, agents, statusResponse, categoryResponse] = await Promise.all([
-    getTickets(filters),
-    getAgents(),
-    settingsApi.getStatuses(),
-    settingsApi.getCategories()
-  ]);
+  const ticketResponse = await getTickets(filters);
 
   return {
     session,
     tickets: ticketResponse.tickets,
     totalTickets: ticketResponse.total,
     agents,
-    statuses: (statusResponse.data?.data || []).filter((s: any) => s.showOnItHelpdesk !== false),
+    statuses: allStatuses.filter((s: any) => s.showOnItHelpdesk !== false),
     categories: categoryResponse.data?.data || [],
-    filters
+    filters,
+    defaultStatusName
   };
 }
 
@@ -86,7 +93,8 @@ export default function TicketsList({ loaderData }: Route.ComponentProps) {
     agents, 
     statuses, 
     categories, 
-    filters: initialFilters 
+    filters: initialFilters,
+    defaultStatusName
   } = loaderData;
   
   const [tickets, setTickets] = useState(initialTickets);
@@ -120,7 +128,11 @@ export default function TicketsList({ loaderData }: Route.ComponentProps) {
   const handleFilterChange = (key: string, value: string) => {
     const newParams = new URLSearchParams(searchParams);
     if (value === "all") {
-      newParams.delete(key);
+      if (key === "status") {
+        newParams.set(key, "all");
+      } else {
+        newParams.delete(key);
+      }
     } else {
       newParams.set(key, value);
     }
@@ -216,7 +228,7 @@ export default function TicketsList({ loaderData }: Route.ComponentProps) {
             </Select>
 
             <Select 
-              value={searchParams.get("status") || "all"} 
+              value={searchParams.get("status") || defaultStatusName} 
               onValueChange={(val) => handleFilterChange("status", val)}
             >
               <SelectTrigger className={styles.selectTrigger}>

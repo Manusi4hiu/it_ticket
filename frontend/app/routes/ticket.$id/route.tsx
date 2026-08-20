@@ -263,6 +263,10 @@ export default function TicketDetail({ loaderData }: Route.ComponentProps) {
         <ResolveDialog
           open={actions.showResolveDialog}
           onOpenChange={actions.setShowResolveDialog}
+          categories={categories}
+          resolveCategory={actions.resolveCategory}
+          onResolveCategoryChange={actions.setResolveCategory}
+          resolveCategoryError={actions.resolveCategoryError}
           resolveDate={actions.resolveDate}
           onResolveDateChange={actions.setResolveDate}
           resolutionSummary={actions.resolutionSummary}

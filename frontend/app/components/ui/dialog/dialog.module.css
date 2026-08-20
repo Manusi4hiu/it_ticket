@@ -2,7 +2,7 @@
 .overlay {
   position: fixed;
   inset: 0;
-  z-index: 50;
+  z-index: 9999;
   background: rgba(0, 0, 0, 0.7);
   backdrop-filter: blur(4px);
 }
@@ -19,7 +19,7 @@
   position: fixed;
   left: 50%;
   top: 50%;
-  z-index: 50;
+  z-index: 9999;
   display: grid;
   transform: translate(-50%, -50%);
   gap: var(--space-4);

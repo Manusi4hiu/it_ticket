@@ -14,8 +14,8 @@ class UserService:
 
     @staticmethod
     def get_agents():
-        """Get users who can be assigned to tickets (all staff)"""
-        return User.query.order_by(User.full_name).all()
+        """Get users who can be assigned to tickets (active staff only)"""
+        return User.query.filter_by(is_active=True).order_by(User.full_name).all()
 
     @staticmethod
     def get_user_by_id(user_id):
@@ -87,6 +87,10 @@ class UserService:
         if 'role' in data and current_user.role == 'Administrator':
             user.role = data['role']
         
+        # Only admin can change is_active
+        if 'is_active' in data and current_user.role == 'Administrator':
+            user.is_active = bool(data['is_active'])
+        
         # Password change
         if 'password' in data:
             user.set_password(data['password'])
@@ -114,6 +118,29 @@ class UserService:
         db.session.delete(user)
         db.session.commit()
         return True, 'User berhasil dihapus', 200
+
+    @staticmethod
+    def toggle_active(user_id, current_user):
+        """Toggle is_active status of a user (admin only)"""
+        try:
+            user_id = int(user_id)
+        except (ValueError, TypeError):
+            pass
+
+        if not current_user or current_user.role != 'Administrator':
+            return None, 'Unauthorized. Admin only.', 403
+
+        if current_user.id == user_id:
+            return None, 'Tidak bisa mengubah status akun sendiri', 400
+
+        user = User.query.get(user_id)
+        if not user:
+            return None, 'User tidak ditemukan', 404
+
+        user.is_active = not user.is_active
+        db.session.commit()
+        status_label = 'diaktifkan' if user.is_active else 'dinonaktifkan'
+        return user, f'User berhasil {status_label}', 200
 
     @staticmethod
     def get_user_performance(user_id):
@@ -159,7 +186,7 @@ class UserService:
 
     @staticmethod
     def get_all_performance():
-        users = User.query.filter(User.role.in_(['Staff', 'Administrator'])).all()
+        users = User.query.filter(User.role.in_(['Staff', 'Administrator']), User.is_active == True).all()
         
         results = []
         for user in users:
