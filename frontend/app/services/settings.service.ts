@@ -142,6 +142,12 @@ export const settingsApi = {
     deleteStatus: async (id: string) => {
         return apiRequest<{ success: boolean; error?: string }>(`/settings/statuses/${id}`, { method: 'DELETE' });
     },
+    reorderStatuses: async (order: Array<string | number>) => {
+        return apiRequest<{ success: boolean; data: Status[] }>('/settings/statuses/reorder', {
+            method: 'PUT',
+            body: JSON.stringify({ order })
+        });
+    },
     // System Logs
     getLogs: async () => {
         return apiRequest<{ success: boolean; data: SystemLog[] }>('/settings/logs');

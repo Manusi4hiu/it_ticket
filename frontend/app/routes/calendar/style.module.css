@@ -1,12 +1,12 @@
-.container {
+﻿.container {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 70px);
   padding: 24px;
   color: #f3f4f6;
   gap: 20px;
-  overflow: hidden;
+  overflow: visible;
   box-sizing: border-box;
+  flex-shrink: 0;
   background: radial-gradient(circle at top right, rgba(99, 102, 241, 0.05), transparent 40%),
               radial-gradient(circle at bottom left, rgba(139, 92, 246, 0.05), transparent 40%);
 }
@@ -46,9 +46,8 @@
 .contentArea {
   display: flex;
   flex-direction: column;
-  flex: 1;
   gap: 16px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 /* Controls / Filter Bar */
@@ -124,7 +123,7 @@
   background: rgba(10, 25, 47, 0.2);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 16px;
-  overflow: hidden;
+  overflow: visible;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
 }
 
@@ -148,14 +147,13 @@
 
 /* Day Grid */
 .daysGrid {
-  flex: 1;
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  grid-template-rows: repeat(6, 1fr);
-  overflow-y: auto;
+  grid-auto-rows: minmax(150px, auto);
+  align-items: stretch;
 }
 
-/* Day Cell */
+/* Day Cell - expands with content */
 .dayCell {
   border-right: 1px solid rgba(255, 255, 255, 0.05);
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
@@ -163,7 +161,7 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  min-height: 80px;
+  min-height: 150px;
   background: rgba(10, 25, 47, 0.1);
   transition: background 0.2s ease;
   position: relative;
@@ -236,38 +234,33 @@
   color: #fff;
 }
 
-/* Tickets inside cell */
+/* Tickets inside cell — full detail, cell expands, NO inner scroll */
 .cellTickets {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  flex: 1;
-  overflow-y: auto;
-  max-height: 120px;
+  gap: 5px;
+  width: 100%;
+  min-width: 0;
 }
 
-/* Custom Scrollbar for Cell Tickets */
-.cellTickets::-webkit-scrollbar {
-  width: 4px;
-}
-.cellTickets::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 2px;
-}
-
-/* Calendar Ticket Item */
+/* Calendar Ticket Item — full title visible, wrap not truncate */
 .ticketItem {
-  font-size: 0.7rem;
-  padding: 4px 6px;
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  padding: 6px 8px;
   border-radius: 6px;
-  background: rgba(30, 41, 59, 0.75);
+  background: rgba(30, 41, 59, 0.85);
   border-left: 3px solid #6b7280;
   color: #ffffff;
   cursor: pointer;
   transition: all 0.2s ease;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  text-align: left;
+  display: block;
+  width: 100%;
   user-select: none;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
