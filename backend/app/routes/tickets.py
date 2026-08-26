@@ -201,6 +201,21 @@ def update_ticket(ticket_id):
     ticket = get_ticket_or_404(ticket_id)
     if not ticket:
         return jsonify({'success': False, 'error': 'Ticket tidak ditemukan'}), 404
+
+    # Validate requiresReason for status change (fix production bug where reason sometimes missing)
+    # For Resolved/Closed, resolutionSummary can satisfy the reason requirement
+    if 'status' in data:
+        from app.models.master_data import Status
+        new_status = Status.query.filter(Status.name.ilike(data['status'])).first()
+        if new_status and getattr(new_status, 'requires_reason', False):
+            reason = data.get('reason')
+            has_reason = reason and str(reason).strip()
+            # If status is Resolved/Closed and has resolutionSummary, don't require separate reason
+            is_resolved = new_status.name.lower() in ['resolved', 'closed']
+            has_summary = data.get('resolutionSummary') and str(data.get('resolutionSummary')).strip()
+            if not has_reason and not (is_resolved and has_summary):
+                return jsonify({'success': False, 'error': 'Reason is required for this status'}), 400
+
     user_id = get_jwt_identity()
     ticket = TicketService.update_ticket(ticket.id, data, user_id=user_id)
     
@@ -286,6 +301,15 @@ def update_ticket_status(ticket_id):
             status = valid_status.name # Use the canonical name
         else:
             return jsonify({'success': False, 'error': 'Status tidak valid'}), 400
+
+    # Validate requiresReason (fix production bug where reason sometimes not sent)
+    # For Resolved/Closed, resolutionSummary can satisfy the requirement
+    if getattr(valid_status, 'requires_reason', False):
+        has_reason = reason and str(reason).strip()
+        has_summary = resolution_summary and str(resolution_summary).strip()
+        is_resolved = valid_status.name.lower() in ['resolved', 'closed']
+        if not has_reason and not (is_resolved and has_summary):
+            return jsonify({'success': False, 'error': 'Reason is required for this status'}), 400
 
     user_id = get_jwt_identity()
 

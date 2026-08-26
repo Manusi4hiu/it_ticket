@@ -405,3 +405,20 @@
 .scrollableArea::-webkit-scrollbar-thumb:hover {
     background: rgba(59, 130, 246, 0.5);
 }
+/* Responsive table: horizontal scroll on small screens */
+.tableContainer .dataTable,
+.dataTable {
+  min-width: 780px;
+}
+.scrollableArea {
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+@media (max-width: 720px) {
+  .container {
+    padding: 14px 12px 20px;
+  }
+  .header {
+    padding: 10px 12px;
+  }
+}

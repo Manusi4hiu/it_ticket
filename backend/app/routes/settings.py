@@ -209,6 +209,30 @@ def delete_status(id):
         return jsonify({'success': False, 'error': error or 'Status not found'}), 404 if error != 'Cannot delete status that is currently in use by tickets' else 400
     return jsonify({'success': True})
 
+@settings_bp.route('/statuses/reorder', methods=['PUT'])
+@admin_required
+def reorder_statuses():
+    """Reorder status columns for the dev board (admin only).
+    Body: {"order": [<status_id>, <status_id>, ...]}
+    """
+    data = request.get_json()
+    if not data or 'order' not in data or not isinstance(data['order'], list):
+        return jsonify({'success': False, 'error': 'order array is required'}), 400
+
+    try:
+        from app import db
+        from app.models.master_data import Status
+        for idx, sid in enumerate(data['order']):
+            s = Status.query.get(int(sid))
+            if s:
+                s.order = idx + 1
+        db.session.commit()
+        updated = MasterDataService.get_statuses()
+        return jsonify({'success': True, 'data': [s.to_dict() for s in updated]})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 # --- SYSTEM LOGS ---
 
 @settings_bp.route('/logs', methods=['GET'])

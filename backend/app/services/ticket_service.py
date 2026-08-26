@@ -227,12 +227,13 @@ class TicketService:
                 else:
                     ticket.sla_paused_at = None
 
-                # Note Logic
+                # Note Logic — tidy with proper Reason handling (fix "NewReason:" bug)
                 if user_id:
                     note_content = f"<p><strong>Status changed from {old_status_name} to {status}</strong></p>"
-                    reason = data.get('reason')
-                    if reason:
-                        note_content += f"<p>Reason: {reason}</p>"
+                    raw_reason = data.get('reason')
+                    if raw_reason and str(raw_reason).strip():
+                        clean_reason = sanitize_html(str(raw_reason).strip())
+                        note_content += f"<p><em>Reason:</em> {clean_reason}</p>"
                         
                     ticket.notes.append(TicketNote(
                         ticket_id=ticket.id,
@@ -391,11 +392,12 @@ class TicketService:
         else:
             ticket.sla_paused_at = None
             
-        # Log status change as note if status actually changed
+        # Log status change as note if status actually changed — tidy Reason
         if old_status_name != status and user_id:
             note_content = f"<p><strong>Status changed from {old_status_name} to {status}</strong></p>"
-            if reason:
-                note_content += f"<p>Reason: {reason}</p>"
+            if reason and str(reason).strip():
+                clean_reason = sanitize_html(str(reason).strip())
+                note_content += f"<p><em>Reason:</em> {clean_reason}</p>"
                 
             TicketService.add_note(
                 ticket_id=ticket.id,
