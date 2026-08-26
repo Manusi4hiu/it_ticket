@@ -179,22 +179,24 @@
 }
 
 .dataTable thead {
-    background: rgba(17, 24, 39, 0.4);
+    background: #111c30;
 }
 
 .dataTable th {
     text-align: left;
     padding: var(--space-4) var(--space-5);
-    font-size: 0.875rem;
+    font-size: 0.78rem;
     font-weight: 700;
-    color: #9ca3af;
+    color: #93c5fd;
     text-transform: uppercase;
-    letter-spacing: 1px;
-    border-bottom: 1px solid rgba(59, 130, 246, 0.2);
+    letter-spacing: 0.08em;
+    border-bottom: 2px solid rgba(59, 130, 246, 0.4);
     position: sticky;
     top: 0;
-    background: #111827;
+    background: #111c30;
     z-index: 10;
+    white-space: nowrap;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 .dataTable tbody tr {
