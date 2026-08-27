@@ -242,7 +242,7 @@
   min-height: 0;
 }
 
-/* Card Styling */
+/* Card Styling — jangan dikecilkan saat banyak task, tetap full detail + scroll */
 .ticketCard {
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid rgba(255, 255, 255, 0.06);
@@ -253,6 +253,8 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   position: relative;
   overflow: hidden;
+  flex-shrink: 0;
+  min-height: 118px;
 }
 
 .ticketCard:hover {
