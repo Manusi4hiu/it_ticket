@@ -135,12 +135,13 @@ export default function DevDashboard() {
   const [resolutionImage, setResolutionImage] = useState<File | null>(null);
 
   // Column reorder state (admin only)
-  const isAdministrator = session?.userRole === "Administrator";
+  const isAdministrator = String(session?.userRole || "").toLowerCase() === "administrator";
   const [isEditColumnsOpen, setIsEditColumnsOpen] = useState(false);
   const [columnOrder, setColumnOrder] = useState<Array<{ id: string | number; name: string; color: string }>>([]);
   const [isSavingOrder, setIsSavingOrder] = useState(false);
 
   const openEditColumns = () => {
+    if (!isAdministrator) return;
     setColumnOrder(statuses.map((s: any) => ({ id: s.id, name: s.name, color: s.color || "#6B7280" })));
     setIsEditColumnsOpen(true);
   };
@@ -156,6 +157,10 @@ export default function DevDashboard() {
   };
 
   const handleSaveColumnOrder = async () => {
+    if (!isAdministrator) {
+      alert("Only Administrator can edit column order");
+      return;
+    }
     setIsSavingOrder(true);
     try {
       const res = await settingsApi.reorderStatuses(columnOrder.map((c) => c.id));
@@ -245,7 +250,7 @@ export default function DevDashboard() {
     setEditTaskTitle(ticket.title);
     const cleanDesc = ticket.description.replace(/<[^>]*>/g, "");
     setEditTaskDesc(cleanDesc);
-    setEditTaskPriority(ticket.priority);
+    setEditTaskPriority(ticket.priority.toLowerCase());
     setEditTaskAssigneeId(ticket.assignedToId?.toString() || "unassigned");
     setIsEditDialogOpen(true);
     setIsDetailOpen(false);
@@ -976,7 +981,8 @@ export default function DevDashboard() {
       </Dialog>
 
       {/* Edit Column Order Dialog (admin only) */}
-      <Dialog open={isEditColumnsOpen} onOpenChange={setIsEditColumnsOpen}>
+      {isAdministrator && (
+        <Dialog open={isEditColumnsOpen} onOpenChange={setIsEditColumnsOpen}>
         <DialogContent className={styles.addTaskModalWidth}>
           <DialogHeader>
             <DialogTitle className={styles.detailTitle}>Edit Column Order</DialogTitle>
@@ -1032,7 +1038,8 @@ export default function DevDashboard() {
             </Button>
           </DialogFooter>
         </DialogContent>
-      </Dialog>
+        </Dialog>
+      )}
 
       <ReasonDialog
         open={showReasonDialog}

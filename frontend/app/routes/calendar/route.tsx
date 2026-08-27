@@ -30,6 +30,7 @@ import { Input } from "~/components/ui/input/input";
 import { Alert, AlertDescription } from "~/components/ui/alert/alert";
 import {
   getTickets,
+  getTicketById,
   getAgents,
   assignTicket,
   createTicket,
@@ -42,6 +43,8 @@ import {
 } from "~/services/ticket.service";
 import { settingsApi } from "~/services/settings.service";
 import { requireAuth } from "~/services/session.service";
+import { ReasonDialog } from "~/routes/ticket.$id/components/ReasonDialog";
+import { ResolveDialog } from "~/routes/ticket.$id/components/ResolveDialog";
 import styles from "./style.module.css";
 
 export async function loader({ request }: Route.LoaderArgs) {
@@ -87,6 +90,16 @@ export default function TicketCalendar() {
   const [newNoteContent, setNewNoteContent] = useState("");
   const [isNoteInternal, setIsNoteInternal] = useState(true);
   const [isNoteSubmitting, setIsNoteSubmitting] = useState(false);
+
+  // Reason / Resolve dialog state (sinkron dengan settings requiresReason)
+  const [showReasonDialog, setShowReasonDialog] = useState(false);
+  const [showResolveDialog, setShowResolveDialog] = useState(false);
+  const [pendingStatusUpdate, setPendingStatusUpdate] = useState<{ ticketId: string; targetStatus: string } | null>(null);
+  const [statusReason, setStatusReason] = useState("");
+  const [resolutionSummary, setResolutionSummary] = useState("");
+  const [resolutionError, setResolutionError] = useState("");
+  const [resolveDate, setResolveDate] = useState(new Date().toISOString().split("T")[0]);
+  const [resolutionImage, setResolutionImage] = useState<File | null>(null);
 
   // Add Dev Task Modal State (Quick task creation)
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -223,10 +236,49 @@ export default function TicketCalendar() {
   };
 
   // Handle open ticket details
-  const handleOpenDetail = (ticket: Ticket) => {
+  const handleOpenDetail = async (ticket: Ticket) => {
     setSelectedTicket(ticket);
     setIsDetailOpen(true);
     setNewNoteContent("");
+    try {
+      const detailed = await getTicketById(ticket.id.toString());
+      if (detailed) {
+        setSelectedTicket(detailed);
+        setTickets((prev) => prev.map((t) => (t.id === detailed.id ? detailed : t)));
+      }
+    } catch {
+      // fallback to list data
+    }
+  };
+
+  const handleUpdateStatusDirect = async (ticketId: string, targetStatus: string, reason?: string) => {
+    try {
+      let updated: Ticket | null = null;
+      if (reason) {
+        updated = await updateTicket(ticketId, { status: targetStatus, reason } as any);
+        if (!updated) updated = await updateTicketStatus(ticketId, targetStatus);
+      } else {
+        updated = await updateTicketStatus(ticketId, targetStatus);
+      }
+      if (updated) {
+        setTickets((prev) => prev.map((t) => (t.id.toString() === ticketId ? updated! : t)));
+        if (selectedTicket && selectedTicket.id.toString() === ticketId) setSelectedTicket(updated);
+      }
+    } catch (err) {
+      console.error("Failed to update status:", err);
+    }
+  };
+
+  const handleResolveDirect = async (ticketId: string, summary: string, dateStr: string, image: File | null) => {
+    try {
+      const updated = await updateTicketStatus(ticketId, "Resolved", summary, new Date(dateStr).toISOString(), image || undefined);
+      if (updated) {
+        setTickets((prev) => prev.map((t) => (t.id.toString() === ticketId ? updated : t)));
+        if (selectedTicket && selectedTicket.id.toString() === ticketId) setSelectedTicket(updated);
+      }
+    } catch (err) {
+      console.error("Failed to resolve:", err);
+    }
   };
 
   // Handle change assignee inside detail modal
@@ -244,21 +296,56 @@ export default function TicketCalendar() {
     }
   };
 
-  // Handle status change inside detail modal
+  // Handle status change inside detail modal — sync with settings requiresReason
   const handleStatusChange = async (statusName: string) => {
     if (!selectedTicket) return;
-    try {
-      const updated = await updateTicketStatus(selectedTicket.id.toString(), statusName);
-      if (updated) {
-        setTickets((prev) => prev.map((t) => (t.id === selectedTicket.id ? updated : t)));
-        setSelectedTicket(updated);
-      }
-    } catch (err) {
-      console.error("Failed to update status:", err);
+    const targetStatus = statusName;
+    const ticketId = selectedTicket.id.toString();
+
+    const isResolvingWithoutSummary =
+      (targetStatus.toLowerCase() === "resolved" || targetStatus.toLowerCase() === "closed") &&
+      !selectedTicket.resolutionSummary;
+
+    if (isResolvingWithoutSummary) {
+      setPendingStatusUpdate({ ticketId, targetStatus });
+      setShowResolveDialog(true);
+      return;
     }
+
+    const statusConfig = statuses.find((s: any) => s.name.toLowerCase() === targetStatus.toLowerCase());
+    const requiresReason = (statusConfig as any)?.requiresReason || (statusConfig as any)?.requires_reason;
+    if (requiresReason) {
+      setPendingStatusUpdate({ ticketId, targetStatus });
+      setShowReasonDialog(true);
+      return;
+    }
+
+    await handleUpdateStatusDirect(ticketId, targetStatus);
   };
 
-  // Handle adding notes
+  const handleSubmitReason = async () => {
+    if (!pendingStatusUpdate || !statusReason.trim()) return;
+    await handleUpdateStatusDirect(pendingStatusUpdate.ticketId, pendingStatusUpdate.targetStatus, statusReason);
+    setShowReasonDialog(false);
+    setStatusReason("");
+    setPendingStatusUpdate(null);
+  };
+
+  const handleSubmitResolution = async () => {
+    if (!pendingStatusUpdate) return;
+    if (resolutionSummary.trim().length < 20) {
+      setResolutionError("Summary must be at least 20 characters.");
+      return;
+    }
+    setResolutionError("");
+    await handleResolveDirect(pendingStatusUpdate.ticketId, resolutionSummary, resolveDate, resolutionImage);
+    setShowResolveDialog(false);
+    setResolutionSummary("");
+    setResolutionImage(null);
+    setPendingStatusUpdate(null);
+  };
+
+  // Handle adding notes — instant UI update like dev-dashboard (fix: notes not showing after post)
   const handleAddNote = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedTicket || !newNoteContent.trim() || isNoteSubmitting) return;
@@ -267,14 +354,9 @@ export default function TicketCalendar() {
     try {
       const newNote = await addTicketNote(selectedTicket.id.toString(), newNoteContent, isNoteInternal);
       if (newNote) {
-        // Refresh ticket list
-        const updatedRes = await getTickets({ per_page: 250 });
-        setTickets(updatedRes.tickets);
-
-        const updatedSelected = updatedRes.tickets.find((t) => t.id === selectedTicket.id);
-        if (updatedSelected) {
-          setSelectedTicket(updatedSelected);
-        }
+        // Directly append to selectedTicket and tickets list for instant feedback
+        setSelectedTicket((prev) => (prev ? { ...prev, notes: [...(prev.notes || []), newNote] } : prev));
+        setTickets((prev) => prev.map((t) => (t.id === selectedTicket.id ? { ...t, notes: [...(t.notes || []), newNote] } : t)));
         setNewNoteContent("");
       }
     } catch (err) {
@@ -551,7 +633,7 @@ export default function TicketCalendar() {
                               <span className={styles.noteAuthor}>{note.author}</span>
                               <span>{formatDate(note.createdAt)}</span>
                             </div>
-                            <p className={styles.noteContent}>{note.content}</p>
+                            <div className={styles.noteContent} dangerouslySetInnerHTML={{ __html: note.content }} />
                           </div>
                         ))
                       )}
@@ -651,6 +733,42 @@ export default function TicketCalendar() {
           )}
         </DialogContent>
       </Dialog>
+
+      <ReasonDialog
+        open={showReasonDialog}
+        onOpenChange={(open) => {
+          setShowReasonDialog(open);
+          if (!open) {
+            setStatusReason("");
+            setPendingStatusUpdate(null);
+          }
+        }}
+        reason={statusReason}
+        onReasonChange={setStatusReason}
+        onSubmit={handleSubmitReason}
+        targetStatus={pendingStatusUpdate?.targetStatus || ""}
+      />
+
+      <ResolveDialog
+        open={showResolveDialog}
+        onOpenChange={(open) => {
+          setShowResolveDialog(open);
+          if (!open) {
+            setResolutionSummary("");
+            setResolutionImage(null);
+            setPendingStatusUpdate(null);
+            setResolutionError("");
+          }
+        }}
+        resolveDate={resolveDate}
+        onResolveDateChange={setResolveDate}
+        resolutionSummary={resolutionSummary}
+        onSummaryChange={setResolutionSummary}
+        resolutionError={resolutionError}
+        resolutionImage={resolutionImage}
+        onResolutionImageChange={setResolutionImage}
+        onSubmit={handleSubmitResolution}
+      />
 
       {/* Add Dev Task Dialog */}
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
