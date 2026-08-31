@@ -125,7 +125,7 @@ export default function SubmitTicket({ actionData, loaderData }: Route.Component
     return (
         <main className={styles.main}>
             <div style={{ marginBottom: 'var(--space-6)' }}>
-                <Link to="/" className={styles.backLink}>
+                <Link to="/dashboard" className={styles.backLink}>
                     <ArrowLeft size={20} />
                     Back to Home
                 </Link>
@@ -148,7 +148,7 @@ export default function SubmitTicket({ actionData, loaderData }: Route.Component
                             <Button onClick={() => navigate(`/ticket/${actionData.ticketCode || actionData.ticketId}`)}>
                                 Track This Ticket
                             </Button>
-                            <Button variant="outline" onClick={() => navigate("/")}>
+                            <Button variant="outline" onClick={() => navigate("/dashboard")}>
                                 Back to Home
                             </Button>
                         </div>
@@ -360,7 +360,7 @@ export default function SubmitTicket({ actionData, loaderData }: Route.Component
                                 </div>
 
                                 <div className={styles.formActions}>
-                                    <Button type="button" variant="outline" onClick={() => navigate("/")} disabled={isSubmitting}>
+                                    <Button type="button" variant="outline" onClick={() => navigate("/dashboard")} disabled={isSubmitting}>
                                         Cancel
                                     </Button>
                                     <Button type="submit" className={styles.submitButton} disabled={isSubmitting}>

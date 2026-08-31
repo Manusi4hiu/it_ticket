@@ -1,4 +1,4 @@
-.container {
+﻿.container {
   height: 100vh;
   background: linear-gradient(135deg, #050b14 0%, #0a192f 50%, #020c1b 100%);
   position: relative;
@@ -516,12 +516,11 @@
   color: #9ca3af;
   text-transform: uppercase;
   letter-spacing: 1px;
-  border-bottom: 1px solid rgba(59, 130, 246, 0.2);
+  border-bottom: 2px solid rgba(59, 130, 246, 0.4);
   position: sticky;
   top: 0;
   z-index: 10;
-  background: rgba(22, 28, 45, 0.95);
-  backdrop-filter: blur(12px);
+  background: #111c30;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
@@ -920,3 +919,55 @@
   white-space: nowrap;
 }
 
+
+/* ── Ledger table overrides: tidy, horizontal scroll, responsive ── */
+.tableSection {
+  background: var(--surface-2) !important;
+  border: var(--hairline) !important;
+  border-radius: var(--radius-card) !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  overflow: hidden;
+}
+.tableWrapper {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.table {
+  min-width: 760px;
+}
+
+/* ── Table polish: borders, hierarchy, horizontal scroll, responsive ── */
+.tableSection {
+  background: rgba(17, 24, 39, 0.55) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 12px !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  overflow: hidden;
+}
+.tableWrapper {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.table {
+  min-width: 760px;
+}
+.table thead {
+  background: #111c30;
+}
+.table th {
+  color: #93c5fd !important;
+  border-bottom: 2px solid rgba(59, 130, 246, 0.4) !important;
+  letter-spacing: 0.08em;
+}
+.table td {
+  color: #e5e7eb !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+@media (max-width: 720px) {
+  .table { min-width: 680px; }
+}

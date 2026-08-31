@@ -43,29 +43,36 @@ import styles from "../style.module.css";
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:5000";
 
 // ─────────────────────────────────────────────
-// Parsers
+// Parsers — robust for tidy format: <p><strong>Status...</strong></p><p><em>Reason:</em> ...</p>
 // ─────────────────────────────────────────────
 function parseStatusChangeNote(html: string) {
-  const matchFromTo = html.match(/Status changed from (.*?) to (.*?)<\/strong>/);
-  const matchTo = html.match(/Status changed to (.*?)<\/strong>/);
-  const matchReason = html.match(/Reason: (.*?)<\/p>/);
+  const matchFromTo = html.match(/Status changed from (.*?) to (.*?)<\/strong>/i);
+  const matchTo = html.match(/Status changed to (.*?)<\/strong>/i);
+  const matchReason = html.match(/Reason:\s*(?:<\/em>)?\s*(.*?)\s*<\/p>/i);
   
   let from = "-";
   let to = "-";
   
   if (matchFromTo) {
-      from = matchFromTo[1];
-      to = matchFromTo[2];
+      from = matchFromTo[1].trim();
+      to = matchFromTo[2].trim();
   } else if (matchTo) {
-      to = matchTo[1];
+      to = matchTo[1].trim();
   } else {
       return null;
+  }
+  
+  let reason = "-";
+  if (matchReason) {
+      // Strip any remaining HTML and trim
+      reason = matchReason[1].replace(/<[^>]*>/g, "").trim();
+      if (!reason) reason = "-";
   }
   
   return {
       from,
       to,
-      reason: matchReason ? matchReason[1] : "-"
+      reason
   };
 }
 

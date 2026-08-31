@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+﻿import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useLoaderData, useNavigate } from "react-router";
 import type { Route } from "./+types/route";
 import {
@@ -22,7 +22,8 @@ import {
   ArrowRight,
   ExternalLink,
   Activity,
-  Hourglass
+  Hourglass,
+  Settings2
 } from "lucide-react";
 import { Button } from "~/components/ui/button/button";
 import { Badge } from "~/components/ui/badge/badge";
@@ -73,12 +74,14 @@ export async function loader({ request }: Route.LoaderArgs) {
     initialTickets: ticketsRes.tickets,
     agents,
     statuses: (statusesRes.data?.data || []).filter((s: any) => s.showOnDevboard)
+      .sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0))
   };
 }
 
 export default function DevDashboard() {
-  const { session, initialTickets, agents, statuses } = useLoaderData() as typeof loader extends (...args: any[]) => Promise<infer T> ? T : any;
+  const { session, initialTickets, agents, statuses: loaderStatuses } = useLoaderData() as typeof loader extends (...args: any[]) => Promise<infer T> ? T : any;
   const navigate = useNavigate();
+  const [statuses, setStatuses] = useState<any[]>(loaderStatuses);
 
   // Kanban tickets state
   const [tickets, setTickets] = useState<Ticket[]>(initialTickets);
@@ -130,6 +133,48 @@ export default function DevDashboard() {
   const [resolutionSummary, setResolutionSummary] = useState("");
   const [resolutionError, setResolutionError] = useState("");
   const [resolutionImage, setResolutionImage] = useState<File | null>(null);
+
+  // Column reorder state (admin only)
+  const isAdministrator = session?.userRole === "Administrator";
+  const [isEditColumnsOpen, setIsEditColumnsOpen] = useState(false);
+  const [columnOrder, setColumnOrder] = useState<Array<{ id: string | number; name: string; color: string }>>([]);
+  const [isSavingOrder, setIsSavingOrder] = useState(false);
+
+  const openEditColumns = () => {
+    setColumnOrder(statuses.map((s: any) => ({ id: s.id, name: s.name, color: s.color || "#6B7280" })));
+    setIsEditColumnsOpen(true);
+  };
+
+  const moveColumn = (from: number, to: number) => {
+    setColumnOrder((prev) => {
+      if (to < 0 || to >= prev.length || from === to) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
+  };
+
+  const handleSaveColumnOrder = async () => {
+    setIsSavingOrder(true);
+    try {
+      const res = await settingsApi.reorderStatuses(columnOrder.map((c) => c.id));
+      if (res.success) {
+        const fresh = (res.data?.data || []).filter((s: any) => s.showOnDevboard)
+          .sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0));
+        // statuses comes from loader; update via state replacement
+        setStatuses(fresh);
+        setIsEditColumnsOpen(false);
+      } else {
+        alert(res.error || "Failed to save column order");
+      }
+    } catch (err) {
+      console.error("Failed to reorder columns:", err);
+      alert("Failed to save column order");
+    } finally {
+      setIsSavingOrder(false);
+    }
+  };
 
   const handleAddDevTask = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -446,7 +491,13 @@ export default function DevDashboard() {
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
-        <div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {isAdministrator && (
+            <Button variant="outline" onClick={openEditColumns} title="Edit column order (admin only)">
+              <Settings2 size={15} style={{ marginRight: 6 }} />
+              Edit Columns
+            </Button>
+          )}
           <Button onClick={() => setIsAddDialogOpen(true)} className={styles.addDevTaskBtn}>
             <Plus size={16} style={{ marginRight: 6 }} />
             Add Dev Task
@@ -659,7 +710,7 @@ export default function DevDashboard() {
                               {new Date(note.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </span>
                           </div>
-                          <p className={styles.noteBody}>{note.content.replace(/<[^>]*>/g, "")}</p>
+                          <div className={styles.noteBody} dangerouslySetInnerHTML={{ __html: note.content }} />
                           {note.isInternal && (
                             <span className={styles.internalBadge}>Developer Only</span>
                           )}
@@ -919,6 +970,65 @@ export default function DevDashboard() {
               style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.2)' }}
             >
               {isTaskDeleting ? "Deleting..." : "Confirm Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Column Order Dialog (admin only) */}
+      <Dialog open={isEditColumnsOpen} onOpenChange={setIsEditColumnsOpen}>
+        <DialogContent className={styles.addTaskModalWidth}>
+          <DialogHeader>
+            <DialogTitle className={styles.detailTitle}>Edit Column Order</DialogTitle>
+          </DialogHeader>
+          <p style={{ fontSize: "0.78rem", color: "var(--ink-9)", marginTop: 4 }}>
+            Gunakan panah untuk mengatur urutan kolom kanban. Urutan tersimpan untuk semua user.
+          </p>
+          <p style={{ fontSize: "0.78rem", color: "var(--ink-9)", marginTop: 4 }}>
+            Tarik (drag) baris untuk mengatur urutan kolom kanban — sama seperti memindahkan task. Urutan tersimpan untuk semua user.
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, margin: "14px 0" }}>
+            {columnOrder.map((col, idx) => (
+              <div
+                key={col.id}
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.effectAllowed = "move";
+                  e.dataTransfer.setData("text/plain", String(idx));
+                }}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const from = parseInt(e.dataTransfer.getData("text/plain"), 10);
+                  if (!isNaN(from) && from !== idx) moveColumn(from, idx);
+                }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  padding: "10px 12px",
+                  background: "var(--surface-2)",
+                  border: "var(--hairline)",
+                  borderRadius: "var(--radius-card)",
+                  cursor: "grab",
+                  userSelect: "none"
+                }}
+              >
+                <span style={{ color: "var(--ink-8)", fontSize: "0.9rem" }}>⠿</span>
+                <span style={{ width: 10, height: 10, borderRadius: "50%", background: col.color, flexShrink: 0 }} />
+                <span style={{ flex: 1, fontWeight: 700, fontSize: "0.85rem", color: "var(--ink-12)" }}>{col.name}</span>
+                <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "0.68rem", color: "var(--ink-8)" }}>
+                  {idx + 1}
+                </span>
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditColumnsOpen(false)} disabled={isSavingOrder}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveColumnOrder} disabled={isSavingOrder}>
+              {isSavingOrder ? "Saving..." : "Save Order"}
             </Button>
           </DialogFooter>
         </DialogContent>
