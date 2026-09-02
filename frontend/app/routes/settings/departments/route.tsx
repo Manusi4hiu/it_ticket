@@ -23,7 +23,7 @@ import type { Department } from "~/services/settings.service";
 
 export async function loader({ request }: Route.LoaderArgs) {
     const response = await settingsApi.getDepartments(1, 5);
-    return { initialDepartments: response.data?.data || [] };
+    return Response.json({ initialDepartments: response.data?.data || [] });
 }
 
 export async function action({ request }: Route.ActionArgs) {
@@ -35,11 +35,11 @@ export async function action({ request }: Route.ActionArgs) {
         const code = formData.get("code") as string;
         const description = formData.get("description") as string;
 
-        if (!name) return { error: "Department name is required" };
+        if (!name) return Response.json({ error: "Department name is required" }, { status: 400 });
 
         const response = await settingsApi.createDepartment({ name, code, description, isActive: true });
-        if (!response.success) return { error: response.error };
-        return { success: true };
+        if (!response.success) return Response.json({ error: response.error }, { status: 400 });
+        return Response.json({ success: true }, { status: 200 });
     }
 
     if (intent === "update") {
@@ -49,18 +49,18 @@ export async function action({ request }: Route.ActionArgs) {
         const description = formData.get("description") as string;
         const isActive = formData.get("isActive") === "true";
 
-        if (!id || !name) return { error: "ID and Name are required" };
+        if (!id || !name) return Response.json({ error: "ID and Name are required" }, { status: 400 });
 
         const response = await settingsApi.updateDepartment(id, { name, code, description, isActive });
-        if (!response.success) return { error: response.error };
-        return { success: true };
+        if (!response.success) return Response.json({ error: response.error }, { status: 400 });
+        return Response.json({ success: true }, { status: 200 });
     }
 
     if (intent === "delete") {
         const id = formData.get("id") as string;
         const response = await settingsApi.deleteDepartment(id);
-        if (!response.success) return { error: response.error };
-        return { success: true };
+        if (!response.success) return Response.json({ error: response.error }, { status: 400 });
+        return Response.json({ success: true }, { status: 200 });
     }
 
     return null;

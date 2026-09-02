@@ -52,7 +52,7 @@ export async function loader({ request }: Route.LoaderArgs) {
   const response = await usersApi.getAll();
   const users = response.success && response.data ? response.data.users : [];
 
-  return {
+  return Response.json({
     session,
     users: users.map((u) => ({
       id: u.id,
@@ -62,7 +62,7 @@ export async function loader({ request }: Route.LoaderArgs) {
       role: u.role as UserRole,
       isActive: u.is_active !== false,
     })) as ManagedUser[],
-  };
+  });
 }
 
 // ─────────────────────────────────────────────

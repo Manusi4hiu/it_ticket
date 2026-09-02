@@ -18,20 +18,20 @@ export async function action({ request }: Route.ActionArgs) {
     const password = formData.get('password') as string;
 
     if (!username || !password) {
-      return { error: 'Username dan password wajib diisi' };
+      return Response.json({ error: 'Username dan password wajib diisi' }, { status: 400 });
     }
 
     const result = await login({ username, password });
 
     if (!result.success || !result.user || !result.token) {
-      return { error: result.error || 'Login failed' };
+      return Response.json({ error: result.error || 'Login failed' }, { status: 400 });
     }
 
     const sessionHeaders = await createUserSession(result.user, '/dashboard', result.token);
     const cookie = sessionHeaders['Set-Cookie'];
 
     if (!cookie) {
-      return { error: 'Gagal membuat cookie sesi' };
+      return Response.json({ error: 'Gagal membuat cookie sesi' }, { status: 400 });
     }
 
     const headers = new Headers();
@@ -41,7 +41,7 @@ export async function action({ request }: Route.ActionArgs) {
 
   } catch (error: any) {
     console.error('Login action error:', error);
-    return { error: 'Terjadi kesalahan sistem. Silakan coba lagi.' };
+    return Response.json({ error: 'Terjadi kesalahan sistem. Silakan coba lagi.' }, { status: 400 });
   }
 }
 

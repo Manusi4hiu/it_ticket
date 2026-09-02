@@ -44,14 +44,14 @@ export async function loader({ request, params }: Route.LoaderArgs) {
      };
   }
 
-  return {
+  return Response.json({
     session,
     staffId,
     staff,
     isAgent,
     tickets: ticketResponse.tickets,
     agents,
-  };
+  });
 }
 
 export default function StaffProfile({ loaderData }: Route.ComponentProps) {
@@ -94,7 +94,7 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
       ? (assigned.filter((t) => t.slaStatus !== "breached").length / assigned.length) * 100
       : 0;
 
-    return {
+    return Response.json({
       assigned,
       resolved,
       inProgress,
@@ -103,7 +103,7 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
       avgResolutionTime: avgResTime,
       resolutionRate: resRate,
       slaCompliance: slaComp
-    };
+    });
   }, [tickets, staff.name, staff.email, isAgent]);
 
   const {

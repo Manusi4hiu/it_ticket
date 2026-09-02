@@ -52,7 +52,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   // Blokir akses via numeric ID langsung (e.g. /ticket/105)
   // User harus menggunakan ticket code (e.g. FIN-006)
   if (/^\d+$/.test(ticketId_val)) {
-    return {
+    return Response.json({
       session,
       ticket: null as Ticket | null,
       invalidNumericId: true,
@@ -60,7 +60,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
       priorities: [] as Priority[],
       statuses: [] as Status[],
       categories: [] as Category[],
-    };
+    });
   }
 
   // Fetch semua data secara paralel
@@ -77,7 +77,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
         : Promise.resolve({ success: true, data: { data: [] } }),
     ]);
 
-  return {
+  return Response.json({
     session,
     ticket,
     invalidNumericId: false,
@@ -85,7 +85,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     priorities: (prioritiesRes.data?.data || []) as Priority[],
     statuses: ((statusesRes.data?.data || []) as Status[]).filter(s => s.showOnItHelpdesk !== false),
     categories: (categoriesRes.data?.data || []) as Category[],
-  };
+  });
 }
 
 // ─────────────────────────────────────────────

@@ -23,7 +23,7 @@ import type { Category } from "~/services/settings.service";
 
 export async function loader({ request }: Route.LoaderArgs) {
     const response = await settingsApi.getCategories();
-    return { categories: response.data?.data || [] };
+    return Response.json({ categories: response.data?.data || [] });
 }
 
 export async function action({ request }: Route.ActionArgs) {
@@ -34,11 +34,11 @@ export async function action({ request }: Route.ActionArgs) {
         const name = formData.get("name") as string;
         const description = formData.get("description") as string;
 
-        if (!name) return { error: "Category name is required" };
+        if (!name) return Response.json({ error: "Category name is required" }, { status: 400 });
 
         const response = await settingsApi.createCategory({ name, description, isActive: true });
-        if (!response.success) return { error: response.error };
-        return { success: true };
+        if (!response.success) return Response.json({ error: response.error }, { status: 400 });
+        return Response.json({ success: true }, { status: 200 });
     }
 
     if (intent === "update") {
@@ -47,18 +47,18 @@ export async function action({ request }: Route.ActionArgs) {
         const description = formData.get("description") as string;
         const isActive = formData.get("isActive") === "true";
 
-        if (!id || !name) return { error: "ID and Name are required" };
+        if (!id || !name) return Response.json({ error: "ID and Name are required" }, { status: 400 });
 
         const response = await settingsApi.updateCategory(id, { name, description, isActive });
-        if (!response.success) return { error: response.error };
-        return { success: true };
+        if (!response.success) return Response.json({ error: response.error }, { status: 400 });
+        return Response.json({ success: true }, { status: 200 });
     }
 
     if (intent === "delete") {
         const id = formData.get("id") as string;
         const response = await settingsApi.deleteCategory(id);
-        if (!response.success) return { error: response.error };
-        return { success: true };
+        if (!response.success) return Response.json({ error: response.error }, { status: 400 });
+        return Response.json({ success: true }, { status: 200 });
     }
 
     return null;

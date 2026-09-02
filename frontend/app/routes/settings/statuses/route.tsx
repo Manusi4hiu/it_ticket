@@ -23,7 +23,7 @@ import type { Status } from "~/services/settings.service";
 
 export async function loader({ request }: Route.LoaderArgs) {
     const response = await settingsApi.getStatuses();
-    return { statuses: response.data?.data || [] };
+    return Response.json({ statuses: response.data?.data || [] });
 }
 
 export async function action({ request }: Route.ActionArgs) {
@@ -40,11 +40,11 @@ export async function action({ request }: Route.ActionArgs) {
         const showOnDevboard = formData.get("showOnDevboard") === "true";
         const showOnItHelpdesk = formData.get("showOnItHelpdesk") === "true";
 
-        if (!name) return { error: "Status name is required" };
+        if (!name) return Response.json({ error: "Status name is required" }, { status: 400 });
 
         const response = await settingsApi.createStatus({ name, color, order, isDefault, requiresReason, pausesSla, showOnDevboard, showOnItHelpdesk });
-        if (!response.success) return { error: response.error };
-        return { success: true };
+        if (!response.success) return Response.json({ error: response.error }, { status: 400 });
+        return Response.json({ success: true }, { status: 200 });
     }
 
     if (intent === "update") {
@@ -58,18 +58,18 @@ export async function action({ request }: Route.ActionArgs) {
         const showOnDevboard = formData.get("showOnDevboard") === "true";
         const showOnItHelpdesk = formData.get("showOnItHelpdesk") === "true";
 
-        if (!id || !name) return { error: "ID and Name are required" };
+        if (!id || !name) return Response.json({ error: "ID and Name are required" }, { status: 400 });
 
         const response = await settingsApi.updateStatus(id, { name, color, order, isDefault, requiresReason, pausesSla, showOnDevboard, showOnItHelpdesk });
-        if (!response.success) return { error: response.error };
-        return { success: true };
+        if (!response.success) return Response.json({ error: response.error }, { status: 400 });
+        return Response.json({ success: true }, { status: 200 });
     }
 
     if (intent === "delete") {
         const id = formData.get("id") as string;
         const response = await settingsApi.deleteStatus(id);
-        if (!response.success) return { error: response.error };
-        return { success: true };
+        if (!response.success) return Response.json({ error: response.error }, { status: 400 });
+        return Response.json({ success: true }, { status: 200 });
     }
 
     return null;

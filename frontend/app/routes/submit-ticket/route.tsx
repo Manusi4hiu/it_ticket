@@ -37,11 +37,11 @@ export async function loader({ request }: Route.LoaderArgs) {
         settingsApi.getDepartments()
     ]);
 
-    return {
+    return Response.json({
         categories: (categoriesRes.data?.data || []) as Category[],
         priorities: (prioritiesRes.data?.data || []) as Priority[],
         departments: (departmentsRes.data?.data || []) as Department[]
-    };
+    });
 }
 
 export async function action({ request }: Route.ActionArgs) {
@@ -59,7 +59,7 @@ export async function action({ request }: Route.ActionArgs) {
     const idempotencyKey = formData.get("idempotencyKey") as string;
 
     if (!name || !department || !subject || !description) {
-        return { error: "All required fields must be filled" };
+        return Response.json({ error: "All required fields must be filled" }, { status: 400 });
     }
 
     try {
@@ -75,13 +75,13 @@ export async function action({ request }: Route.ActionArgs) {
         }, image && image.size > 0 ? image : undefined, idempotencyKey);
 
         if (!newTicket) {
-            return { error: "Failed to create ticket." };
+            return Response.json({ error: "Failed to create ticket." }, { status: 400 });
         }
 
-        return { success: true, ticketId: newTicket.id, ticketCode: newTicket.ticketCode };
+        return Response.json({ success: true, ticketId: newTicket.id, ticketCode: newTicket.ticketCode }, { status: 200 });
     } catch (error) {
         console.error("Failed to create ticket:", error);
-        return { error: "Failed to create ticket. Please try again later." };
+        return Response.json({ error: "Failed to create ticket. Please try again later." }, { status: 500 });
     }
 }
 

@@ -24,7 +24,7 @@ import {
 import styles from "./style.module.css";
 
 export async function loader({ request }: Route.LoaderArgs) {
-  return {};
+  return Response.json({});
 }
 
 export default function Home({ loaderData }: Route.ComponentProps) {

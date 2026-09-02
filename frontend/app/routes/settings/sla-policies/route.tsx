@@ -29,11 +29,11 @@ export async function loader({ request }: Route.LoaderArgs) {
         settingsApi.getCategories()
     ]);
 
-    return {
+    return Response.json({
         policies: policiesRes.data?.data || [],
         priorities: prioritiesRes.data?.data || [],
         categories: categoriesRes.data?.data || []
-    };
+    });
 }
 
 export async function action({ request }: Route.ActionArgs) {
@@ -52,8 +52,8 @@ export async function action({ request }: Route.ActionArgs) {
             responseTimeMinutes,
             resolutionTimeHours
         });
-        if (!response.success) return { error: response.error };
-        return { success: true };
+        if (!response.success) return Response.json({ error: response.error }, { status: 400 });
+        return Response.json({ success: true }, { status: 200 });
     }
 
     if (intent === "update") {
@@ -69,15 +69,15 @@ export async function action({ request }: Route.ActionArgs) {
             responseTimeMinutes,
             resolutionTimeHours
         });
-        if (!response.success) return { error: response.error };
-        return { success: true };
+        if (!response.success) return Response.json({ error: response.error }, { status: 400 });
+        return Response.json({ success: true }, { status: 200 });
     }
 
     if (intent === "delete") {
         const id = formData.get("id") as string;
         const response = await settingsApi.deleteSLAPolicy(id);
-        if (!response.success) return { error: response.error };
-        return { success: true };
+        if (!response.success) return Response.json({ error: response.error }, { status: 400 });
+        return Response.json({ success: true }, { status: 200 });
     }
 
     return null;

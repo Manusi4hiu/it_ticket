@@ -62,7 +62,7 @@ export async function loader({ request }: Route.LoaderArgs) {
       getTicketStats(true), // Personal stats
     ]);
 
-  return {
+  return Response.json({
     session,
     activeTickets: activeResponse.tickets,
     activeTotal: activeResponse.total,
@@ -71,7 +71,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     agents,
     statuses: (statusResponse.data?.data || []).filter((s: any) => s.showOnItHelpdesk !== false),
     stats,
-  };
+  });
 }
 
 // ─────────────────────────────────────────────

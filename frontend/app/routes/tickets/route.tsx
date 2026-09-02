@@ -73,7 +73,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 
   const ticketResponse = await getTickets(filters);
 
-  return {
+  return Response.json({
     session,
     tickets: ticketResponse.tickets,
     totalTickets: ticketResponse.total,
@@ -82,7 +82,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     categories: categoryResponse.data?.data || [],
     filters,
     defaultStatusName
-  };
+  });
 }
 
 export default function TicketsList({ loaderData }: Route.ComponentProps) {
