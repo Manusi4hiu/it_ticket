@@ -333,6 +333,13 @@ export default function TicketCalendar() {
 
   const handleSubmitResolution = async () => {
     if (!pendingStatusUpdate) return;
+    if (resolveDate) {
+      const dateObj = new Date(resolveDate);
+      if (dateObj > new Date()) {
+        setResolutionError("Waktu penyelesaian tidak boleh di masa depan (maksimal sekarang).");
+        return;
+      }
+    }
     if (resolutionSummary.trim().length < 20) {
       setResolutionError("Summary must be at least 20 characters.");
       return;

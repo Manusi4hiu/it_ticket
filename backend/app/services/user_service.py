@@ -14,8 +14,9 @@ class UserService:
 
     @staticmethod
     def get_agents():
-        """Get users who can be assigned to tickets (all staff)"""
-        return User.query.order_by(User.full_name).all()
+        """Get users who can be assigned to tickets: Staff & Administrator saja.
+        Role Management TIDAK termasuk — view-only, tidak mengerjakan tiket."""
+        return User.query.filter(User.role.in_(['Staff', 'Administrator'])).order_by(User.full_name).all()
 
     @staticmethod
     def get_user_by_id(user_id):
@@ -65,16 +66,21 @@ class UserService:
             return None, 'User tidak ditemukan', 404
         
         # Update fields if provided
-        if 'full_name' in data:
-            user.full_name = data['full_name']
-        if 'username' in data:
-            user.username = data['username']
+        if 'full_name' in data and data['full_name']:
+            user.full_name = str(data['full_name']).strip()
+        if 'username' in data and data['username']:
+            new_username = str(data['username']).strip()
+            if new_username != user.username:
+                existing_user = User.query.filter_by(username=new_username).first()
+                if existing_user:
+                    return None, 'Username sudah digunakan', 409
+                user.username = new_username
         if 'email' in data:
             # Check uniqueness if email is being changed
             if data['email'] and data['email'] != user.email:
                 existing_email = User.query.filter_by(email=data['email']).first()
                 if existing_email:
-                    return None, 'Email sudah terdaftar', 400
+                    return None, 'Email sudah terdaftar', 409
             user.email = data['email'] if data['email'] else None
         if 'department' in data:
             user.department = data['department']

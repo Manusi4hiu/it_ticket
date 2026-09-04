@@ -35,6 +35,7 @@
   "devDependencies": {
     "@dazl-lib/radix-ui": "^0.1.0",
     "@dazl/dev": "^1.4.0",
+    "@playwright/test": "^1.62.1",
     "@react-router/dev": "^7.11.0",
     "@types/node": "22",
     "@types/react": "^19.2.7",

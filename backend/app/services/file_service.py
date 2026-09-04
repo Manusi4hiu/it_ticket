@@ -4,7 +4,7 @@ from werkzeug.utils import secure_filename
 from flask import current_app
 
 class FileService:
-    ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif'}
+    ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp'}
 
     @staticmethod
     def is_allowed_file(filename):

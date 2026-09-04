@@ -23,5 +23,6 @@ export default [
     route("calendar", "routes/calendar/route.tsx"),
   ]),
   route("unauthorized", "routes/unauthorized/route.tsx"),
+  route("forbidden", "routes/forbidden/route.tsx"),
   route("*", "routes/not-found/route.tsx"),
 ] satisfies RouteConfig;

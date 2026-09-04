@@ -89,9 +89,10 @@ export async function requireRole(request: Request, allowedRoles: string[]) {
   const session = await requireAuth(request);
 
   if (!allowedRoles.includes(session.userRole)) {
-    throw new Response('Forbidden', {
-      status: 403,
-    });
+    // Redirect ke halaman forbidden yang informatif (bukan ErrorBoundary generik)
+    // Gunakan `redirect` dari react-router agar benar-benar pindah halaman (302).
+    const { redirect } = await import("react-router");
+    throw redirect("/forbidden");
   }
 
   return session;

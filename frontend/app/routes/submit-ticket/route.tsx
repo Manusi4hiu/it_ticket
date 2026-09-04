@@ -18,7 +18,6 @@ import {
     Phone,
     Building2,
     Flag,
-    Tag,
     FileText,
     MessageSquare,
     Image as ImageIcon,
@@ -28,9 +27,16 @@ import styles from "./style.module.css";
 
 import { createTicket } from "~/services/ticket.service";
 import { settingsApi, type Category, type Priority, type Department } from "~/services/settings.service";
+import { getUserSession } from "~/services/session.service";
 import { compressImage } from "~/utils/image-compression";
 
 export async function loader({ request }: Route.LoaderArgs) {
+    // Deteksi sesi: pengunjung tanpa login (dari landing page) vs staff login (dari dashboard).
+    // Menentukan arah tombol "Back to Home"/"Cancel":
+    //   - tanpa login  -> kembali ke landing page "/"
+    //   - sudah login -> kembali ke dashboard "/dashboard"
+    const session = await getUserSession(request);
+
     const [categoriesRes, prioritiesRes, departmentsRes] = await Promise.all([
         settingsApi.getCategories(),
         settingsApi.getPriorities(),
@@ -38,6 +44,8 @@ export async function loader({ request }: Route.LoaderArgs) {
     ]);
 
     return {
+        isAuthenticated: Boolean(session),
+        homePath: session ? "/dashboard" : "/",
         categories: (categoriesRes.data?.data || []) as Category[],
         priorities: (prioritiesRes.data?.data || []) as Priority[],
         departments: (departmentsRes.data?.data || []) as Department[]
@@ -46,20 +54,46 @@ export async function loader({ request }: Route.LoaderArgs) {
 
 export async function action({ request }: Route.ActionArgs) {
     const formData = await request.formData();
-    const name = formData.get("name") as string;
-    const email = formData.get("email") as string;
-    const phone = formData.get("phone") as string;
-    const department = formData.get("department") as string;
-    const priority = formData.get("priority") as string || 'medium';
-    const category = formData.get("category") as string || "Uncategorized";
-    const subject = formData.get("subject") as string;
-    const description = formData.get("description") as string;
+    const name = (formData.get("name") as string || "").trim();
+    const email = (formData.get("email") as string || "").trim();
+    const phone = (formData.get("phone") as string || "").trim();
+    const department = (formData.get("department") as string || "").trim();
+    const priority = (formData.get("priority") as string || 'medium').trim();
+    const category = (formData.get("category") as string || "Uncategorized").trim();
+    const subject = (formData.get("subject") as string || "").trim();
+    const description = (formData.get("description") as string || "").trim();
+    
     const image = formData.get("image") as File | null;
+    const validImage = image && typeof image === 'object' && image.size > 0 && image.name ? image : undefined;
 
     const idempotencyKey = formData.get("idempotencyKey") as string;
 
-    if (!name || !department || !subject || !description) {
-        return { error: "All required fields must be filled" };
+    if (!name) {
+        return { error: "Full Name tidak boleh kosong atau hanya berisi spasi" };
+    }
+    if (!department) {
+        return { error: "Department wajib dipilih" };
+    }
+    if (!subject) {
+        return { error: "Subject / Judul tidak boleh kosong atau hanya berisi spasi" };
+    }
+    if (subject.length < 3) {
+        return { error: "Subject / Judul minimal 3 karakter" };
+    }
+    if (subject.length > 255) {
+        return { error: "Subject / Judul maksimal 255 karakter" };
+    }
+    if (!description) {
+        return { error: "Description tidak boleh kosong atau hanya berisi spasi" };
+    }
+    if (description.length > 5000) {
+        return { error: "Description maksimal 5000 karakter" };
+    }
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return { error: "Format Email tidak valid" };
+    }
+    if (phone && !/^[\d\s+\-()]{6,20}$/.test(phone)) {
+        return { error: "Nomor telepon hanya boleh berisi angka dan simbol +, -, ()" };
     }
 
     try {
@@ -69,55 +103,81 @@ export async function action({ request }: Route.ActionArgs) {
             priority: priority,
             category: category,
             submitterName: name,
-            submitterEmail: email,
-            submitterPhone: phone,
+            submitterEmail: email || "",
+            submitterPhone: phone || undefined,
             submitterDepartment: department,
-        }, image && image.size > 0 ? image : undefined, idempotencyKey);
+        }, validImage, idempotencyKey);
 
         if (!newTicket) {
-            return { error: "Failed to create ticket." };
+            return { error: "Gagal membuat ticket." };
         }
 
         return { success: true, ticketId: newTicket.id, ticketCode: newTicket.ticketCode };
-    } catch (error) {
+    } catch (error: any) {
         console.error("Failed to create ticket:", error);
-        return { error: "Failed to create ticket. Please try again later." };
+        const errorMsg = error?.response?.data?.error || error?.message || "Gagal membuat ticket. Silakan coba lagi nanti.";
+        return { error: errorMsg };
     }
 }
 
 export default function SubmitTicket({ actionData, loaderData }: Route.ComponentProps) {
-    const { categories, priorities, departments } = loaderData;
+    const { priorities, departments, homePath } = loaderData;
     const navigate = useNavigate();
     const navigation = useNavigation();
     const isSubmitting = navigation.state !== "idle";
     const [imagePreview, setImagePreview] = React.useState<string | null>(null);
+    const [fileError, setFileError] = React.useState<string | null>(null);
     const idempotencyKey = React.useMemo(() => uuidv4(), []);
     const submit = useSubmit();
     const [compressedFile, setCompressedFile] = React.useState<File | null>(null);
 
+    // "Back to Home" context-aware:
+    // - sesi tanpa login (dari landing page)  -> "/" (landing page)
+    // - sesi login (dari dashboard manual)     -> "/dashboard"
+    const goHome = () => navigate(homePath);
+
     const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
+        setFileError(null);
         if (file) {
-            const compressed = await compressImage(file);
-            setCompressedFile(compressed);
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                setImagePreview(reader.result as string);
-            };
-            reader.readAsDataURL(compressed);
+            try {
+                const compressed = await compressImage(file);
+                setCompressedFile(compressed);
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    setImagePreview(reader.result as string);
+                };
+                reader.readAsDataURL(compressed);
+            } catch (err) {
+                console.error("Image compression error:", err);
+                setCompressedFile(file);
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    setImagePreview(reader.result as string);
+                };
+                reader.readAsDataURL(file);
+            }
         } else {
             setImagePreview(null);
             setCompressedFile(null);
         }
     };
 
+    const handleRemoveImage = () => {
+        setCompressedFile(null);
+        setImagePreview(null);
+        setFileError(null);
+        const fileInput = document.getElementById("image") as HTMLInputElement;
+        if (fileInput) fileInput.value = "";
+    };
+
     const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
+        if (fileError) return;
         const formData = new FormData(e.currentTarget);
+        formData.delete("image");
         if (compressedFile) {
-            formData.set("image", compressedFile);
-        } else {
-            formData.delete("image");
+            formData.append("image", compressedFile);
         }
         submit(formData, { method: "post", encType: "multipart/form-data" });
     };
@@ -125,7 +185,7 @@ export default function SubmitTicket({ actionData, loaderData }: Route.Component
     return (
         <main className={styles.main}>
             <div style={{ marginBottom: 'var(--space-6)' }}>
-                <Link to="/dashboard" className={styles.backLink}>
+                <Link to={homePath} className={styles.backLink}>
                     <ArrowLeft size={20} />
                     Back to Home
                 </Link>
@@ -148,7 +208,7 @@ export default function SubmitTicket({ actionData, loaderData }: Route.Component
                             <Button onClick={() => navigate(`/ticket/${actionData.ticketCode || actionData.ticketId}`)}>
                                 Track This Ticket
                             </Button>
-                            <Button variant="outline" onClick={() => navigate("/dashboard")}>
+                            <Button variant="outline" onClick={goHome}>
                                 Back to Home
                             </Button>
                         </div>
@@ -190,6 +250,7 @@ export default function SubmitTicket({ actionData, loaderData }: Route.Component
                                                 name="name"
                                                 required
                                                 placeholder="John Doe"
+                                                maxLength={100}
                                                 className={styles.input}
                                             />
                                         </div>
@@ -204,6 +265,7 @@ export default function SubmitTicket({ actionData, loaderData }: Route.Component
                                                 name="email"
                                                 type="email"
                                                 placeholder="john@company.com"
+                                                maxLength={120}
                                                 className={styles.input}
                                             />
                                         </div>
@@ -217,7 +279,10 @@ export default function SubmitTicket({ actionData, loaderData }: Route.Component
                                                 id="phone"
                                                 name="phone"
                                                 type="tel"
+                                                pattern="[0-9+\-() ]*"
+                                                title="Hanya angka, spasi, dan simbol +, -, ()"
                                                 placeholder="+62 812 3456 7890"
+                                                maxLength={20}
                                                 className={styles.input}
                                             />
                                         </div>
@@ -249,7 +314,6 @@ export default function SubmitTicket({ actionData, loaderData }: Route.Component
                                         <FileText size={18} />
                                         Ticket Details
                                     </h3>
-                                    {/* Removed Category field */}
 
                                     <div className={styles.formGroup}>
                                         <Label htmlFor="priority" className={styles.label}>
@@ -284,6 +348,7 @@ export default function SubmitTicket({ actionData, loaderData }: Route.Component
                                             required
                                             placeholder="Brief summary of the issue"
                                             className={styles.input}
+                                            maxLength={255}
                                         />
                                     </div>
 
@@ -299,15 +364,16 @@ export default function SubmitTicket({ actionData, loaderData }: Route.Component
                                             placeholder="Please provide detailed information about your issue..."
                                             rows={6}
                                             className={styles.textarea}
+                                            maxLength={5000}
                                         />
                                     </div>
-
+                                    
                                     <div className={styles.formGroup}>
                                         <Label htmlFor="image" className={styles.label}>
                                             <ImageIcon size={14} />
                                             Attachment Image (Optional)
                                         </Label>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                                             <div style={{ position: 'relative' }}>
                                                 <Input
                                                     id="image"
@@ -319,20 +385,31 @@ export default function SubmitTicket({ actionData, loaderData }: Route.Component
                                                     style={{ padding: '8px 12px', height: 'auto' }}
                                                 />
                                             </div>
+                                            <p style={{ fontSize: '0.8rem', color: 'var(--color-neutral-9)', marginTop: -4 }}>
+                                                Gambar akan dikompresi otomatis untuk menghemat ruang penyimpanan.
+                                            </p>
+
+                                            {fileError && (
+                                                <Alert variant="destructive" className={styles.errorAlert} style={{ marginTop: 4 }}>
+                                                    <AlertDescription>{fileError}</AlertDescription>
+                                                </Alert>
+                                            )}
+
                                             {imagePreview && (
                                                 <div style={{ position: 'relative', width: 'fit-content', marginTop: 8 }}>
                                                     <img
                                                         src={imagePreview}
                                                         alt="Preview"
-                                                        style={{ maxWidth: '100%', maxHeight: 200, borderRadius: 12, border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}
+                                                        style={{ maxWidth: '100%', maxHeight: 220, borderRadius: 12, border: '1px solid rgba(255,255,255,0.15)', boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}
                                                     />
+                                                    {compressedFile && (
+                                                        <div style={{ fontSize: '0.75rem', color: 'var(--color-neutral-10)', marginTop: 4 }}>
+                                                            Ukuran dikompresi: {(compressedFile.size / 1024).toFixed(0)} KB
+                                                        </div>
+                                                    )}
                                                     <button
                                                         type="button"
-                                                        onClick={() => {
-                                                            setImagePreview(null);
-                                                            const fileInput = document.getElementById('image') as HTMLInputElement;
-                                                            if (fileInput) fileInput.value = '';
-                                                        }}
+                                                        onClick={handleRemoveImage}
                                                         style={{
                                                             position: 'absolute',
                                                             top: -10,
@@ -341,8 +418,8 @@ export default function SubmitTicket({ actionData, loaderData }: Route.Component
                                                             color: 'white',
                                                             border: 'none',
                                                             borderRadius: '50%',
-                                                            width: 24,
-                                                            height: 24,
+                                                            width: 26,
+                                                            height: 26,
                                                             display: 'flex',
                                                             alignItems: 'center',
                                                             justifyContent: 'center',
@@ -350,6 +427,7 @@ export default function SubmitTicket({ actionData, loaderData }: Route.Component
                                                             boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
                                                             zIndex: 10
                                                         }}
+                                                        title="Hapus gambar"
                                                     >
                                                         <X size={14} />
                                                     </button>
@@ -360,7 +438,7 @@ export default function SubmitTicket({ actionData, loaderData }: Route.Component
                                 </div>
 
                                 <div className={styles.formActions}>
-                                    <Button type="button" variant="outline" onClick={() => navigate("/dashboard")} disabled={isSubmitting}>
+                                    <Button type="button" variant="outline" onClick={goHome} disabled={isSubmitting}>
                                         Cancel
                                     </Button>
                                     <Button type="submit" className={styles.submitButton} disabled={isSubmitting}>

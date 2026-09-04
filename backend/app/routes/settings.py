@@ -100,8 +100,17 @@ def create_sla_policy():
     data = request.get_json()
     if not data:
          return jsonify({'success': False, 'error': 'No data provided'}), 400
-         
+    # BUG 7 fix: validate hours >0 and priority/category existence
+    for field in ['responseTimeMinutes', 'response_time_minutes', 'resolutionTimeHours', 'resolution_time_hours']:
+        if field in data and data[field] is not None:
+            try:
+                if float(data[field]) <= 0:
+                    return jsonify({'success': False, 'error': f'{field} must be > 0'}), 400
+            except (TypeError, ValueError):
+                return jsonify({'success': False, 'error': f'{field} must be a number'}), 400
     policy, error = MasterDataService.create_sla_policy(data)
+    if error:
+        return jsonify({'success': False, 'error': error}), 400
     return jsonify({'success': True, 'data': policy.to_dict()})
 
 @settings_bp.route('/sla-policies/<id>', methods=['PUT'])
@@ -110,6 +119,13 @@ def update_sla_policy(id):
     data = request.get_json()
     if not data:
          return jsonify({'success': False, 'error': 'No data provided'}), 400
+    for field in ['responseTimeMinutes', 'response_time_minutes', 'resolutionTimeHours', 'resolution_time_hours']:
+        if field in data and data[field] is not None:
+            try:
+                if float(data[field]) <= 0:
+                    return jsonify({'success': False, 'error': f'{field} must be > 0'}), 400
+            except (TypeError, ValueError):
+                return jsonify({'success': False, 'error': f'{field} must be a number'}), 400
          
     policy, error = MasterDataService.update_sla_policy(id, data)
     if error:
@@ -219,19 +235,37 @@ def reorder_statuses():
     if not data or 'order' not in data or not isinstance(data['order'], list):
         return jsonify({'success': False, 'error': 'order array is required'}), 400
 
+    order_list = data['order']
+    if not order_list:
+        return jsonify({'success': False, 'error': 'order array cannot be empty'}), 400
+
+    # Validate integer IDs and uniqueness
     try:
-        from app import db
-        from app.models.master_data import Status
-        for idx, sid in enumerate(data['order']):
-            s = Status.query.get(int(sid))
-            if s:
-                s.order = idx + 1
+        int_ids = [int(sid) for sid in order_list]
+    except (ValueError, TypeError):
+        return jsonify({'success': False, 'error': 'All IDs in order must be valid integers'}), 400
+
+    if len(int_ids) != len(set(int_ids)):
+        return jsonify({'success': False, 'error': 'Duplicate IDs detected in order array'}), 400
+
+    from app import db
+    from app.models.master_data import Status
+
+    # Validate that all IDs exist
+    existing_statuses = Status.query.filter(Status.id.in_(int_ids)).all()
+    if len(existing_statuses) != len(int_ids):
+        return jsonify({'success': False, 'error': 'One or more status IDs do not exist'}), 400
+
+    status_map = {s.id: s for s in existing_statuses}
+    try:
+        for idx, sid in enumerate(int_ids):
+            status_map[sid].order = idx + 1
         db.session.commit()
         updated = MasterDataService.get_statuses()
         return jsonify({'success': True, 'data': [s.to_dict() for s in updated]})
     except Exception as e:
         db.session.rollback()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'Failed to reorder statuses'}), 500
 
 # --- SYSTEM LOGS ---
 

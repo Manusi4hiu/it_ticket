@@ -31,6 +31,7 @@ function mapApiTicket(apiTicket: Record<string, unknown>): Ticket {
         submitterEmail: apiTicket.submitterEmail as string,
         submitterPhone: apiTicket.submitterPhone as string | undefined,
         submitterDepartment: apiTicket.submitterDepartment as string | undefined,
+        imageUrl: apiTicket.imageUrl as string | undefined,
         assignedTo: apiTicket.assignedTo as string | undefined,
         assignedToId: apiTicket.assignedToId as number | undefined,
         collaborators: (apiTicket.collaborators as string[]) || [],
@@ -42,6 +43,7 @@ function mapApiTicket(apiTicket: Record<string, unknown>): Ticket {
         slaPausedAt: apiTicket.slaPausedAt ? new Date(apiTicket.slaPausedAt as string) : undefined,
         slaStatus: apiTicket.slaStatus as SLAStatus,
         takenAt: apiTicket.takenAt ? new Date(apiTicket.takenAt as string) : undefined,
+        transferredAt: apiTicket.transferredAt ? new Date(apiTicket.transferredAt as string) : undefined,
         notes: ((apiTicket.notes as Array<Record<string, unknown>>) || []).map(note => ({
             id: note.id as number,
             content: note.content as string,
@@ -52,7 +54,6 @@ function mapApiTicket(apiTicket: Record<string, unknown>): Ticket {
         })),
         resolutionSummary: apiTicket.resolutionSummary as string | undefined,
         resolutionImageUrl: apiTicket.resolutionImageUrl as string | undefined,
-        imageUrl: apiTicket.imageUrl as string | undefined,
     };
 }
 
@@ -132,8 +133,8 @@ export async function deleteTicket(id: string): Promise<boolean> {
     return response.success;
 }
 
-export async function assignTicket(id: string, userId: string | null): Promise<Ticket | null> {
-    const response = await ticketsApi.assign(id, userId);
+export async function assignTicket(id: string, userId: string | null, transferReason?: string): Promise<Ticket | null> {
+    const response = await ticketsApi.assign(id, userId, transferReason);
 
     if (!response.success || !response.data) {
         console.error('Failed to assign ticket:', response.error);
@@ -205,6 +206,7 @@ export async function getTicketStats(personal: boolean = false): Promise<{
     assigned: number;
     resolved: number;
     workedOn: number;
+    pending: number;
     sla: {
         breached: number;
         warning: number;
@@ -234,6 +236,7 @@ export async function getTicketStats(personal: boolean = false): Promise<{
         assigned: number;
         resolved: number;
         workedOn: number;
+        pending: number;
         sla: {
             breached: number;
             warning: number;

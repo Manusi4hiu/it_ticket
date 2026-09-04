@@ -6,7 +6,7 @@
  * Membutuhkan resolution summary minimal 20 karakter dan waktu aktual resolve.
  */
 
-import { CheckCircle } from "lucide-react";
+import { CheckCircle, X, Image as ImageIcon } from "lucide-react";
 import { Button } from "~/components/ui/button/button";
 import { Label } from "~/components/ui/label/label";
 import { Textarea } from "~/components/ui/textarea/textarea";
@@ -18,6 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "~/components/ui/dialog/dialog";
+import { toDatetimeLocalString } from "~/utils/date";
 import styles from "../style.module.css";
 
 // ─────────────────────────────────────────────
@@ -39,10 +40,10 @@ interface ResolveDialogProps {
   onSummaryChange: (value: string) => void;
   /** Pesan error validasi (kosong jika tidak ada error) */
   resolutionError: string;
-  /** File gambar resolusi (opsional) */
-  resolutionImage: File | null;
+  /** File gambar bukti resolusi (opsional) */
+  resolutionImage?: File | null;
   /** Callback saat file gambar dipilih */
-  onResolutionImageChange: (file: File | null) => void;
+  onResolutionImageChange?: (file: File | null) => void;
   /** Callback submit form resolve */
   onSubmit: () => void;
 }
@@ -51,24 +52,6 @@ interface ResolveDialogProps {
 // Component
 // ─────────────────────────────────────────────
 
-/**
- * ResolveDialog
- *
- * Modal form untuk menutup ticket dengan resolution summary.
- * Validasi dilakukan di `useTicketActions.handleSubmitResolution`.
- *
- * @example
- * <ResolveDialog
- *   open={showResolveDialog}
- *   onOpenChange={setShowResolveDialog}
- *   resolveDate={resolveDate}
- *   onResolveDateChange={setResolveDate}
- *   resolutionSummary={resolutionSummary}
- *   onSummaryChange={setResolutionSummary}
- *   resolutionError={resolutionError}
- *   onSubmit={handleSubmitResolution}
- * />
- */
 export function ResolveDialog({
   open,
   onOpenChange,
@@ -81,6 +64,13 @@ export function ResolveDialog({
   onResolutionImageChange,
   onSubmit,
 }: ResolveDialogProps) {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null;
+    if (onResolutionImageChange) {
+      onResolutionImageChange(file);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className={styles.dialogContent}>
@@ -110,6 +100,7 @@ export function ResolveDialog({
                 marginTop: "var(--space-1)",
               }}
               value={resolveDate}
+              max={toDatetimeLocalString(new Date())}
               onChange={(e) => onResolveDateChange(e.target.value)}
               required
             />
@@ -133,12 +124,13 @@ export function ResolveDialog({
 
           {/* Resolution Image */}
           <Label htmlFor="resolution-image" style={{ marginTop: "var(--space-3)", display: "block" }}>
+            <ImageIcon size={14} style={{ display: "inline", marginRight: 6 }} />
             Resolution Image (optional)
           </Label>
           <input
             type="file"
             id="resolution-image"
-            accept="image/jpeg,image/png,image/gif"
+            accept="image/jpeg,image/png,image/gif,image/webp"
             style={{
               width: "100%",
               padding: "var(--space-1)",
@@ -146,15 +138,52 @@ export function ResolveDialog({
               border: "1px solid var(--color-neutral-4)",
               marginTop: "var(--space-1)",
             }}
-            onChange={(e) => {
-              const file = e.target.files?.[0] || null;
-              onResolutionImageChange(file);
-            }}
+            onChange={handleFileChange}
           />
+
           {resolutionImage && (
-            <p style={{ fontSize: "var(--font-size-sm)", color: "var(--text-secondary)", marginTop: "var(--space-1)" }}>
-              Selected: {resolutionImage.name}
-            </p>
+            <div style={{
+              position: "relative",
+              width: "fit-content",
+              marginTop: 8,
+              borderRadius: 6,
+              overflow: "hidden",
+              border: "1px solid rgba(255,255,255,0.15)",
+            }}>
+              <img
+                src={URL.createObjectURL(resolutionImage)}
+                alt={resolutionImage.name}
+                style={{ width: "100%", maxHeight: 120, objectFit: "cover" }}
+              />
+              <div style={{ padding: "2px 6px", fontSize: "0.72rem", background: "rgba(0,0,0,0.6)", color: "#fff" }}>
+                {resolutionImage.name} ({(resolutionImage.size / 1024).toFixed(0)} KB)
+              </div>
+              {onResolutionImageChange && (
+                <button
+                  type="button"
+                  onClick={() => onResolutionImageChange(null)}
+                  style={{
+                    position: "absolute",
+                    top: 4,
+                    right: 4,
+                    background: "#ef4444",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "50%",
+                    width: 20,
+                    height: 20,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: "pointer",
+                    zIndex: 5
+                  }}
+                  title="Remove image"
+                >
+                  <X size={12} />
+                </button>
+              )}
+            </div>
           )}
         </div>
 
@@ -162,7 +191,9 @@ export function ResolveDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={onSubmit}>Resolve Ticket</Button>
+          <Button onClick={onSubmit} disabled={!resolutionSummary.trim() || !resolveDate}>
+            Resolve Ticket
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -28,7 +28,7 @@ import {
   type Agent,
 } from "~/services/ticket.service";
 import { formatDate } from "~/utils/date";
-import { getStatusColor, getPriorityClass, formatStatus } from "~/utils/ticket-ui";
+import { getStatusColor, getPriorityClass, formatStatus, canTakeTicket } from "~/utils/ticket-ui";
 import type { Status } from "~/services/settings.service";
 import styles from "../style.module.css";
 
@@ -205,7 +205,8 @@ export function TicketRow({
               <div className={styles.takeAction}>
                 <span className={styles.unassignedText}>Unassigned</span>
                 {(session.userRole === "Staff" ||
-                  session.userRole === "Administrator") && (
+                  session.userRole === "Administrator") &&
+                  canTakeTicket(ticket.status) && (
                   <Button
                     size="sm"
                     className={styles.miniTakeButton}

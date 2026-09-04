@@ -44,19 +44,32 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
   const location = useLocation();
   const isAdministrator = session?.userRole === 'Administrator';
 
+  // Role yang boleh melihat Dev Board (Management view-only)
+  const canAccessDevBoard = isAdministrator || session?.userRole === 'Staff' || session?.userRole === 'Management';
+
   const [isDevMode, setIsDevMode] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem("app_mode_dev");
-    if (saved === "true") {
+    // Jangan izinkan mode Dev tersimpan untuk role tanpa akses dev board
+    // (localStorage persist antar sesi/user — guard agar Management tidak terjebak)
+    if (saved === "true" && canAccessDevBoard) {
       setIsDevMode(true);
+    } else {
+      if (saved === "true") {
+        localStorage.removeItem("app_mode_dev");
+      }
+      setIsDevMode(false);
     }
-  }, []);
+  }, [canAccessDevBoard]);
 
-  // ── KRITIS: Sync JWT token dari SSR session ke in-memory client-side ──
+  // ── KRITIS: Sync JWT token dari SSR session ke in-memory client-side (BUG 5 fix)
   // `getUserSession()` hanya berjalan di server. Setelah browser hydration,
-  // `authToken` di api.service.ts kembali null. useEffect ini memastikan
-  // token selalu tersedia untuk semua client-side API call di setiap route.
+  // `authToken` di api.service.ts kembali null. Sync secara sinkron saat render
+  // agar child fetch di render pertama sudah dapat token (hindari race 401).
+  if (typeof window !== "undefined" && session?.authToken) {
+    setAuthToken(session.authToken);
+  }
   useEffect(() => {
     if (session?.authToken) {
       setAuthToken(session.authToken);
@@ -84,7 +97,7 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
     <div className={styles.container}>
       <header className={styles.header}>
         <div className={styles.headerContent}>
-          <div className={styles.headerLeft} onClick={() => navigate(isDevMode ? "/dev-dashboard" : "/dashboard")} style={{ cursor: "pointer" }}>
+          <div className={styles.headerLeft} onClick={() => navigate(canAccessDevBoard && isDevMode ? "/dev-dashboard" : "/dashboard")} style={{ cursor: "pointer" }}>
             <div className={styles.logoContainer}>
               <img src="/logo/logo itani.png" alt="Logo" className={styles.headerIcon} />
             </div>
@@ -95,22 +108,25 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
 
           {session && (
             <nav className={styles.navBar}>
-              <div className={styles.modeToggle}>
-                <button
-                  type="button"
-                  className={`${styles.toggleBtn} ${!isDevMode ? styles.toggleBtnActive : ''}`}
-                  onClick={() => handleToggleMode(false)}
-                >
-                  Helpdesk
-                </button>
-                <button
-                  type="button"
-                  className={`${styles.toggleBtn} ${isDevMode ? styles.toggleBtnActive : ''}`}
-                  onClick={() => handleToggleMode(true)}
-                >
-                  Dev Team
-                </button>
-              </div>
+              {/* Dev Team toggle hanya untuk Administrator & Staff (Management view-only helpdesk) */}
+              {canAccessDevBoard && (
+                <div className={styles.modeToggle}>
+                  <button
+                    type="button"
+                    className={`${styles.toggleBtn} ${!isDevMode ? styles.toggleBtnActive : ''}`}
+                    onClick={() => handleToggleMode(false)}
+                  >
+                    Helpdesk
+                  </button>
+                  <button
+                    type="button"
+                    className={`${styles.toggleBtn} ${isDevMode ? styles.toggleBtnActive : ''}`}
+                    onClick={() => handleToggleMode(true)}
+                  >
+                    Dev Team
+                  </button>
+                </div>
+              )}
 
               <div className={styles.navGroup}>
                 {!isDevMode ? (
