@@ -144,3 +144,22 @@ def get_all_performance():
         'success': True,
         'performance': results
     }), 200
+
+
+@users_bp.route('/<user_id>/toggle-active', methods=['PATCH'])
+@jwt_required()
+def toggle_active(user_id):
+    """Toggle active/inactive status of a user (admin only)"""
+    current_user_id = get_jwt_identity()
+    current_user = UserService.get_user_by_id(current_user_id)
+
+    user, message, status_code = UserService.toggle_active(user_id, current_user)
+
+    if not user:
+        return jsonify({'success': False, 'error': message}), status_code
+
+    return jsonify({
+        'success': True,
+        'user': user.to_dict(),
+        'message': message
+    }), 200

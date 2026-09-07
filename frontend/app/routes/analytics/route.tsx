@@ -29,11 +29,11 @@ export async function loader({ request }: Route.LoaderArgs) {
     getAllAgentsPerformance()
   ]);
 
-  return {
+  return Response.json({
     session,
     stats,
     agentsPerformance
-  };
+  });
 }
 
 export default function Analytics({ loaderData }: Route.ComponentProps) {
@@ -88,13 +88,13 @@ export default function Analytics({ loaderData }: Route.ComponentProps) {
     if (resolvedCount >= 5 && avgTime <= 4) performance = "excellent";
     else if (resolvedCount >= 2 || avgTime <= 8) performance = "good";
 
-    return {
+    return Response.json({
       name: agent.name,
       assigned: total,
       resolved: resolvedCount,
       avgTime: `${avgTime.toFixed(1)}h`,
       performance,
-    };
+    });
   }), [agentsPerformance]);
 
   const trendData = useMemo(() => stats.trend || [], [stats.trend]);

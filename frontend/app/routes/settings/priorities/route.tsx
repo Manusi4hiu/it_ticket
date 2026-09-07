@@ -23,7 +23,7 @@ import type { Priority } from "~/services/settings.service";
 
 export async function loader({ request }: Route.LoaderArgs) {
     const response = await settingsApi.getPriorities();
-    return { priorities: response.data?.data || [] };
+    return Response.json({ priorities: response.data?.data || [] });
 }
 
 export async function action({ request }: Route.ActionArgs) {
@@ -38,13 +38,13 @@ export async function action({ request }: Route.ActionArgs) {
         const color = formData.get("color") as string;
         const description = formData.get("description") as string;
 
-        if (!name) return { error: "Name is required" };
+        if (!name) return Response.json({ error: "Name is required" }, { status: 400 });
 
         const response = await settingsApi.createPriority({
             name, slaHours, responseTimeMinutes, level, color, description, isActive: true
         });
-        if (!response.success) return { error: response.error };
-        return { success: true };
+        if (!response.success) return Response.json({ error: response.error }, { status: 400 });
+        return Response.json({ success: true }, { status: 200 });
     }
 
     if (intent === "update") {
@@ -57,20 +57,20 @@ export async function action({ request }: Route.ActionArgs) {
         const description = formData.get("description") as string;
         const isActive = formData.get("isActive") === "true";
 
-        if (!id || !name) return { error: "ID and Name are required" };
+        if (!id || !name) return Response.json({ error: "ID and Name are required" }, { status: 400 });
 
         const response = await settingsApi.updatePriority(id, {
             name, slaHours, responseTimeMinutes, level, color, description, isActive
         });
-        if (!response.success) return { error: response.error };
-        return { success: true };
+        if (!response.success) return Response.json({ error: response.error }, { status: 400 });
+        return Response.json({ success: true }, { status: 200 });
     }
 
     if (intent === "delete") {
         const id = formData.get("id") as string;
         const response = await settingsApi.deletePriority(id);
-        if (!response.success) return { error: response.error };
-        return { success: true };
+        if (!response.success) return Response.json({ error: response.error }, { status: 400 });
+        return Response.json({ success: true }, { status: 200 });
     }
 
     return null;

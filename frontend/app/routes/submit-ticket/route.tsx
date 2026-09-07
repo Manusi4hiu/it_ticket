@@ -49,7 +49,7 @@ export async function loader({ request }: Route.LoaderArgs) {
         categories: (categoriesRes.data?.data || []) as Category[],
         priorities: (prioritiesRes.data?.data || []) as Priority[],
         departments: (departmentsRes.data?.data || []) as Department[]
-    };
+    });
 }
 
 export async function action({ request }: Route.ActionArgs) {

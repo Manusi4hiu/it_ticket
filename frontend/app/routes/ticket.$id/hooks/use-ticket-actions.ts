@@ -80,6 +80,8 @@ export function useTicketActions({
   const [resolutionError, setResolutionError] = useState("");
   const [resolveDate, setResolveDate] = useState<string>("");
   const [resolutionImage, setResolutionImage] = useState<File | null>(null);
+  const [resolveCategory, setResolveCategory] = useState("");
+  const [resolveCategoryError, setResolveCategoryError] = useState("");
 
   // ── Reason Dialog State ──
   const [showReasonDialog, setShowReasonDialog] = useState(false);
@@ -580,6 +582,8 @@ export function useTicketActions({
     setResolutionError("");
     setResolutionSummary("");
     setResolutionImage(null);
+    setResolveCategory(ticket.category || "");
+    setResolveCategoryError("");
     setResolveDate(toDatetimeLocalString(new Date()));
     setShowResolveDialog(true);
   };
@@ -617,11 +621,20 @@ export function useTicketActions({
       );
 
       if (updated) {
-        setTicket(updated);
-        setStatus(updated.status);
+        // Update category if changed
+        let final = updated;
+        if (resolveCategory && resolveCategory !== updated.category) {
+          const catUpdated = await updateTicket(String(ticket.id), { category: resolveCategory });
+          if (catUpdated) final = catUpdated;
+        }
+
+        setTicket(final);
+        setStatus(final.status);
+        setCategory(final.category);
         setShowResolveDialog(false);
         setResolutionSummary("");
         setResolutionImage(null);
+        setResolveCategory("");
 
         toast({
           title: "Ticket Resolved! 🎉",

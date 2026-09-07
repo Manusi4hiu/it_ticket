@@ -45,8 +45,19 @@ export async function loader({ request }: Route.LoaderArgs) {
   const session = await requireAuth(request);
   const url = new URL(request.url);
   
+  const [agents, statusResponse, categoryResponse] = await Promise.all([
+    getAgents(),
+    settingsApi.getStatuses(),
+    settingsApi.getCategories()
+  ]);
+
+  const allStatuses = statusResponse.data?.data || [];
+  const defaultStatusObj = allStatuses.find((s: any) => s.isDefault);
+  const defaultStatusName = defaultStatusObj ? defaultStatusObj.name : "NEW";
+
+  const statusParam = url.searchParams.get("status");
   const filters = {
-    status: url.searchParams.get("status") || undefined,
+    status: statusParam === "all" ? undefined : (statusParam || defaultStatusName),
     priority: url.searchParams.get("priority") || undefined,
     category: url.searchParams.get("category") || undefined,
     assignedTo: url.searchParams.get("assignedTo") || undefined,
@@ -63,7 +74,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     getTicketStats()
   ]);
 
-  return {
+  return Response.json({
     session,
     tickets: ticketResponse.tickets,
     totalTickets: ticketResponse.total,

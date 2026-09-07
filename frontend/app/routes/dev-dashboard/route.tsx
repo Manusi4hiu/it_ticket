@@ -77,13 +77,14 @@ export async function loader({ request }: Route.LoaderArgs) {
   // Management boleh akses Dev Board (view-only); Admin & Staff full access
   const session = await requireRole(request, ["Administrator", "Staff", "Management"]);
 
-  const [ticketsRes, agents, statusesRes] = await Promise.all([
+  const [ticketsRes, agents, statusesRes, categoriesRes] = await Promise.all([
     getTickets({ category: "Development", per_page: 150 }), // Only show Development-scoped tracking tasks
     getAgents(),
-    settingsApi.getStatuses()
+    settingsApi.getStatuses(),
+    settingsApi.getCategories()
   ]);
 
-  return {
+  return Response.json({
     session,
     initialTickets: ticketsRes.tickets,
     agents,
@@ -151,6 +152,8 @@ export default function DevDashboard() {
   const [resolutionSummary, setResolutionSummary] = useState("");
   const [resolutionError, setResolutionError] = useState("");
   const [resolutionImage, setResolutionImage] = useState<File | null>(null);
+  const [resolveCategory, setResolveCategory] = useState("");
+  const [resolveCategoryError, setResolveCategoryError] = useState("");
 
   // Transfer assignee dialog state (oper task taken → alasan wajib, server 409 tanpa alasan)
   const [showTransferDialog, setShowTransferDialog] = useState(false);
@@ -485,6 +488,8 @@ export default function DevDashboard() {
       !originalTicket.resolutionSummary;
 
     if (isResolvingWithoutSummary) {
+      setResolveCategory(originalTicket?.category || "Development");
+      setResolveCategoryError("");
       setPendingStatusUpdate({ ticketId, targetStatus });
       setShowResolveDialog(true);
       return;
@@ -1315,8 +1320,14 @@ export default function DevDashboard() {
             setResolutionImage(null);
             setPendingStatusUpdate(null);
             setResolutionError("");
+            setResolveCategory("");
+            setResolveCategoryError("");
           }
         }}
+        categories={categories}
+        resolveCategory={resolveCategory}
+        onResolveCategoryChange={setResolveCategory}
+        resolveCategoryError={resolveCategoryError}
         resolveDate={resolveDate}
         onResolveDateChange={setResolveDate}
         resolutionSummary={resolutionSummary}

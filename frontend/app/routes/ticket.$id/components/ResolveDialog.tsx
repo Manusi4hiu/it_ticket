@@ -22,6 +22,42 @@ import { toDatetimeLocalString } from "~/utils/date";
 import styles from "../style.module.css";
 
 // ─────────────────────────────────────────────
+// Shared field style (dark-theme aware)
+// ─────────────────────────────────────────────
+
+const fieldStyle: React.CSSProperties = {
+  width: "100%",
+  marginTop: "6px",
+  padding: "9px 12px",
+  borderRadius: "8px",
+  border: "1px solid rgba(255,255,255,0.12)",
+  background: "rgba(255,255,255,0.06)",
+  color: "inherit",
+  fontSize: "0.875rem",
+  lineHeight: "1.5",
+  outline: "none",
+  transition: "border-color 0.2s",
+  boxSizing: "border-box" as const,
+};
+
+const fieldErrorStyle: React.CSSProperties = {
+  ...fieldStyle,
+  border: "1px solid #ef4444",
+};
+
+const fieldGroup: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  marginBottom: "16px",
+};
+
+const errorTextStyle: React.CSSProperties = {
+  marginTop: "5px",
+  fontSize: "0.75rem",
+  color: "#ef4444",
+};
+
+// ─────────────────────────────────────────────
 // Props
 // ─────────────────────────────────────────────
 
@@ -30,6 +66,14 @@ interface ResolveDialogProps {
   open: boolean;
   /** Callback saat dialog ditutup (cancel atau setelah submit) */
   onOpenChange: (open: boolean) => void;
+  /** Daftar kategori dari settings */
+  categories: Category[];
+  /** Kategori yang dipilih saat resolve */
+  resolveCategory: string;
+  /** Setter untuk resolveCategory */
+  onResolveCategoryChange: (value: string) => void;
+  /** Error validasi kategori */
+  resolveCategoryError: string;
   /** Nilai datetime-local untuk waktu resolve aktual */
   resolveDate: string;
   /** Setter untuk resolveDate */
@@ -55,6 +99,10 @@ interface ResolveDialogProps {
 export function ResolveDialog({
   open,
   onOpenChange,
+  categories,
+  resolveCategory,
+  onResolveCategoryChange,
+  resolveCategoryError,
   resolveDate,
   onResolveDateChange,
   resolutionSummary,
@@ -73,13 +121,36 @@ export function ResolveDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={styles.dialogContent}>
+      <DialogContent
+        className={styles.dialogContent}
+        style={{ maxWidth: "min(520px, 95vw)" }}
+      >
+        {/* ── Header ── */}
         <DialogHeader>
-          <DialogTitle className={styles.dialogTitle}>
-            <CheckCircle className={styles.dialogIcon} />
+          <DialogTitle
+            className={styles.dialogTitle}
+            style={{ display: "flex", alignItems: "center", gap: "10px" }}
+          >
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: "32px",
+                height: "32px",
+                borderRadius: "50%",
+                background: "rgba(16,185,129,0.15)",
+                flexShrink: 0,
+              }}
+            >
+              <CheckCircle size={18} color="#10b981" />
+            </span>
             Resolve Ticket
           </DialogTitle>
-          <DialogDescription className={styles.dialogDescription}>
+          <DialogDescription
+            className={styles.dialogDescription}
+            style={{ marginTop: "4px" }}
+          >
             Please provide a detailed summary of how this issue was resolved.
           </DialogDescription>
         </DialogHeader>
@@ -107,20 +178,24 @@ export function ResolveDialog({
           </div>
 
           {/* Resolution Summary */}
-          <Label htmlFor="resolution-summary">Resolution Summary *</Label>
-          <Textarea
-            id="resolution-summary"
-            placeholder="Describe the steps taken to resolve this issue..."
-            rows={6}
-            value={resolutionSummary}
-            onChange={(e) => {
-              onSummaryChange(e.target.value);
-            }}
-            className={resolutionError ? styles.textareaError : ""}
-          />
-          {resolutionError && (
-            <p className={styles.errorText}>{resolutionError}</p>
-          )}
+          <div style={fieldGroup}>
+            <Label htmlFor="resolution-summary" style={{ fontWeight: 500 }}>
+              Resolution Summary{" "}
+              <span style={{ color: "#ef4444" }}>*</span>
+            </Label>
+            <Textarea
+              id="resolution-summary"
+              placeholder="Describe the steps taken to resolve this issue..."
+              rows={5}
+              value={resolutionSummary}
+              onChange={(e) => onSummaryChange(e.target.value)}
+              className={resolutionError ? styles.textareaError : ""}
+              style={{ marginTop: "6px", resize: "vertical", minHeight: "110px" }}
+            />
+            {resolutionError && (
+              <p style={errorTextStyle}>{resolutionError}</p>
+            )}
+          </div>
 
           {/* Resolution Image */}
           <Label htmlFor="resolution-image" style={{ marginTop: "var(--space-3)", display: "block" }}>
@@ -187,6 +262,7 @@ export function ResolveDialog({
           )}
         </div>
 
+        {/* ── Footer ── */}
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel

@@ -17,6 +17,7 @@ class User(db.Model):
     department = db.Column(db.String(100), nullable=True)
     phone = db.Column(db.String(50), nullable=True)
     avatar_url = db.Column(db.String(500), nullable=True)
+    is_active = db.Column(db.Boolean, nullable=True, default=True)
     created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
@@ -44,6 +45,7 @@ class User(db.Model):
             'department': self.department,
             'phone': self.phone,
             'avatar_url': self.avatar_url,
+            'is_active': self.is_active if self.is_active is not None else True,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }

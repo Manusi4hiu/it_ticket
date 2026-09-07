@@ -31,11 +31,11 @@ export async function loader({ request }: Route.LoaderArgs) {
     getTicketStats()
   ]);
 
-  return {
+  return Response.json({
     session,
     agentsPerformance,
     stats,
-  };
+  });
 }
 export default function StaffPerformance({ loaderData }: Route.ComponentProps) {
   const { session, agentsPerformance, stats } = loaderData;
@@ -49,12 +49,12 @@ export default function StaffPerformance({ loaderData }: Route.ComponentProps) {
     const resolved = agent.resolved;
     const resolutionRate = totalAssigned > 0 ? (resolved / totalAssigned) * 100 : 0;
 
-    return {
+    return Response.json({
       ...agent,
       avgResolutionTime: agent.avgResolutionTime.toFixed(1),
       resolutionRate: resolutionRate.toFixed(1),
       slaCompliance: agent.slaCompliance.toFixed(1),
-    };
+    });
   });
 
   // Sort by resolved tickets

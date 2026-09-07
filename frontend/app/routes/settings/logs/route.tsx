@@ -19,7 +19,7 @@ import type { SystemLog } from "~/services/settings.service";
 
 export async function loader({ request }: Route.LoaderArgs) {
     const response = await settingsApi.getLogs();
-    return { logs: response.data?.data || [] };
+    return Response.json({ logs: response.data?.data || [] });
 }
 
 export default function SystemLogsSettings() {

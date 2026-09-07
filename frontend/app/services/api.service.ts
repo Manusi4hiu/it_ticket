@@ -325,4 +325,7 @@ export const usersApi = {
 
     getAllPerformance: async () =>
         apiRequest<{ success: boolean; performance: UserPerformanceSummary[] }>('/users/performance'),
+
+    toggleActive: async (id: string) =>
+        apiRequest<{ success: boolean; user: User; message: string }>(`/users/${id}/toggle-active`, { method: 'PATCH' }),
 };

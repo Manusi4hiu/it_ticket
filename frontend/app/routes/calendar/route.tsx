@@ -58,13 +58,13 @@ export async function loader({ request }: Route.LoaderArgs) {
     settingsApi.getCategories()
   ]);
 
-  return {
+  return Response.json({
     session,
     initialTickets: ticketsRes.tickets,
     agents,
     statuses: (statusesRes.data?.data || []).filter((s: any) => s.showOnItHelpdesk !== false),
     categories: categoriesRes.data?.data || []
-  };
+  });
 }
 
 export default function TicketCalendar() {

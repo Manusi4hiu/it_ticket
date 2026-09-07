@@ -17,6 +17,10 @@ class AuthService:
         if not user.check_password(password):
             return None, 'Username atau password salah. Silakan coba lagi.'
         
+        # Check if user is active
+        if not user.is_active:
+            return None, 'Akun Anda telah dinonaktifkan. Hubungi Administrator.'
+        
         # Create JWT token
         access_token = create_access_token(identity=str(user.id))
         
