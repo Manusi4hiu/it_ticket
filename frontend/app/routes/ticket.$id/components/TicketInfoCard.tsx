@@ -26,11 +26,14 @@ import {
   UserCheck,
   XCircle,
   Circle,
+  ArrowRightLeft,
+  Repeat,
   Image as ImageIcon,
 } from "lucide-react";
 import { Badge } from "~/components/ui/badge/badge";
 import { formatDate } from "~/utils/date";
 import { getStatusColor } from "~/utils/ticket-ui";
+import { buildTicketHistory, type HistoryEntry } from "~/utils/ticket-history";
 import type { Ticket } from "~/services/ticket.service";
 import type { Status } from "~/services/settings.service";
 import type { StaffInfo } from "../types";
@@ -41,33 +44,6 @@ import styles from "../style.module.css";
 // ─────────────────────────────────────────────
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:5000";
-
-// ─────────────────────────────────────────────
-// Parsers
-// ─────────────────────────────────────────────
-function parseStatusChangeNote(html: string) {
-  const matchFromTo = html.match(/Status changed from (.*?) to (.*?)<\/strong>/);
-  const matchTo = html.match(/Status changed to (.*?)<\/strong>/);
-  const matchReason = html.match(/Reason: (.*?)<\/p>/);
-  
-  let from = "-";
-  let to = "-";
-  
-  if (matchFromTo) {
-      from = matchFromTo[1];
-      to = matchFromTo[2];
-  } else if (matchTo) {
-      to = matchTo[1];
-  } else {
-      return null;
-  }
-  
-  return {
-      from,
-      to,
-      reason: matchReason ? matchReason[1] : "-"
-  };
-}
 
 // ─────────────────────────────────────────────
 // Exported Helper (dipakai juga di PublicSidebar)
@@ -291,54 +267,64 @@ export function TicketInfoCard({
           )}
         </div>
 
-        {/* Status History Tracking Timeline */}
-        {ticket.notes && ticket.notes.some(n => n.content.includes('Status changed')) && (
-          <div className={styles.trackingTimelineSection} style={{ marginTop: 'var(--space-6)' }}>
-            <h3 style={{ display: 'flex', alignItems: 'center', fontSize: '1rem', marginBottom: 'var(--space-4)' }}>
-              <Clock size={16} style={{ marginRight: 8, opacity: 0.7 }} />
-              Status History
-            </h3>
-            
-            <div className={styles.trackingTimeline}>
-              {ticket.notes
-                .filter(n => n.content.includes('Status changed'))
-                .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-                .map((note, index) => {
-                   const parsed = parseStatusChangeNote(note.content);
-                   if (!parsed) return null;
-                   
-                   const isFirst = index === 0;
-                   const dateObj = new Date(note.createdAt);
-                   const dateStr = dateObj.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
-                   const timeStr = dateObj.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-                   
-                   return (
-                     <div key={note.id} className={`${styles.trackingItem} ${isFirst ? styles.trackingItemActive : ''}`}>
-                       <div className={styles.trackingTime}>
-                         <span className={styles.trackingDate}>{dateStr}</span>
-                         <span className={styles.trackingHour}>{timeStr}</span>
-                       </div>
-                       
-                       <div className={styles.trackingNode}>
-                         <div className={styles.trackingDot}></div>
-                         <div className={styles.trackingLine}></div>
-                       </div>
-                       
-                       <div className={styles.trackingContent}>
-                         <p className={styles.trackingStatus}>
-                           Status changed to <strong>{parsed.to}</strong>
-                         </p>
-                         {parsed.reason && parsed.reason !== "-" && (
-                           <p className={styles.trackingReason}>{parsed.reason}</p>
-                         )}
-                         <p className={styles.trackingStaff}>by {note.author}</p>
-                       </div>
-                     </div>
-                   );
+        {/* Ticket History Timeline — semua perubahan: status, assignee (oper/take), kategori.
+            Bukan chat — chat staff tampil di Activity & Notes. */}
+        {(() => {
+          const history = buildTicketHistory(ticket.notes || []);
+          if (history.length === 0) return null;
+          return (
+            <div className={styles.trackingTimelineSection} style={{ marginTop: 'var(--space-6)' }}>
+              <h3 style={{ display: 'flex', alignItems: 'center', fontSize: '1rem', marginBottom: 'var(--space-4)' }}>
+                <Clock size={16} style={{ marginRight: 8, opacity: 0.7 }} />
+                Ticket History
+              </h3>
+
+              <div className={styles.trackingTimeline}>
+                {history.map((entry: HistoryEntry, index: number) => {
+                  const isFirst = index === 0;
+                  const dateObj = new Date(entry.createdAt);
+                  const dateStr = dateObj.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+                  const timeStr = dateObj.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+
+                  // Ikon per jenis perubahan
+                  const KindIcon =
+                    entry.kind === 'assignee' ? ArrowRightLeft :
+                    entry.kind === 'status' ? Repeat :
+                    entry.kind === 'category' ? Tag :
+                    Clock;
+
+                  return (
+                    <div key={entry.id} className={`${styles.trackingItem} ${isFirst ? styles.trackingItemActive : ''}`}>
+                      <div className={styles.trackingTime}>
+                        <span className={styles.trackingDate}>{dateStr}</span>
+                        <span className={styles.trackingHour}>{timeStr}</span>
+                      </div>
+
+                      <div className={styles.trackingNode}>
+                        <div className={styles.trackingDot}></div>
+                        <div className={styles.trackingLine}></div>
+                      </div>
+
+                      <div className={styles.trackingContent}>
+                        <p className={styles.trackingStatus}>
+                          <KindIcon size={13} style={{ verticalAlign: -2, marginRight: 5, opacity: 0.8 }} />
+                          <strong>{entry.label}</strong>
+                          {entry.detail && <span> — {entry.detail}</span>}
+                        </p>
+                        {entry.reason && (
+                          <p className={styles.trackingReason}>{entry.reason}</p>
+                        )}
+                        {entry.author && (
+                          <p className={styles.trackingStaff}>by {entry.author}</p>
+                        )}
+                      </div>
+                    </div>
+                  );
                 })}
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Resolution Summary (ditampilkan jika sudah resolved) */}
         {ticket.resolutionSummary && (

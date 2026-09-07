@@ -205,3 +205,43 @@
   box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
+
+/* ── Responsive navbar ── */
+@media (max-width: 1200px) {
+  .header {
+    padding: var(--space-3) var(--space-4);
+  }
+  .headerContent {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-3);
+  }
+  .headerLeft {
+    justify-content: space-between;
+  }
+  .navBar {
+    width: 100%;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+  }
+  .navGroup {
+    order: 2;
+    width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 4px;
+    gap: 6px;
+  }
+  .navGroup::-webkit-scrollbar { display: none; }
+  .modeToggle { order: 1; margin-right: 0; }
+  .navActionGroup { order: 3; }
+  .navLink { padding: 7px 10px; white-space: nowrap; flex-shrink: 0; }
+  .navLinkActive::after { bottom: -2px; left: 10px; right: 10px; }
+}
+
+@media (max-width: 640px) {
+  .headerTitle { font-size: 1rem; }
+  .toggleBtn { padding: 5px 12px; font-size: 0.72rem; }
+  .navLink { padding: 6px 8px; font-size: 0.8rem; gap: 4px; }
+}

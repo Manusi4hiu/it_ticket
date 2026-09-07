@@ -138,6 +138,32 @@
   box-shadow: 0 0 10px rgba(129, 140, 248, 0.5);
 }
 
+/* Notif sudah-dibaca: bar indikator kiri redup (bukan menyala) */
+.notificationItem:not(.unread)::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: var(--space-4);
+  bottom: var(--space-4);
+  width: 3px;
+  background: rgba(107, 114, 128, 0.35);
+  border-radius: 0 4px 4px 0;
+}
+
+/* ── Delete mode ── */
+.notificationItem.selectable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.notificationItem.selected {
+  background: rgba(239, 68, 68, 0.12);
+}
+
+.notificationItem.selected:hover {
+  background: rgba(239, 68, 68, 0.16);
+}
+
 .notificationIcon {
   width: 40px;
   height: 40px;

@@ -2,6 +2,38 @@ from app import db
 from app.models.master_data import Category, Priority, SLAPolicy, Department, Status
 from app.models.ticket import Ticket
 
+# Valid groups untuk mapping tombol segmented filter Tickets
+FILTER_GROUPS = ('new', 'progress', 'done', 'pending')
+
+
+def _normalize_filter_group(value):
+    """Normalisasi input filterGroup ke 'new' | 'progress' | 'done' | 'pending' | None."""
+    if value is None:
+        return None
+    v = str(value).strip().lower()
+    if v in FILTER_GROUPS:
+        return v
+    return None
+
+
+def _infer_filter_group(name, is_default=False):
+    """
+    Infer filterGroup otomatis dari nama status (fallback ketika tidak diisi manual).
+    - default status atau mengandung 'new' -> 'new'
+    - mengandung 'pending'                  -> 'pending'
+    - resolve/done/closed/completed       -> 'done'
+    - sisanya (assigned, triaged, dll)    -> 'progress'
+    """
+    lower = str(name or '').lower().strip()
+    if is_default or lower == 'new':
+        return 'new'
+    if 'pending' in lower:
+        return 'pending'
+    if any(k in lower for k in ('resolve', 'done', 'closed', 'completed')):
+        return 'done'
+    return 'progress'
+
+
 class MasterDataService:
     # --- Categories ---
     @staticmethod
@@ -214,7 +246,16 @@ class MasterDataService:
     # --- Statuses ---
     @staticmethod
     def get_statuses():
-        return Status.query.order_by(Status.order).all()
+        """Get all master data statuses ordered by default status first, then ID"""
+        return Status.query.order_by(Status.is_default.desc(), Status.id.asc()).all()
+
+    @staticmethod
+    def recompact_status_orders():
+        """Ensure all status order numbers are contiguous 1, 2, 3, ..."""
+        statuses = Status.query.order_by(Status.order.asc(), Status.id.asc()).all()
+        for idx, s in enumerate(statuses):
+            s.order = idx + 1
+        db.session.commit()
 
     @staticmethod
     def create_status(data):
@@ -228,12 +269,21 @@ class MasterDataService:
         if data.get('isDefault'):
             Status.query.update({Status.is_default: False})
 
+        # Calculate next contiguous order if not specified
+        order = data.get('order')
+        if order is None or int(order) <= 0:
+            max_status = Status.query.order_by(Status.order.desc()).first()
+            order = (max_status.order + 1) if (max_status and max_status.order) else 1
+        else:
+            order = int(order)
+
         status = Status(
             name=data['name'],
             color=data.get('color', '#6B7280'),
-            order=data.get('order', 0),
+            order=order,
+            filter_group=_normalize_filter_group(data.get('filterGroup')) if 'filterGroup' in data else _infer_filter_group(data['name'], data.get('isDefault', False)),
             is_default=data.get('isDefault', False),
-            requires_reason=data.get('requiresReason', False),
+            requires_reason=data.get('requiresReason', True),
             pauses_sla=data.get('pausesSla', False),
             show_on_devboard=data.get('showOnDevboard', False),
             show_on_it_helpdesk=data.get('showOnItHelpdesk', False)
@@ -256,6 +306,7 @@ class MasterDataService:
             
         if 'color' in data: status.color = data['color']
         if 'order' in data: status.order = data['order']
+        if 'filterGroup' in data: status.filter_group = _normalize_filter_group(data['filterGroup'])
         if 'requiresReason' in data: status.requires_reason = data['requiresReason']
         if 'pausesSla' in data: status.pauses_sla = data['pausesSla']
         if 'showOnDevboard' in data: status.show_on_devboard = data['showOnDevboard']
@@ -267,7 +318,6 @@ class MasterDataService:
         elif 'isDefault' in data:
             status.is_default = False
             
-        
         db.session.commit()
         return status, None
 
@@ -283,5 +333,12 @@ class MasterDataService:
             return False, 'Cannot delete status that is currently in use by tickets'
             
         db.session.delete(status)
+        db.session.flush()
+
+        # Automatically re-compact order of remaining statuses sequentially (1, 2, 3, ...)
+        remaining_statuses = Status.query.order_by(Status.order.asc(), Status.id.asc()).all()
+        for idx, s in enumerate(remaining_statuses):
+            s.order = idx + 1
+
         db.session.commit()
         return True, None

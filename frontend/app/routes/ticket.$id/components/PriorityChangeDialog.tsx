@@ -1,4 +1,4 @@
-import { MessageSquare } from "lucide-react";
+import { Gauge, Send } from "lucide-react";
 import { Button } from "~/components/ui/button/button";
 import { Label } from "~/components/ui/label/label";
 import { Textarea } from "~/components/ui/textarea/textarea";
@@ -12,23 +12,26 @@ import {
 } from "~/components/ui/dialog/dialog";
 import styles from "../style.module.css";
 
-interface ReasonDialogProps {
+interface PriorityChangeDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   reason: string;
   onReasonChange: (value: string) => void;
   onSubmit: () => void;
-  targetStatus: string;
+  /** Deskripsi perubahan, mis. "Prioritas: Medium → High" */
+  changeLabel: string;
+  ticketCode?: string;
 }
 
-export function ReasonDialog({
+export function PriorityChangeDialog({
   open,
   onOpenChange,
   reason,
   onReasonChange,
   onSubmit,
-  targetStatus,
-}: ReasonDialogProps) {
+  changeLabel,
+  ticketCode,
+}: PriorityChangeDialogProps) {
   const isReasonEmpty = reason.trim().length === 0;
 
   return (
@@ -36,19 +39,22 @@ export function ReasonDialog({
       <DialogContent className={styles.dialogContent}>
         <DialogHeader>
           <DialogTitle className={styles.dialogTitle}>
-            <MessageSquare className={styles.dialogIcon} />
-            Reason Required
+            <Gauge className={styles.dialogIcon} />
+            Ubah Prioritas Tiket
           </DialogTitle>
           <DialogDescription className={styles.dialogDescription}>
-            Please provide a reason for changing the ticket status to <strong>{targetStatus}</strong>.
+            {"Anda mengubah prioritas tiket "}
+            {ticketCode ? <strong>{ticketCode}</strong> : null}
+            {": "}
+            <strong>{changeLabel}</strong>. Alasan wajib diisi dan akan tercatat di Ticket History.
           </DialogDescription>
         </DialogHeader>
 
         <div className={styles.dialogBody}>
-          <Label htmlFor="status-reason">Reason *</Label>
+          <Label htmlFor="priority-reason">Alasan Perubahan Prioritas *</Label>
           <Textarea
-            id="status-reason"
-            placeholder="Enter reason..."
+            id="priority-reason"
+            placeholder="Contoh: Tiket ini menghambat operasional kasir, perlu dikerjakan lebih dulu..."
             rows={4}
             value={reason}
             onChange={(e) => onReasonChange(e.target.value)}
@@ -56,7 +62,7 @@ export function ReasonDialog({
           {isReasonEmpty && (
             <p style={{ marginTop: 6, fontSize: "0.75rem", color: "#fca5a5", display: "flex", gap: 6 }}>
               <span style={{ fontWeight: 700 }}>!</span>
-              Reason wajib diisi sebelum bisa submit — jelaskan alasan perubahan status ke "{targetStatus}".
+              Alasan wajib diisi — perubahan prioritas akan tercatat di Ticket History.
             </p>
           )}
         </div>
@@ -66,7 +72,8 @@ export function ReasonDialog({
             Cancel
           </Button>
           <Button onClick={onSubmit} disabled={isReasonEmpty}>
-            Submit Reason
+            <Send style={{ width: "16px", height: "16px", marginRight: 6 }} />
+            Simpan Perubahan
           </Button>
         </DialogFooter>
       </DialogContent>

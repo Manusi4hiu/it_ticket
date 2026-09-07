@@ -33,12 +33,13 @@ export async function action({ request }: Route.ActionArgs) {
     if (intent === "create") {
         const name = formData.get("name") as string;
         const description = formData.get("description") as string;
+        const isActive = formData.get("isActive") === "true";
 
         if (!name) return Response.json({ error: "Category name is required" }, { status: 400 });
 
-        const response = await settingsApi.createCategory({ name, description, isActive: true });
-        if (!response.success) return Response.json({ error: response.error }, { status: 400 });
-        return Response.json({ success: true }, { status: 200 });
+        const response = await settingsApi.createCategory({ name, description, isActive });
+        if (!response.success) return { error: response.error };
+        return { success: true };
     }
 
     if (intent === "update") {
@@ -130,8 +131,8 @@ export default function CategoriesSettings() {
                                                 </td>
                                                 <td>{category.description || '-'}</td>
                                                 <td>
-                                                    <span className={category.isActive ? styles.statusActive : styles.statusInactive}>
-                                                        {category.isActive ? 'Active' : 'Inactive'}
+                                                    <span className={category.isActive !== false ? styles.statusActive : styles.statusInactive}>
+                                                        {category.isActive !== false ? 'Active' : 'Inactive'}
                                                     </span>
                                                 </td>
                                                 <td>
@@ -170,7 +171,6 @@ export default function CategoriesSettings() {
                     <Form method="post" onSubmit={() => setIsDialogOpen(false)}>
                         <input type="hidden" name="intent" value={editingCategory ? "update" : "create"} />
                         {editingCategory && <input type="hidden" name="id" value={editingCategory.id} />}
-                        {editingCategory && <input type="hidden" name="isActive" value={String(editingCategory.isActive)} />}
 
                     <div className={styles.modalContent}>
                         <div className={styles.formGrid}>
@@ -190,6 +190,19 @@ export default function CategoriesSettings() {
                                     name="description"
                                     defaultValue={editingCategory?.description}
                                 />
+                            </div>
+                            <div className={`${styles.formFullWidth}`} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                                <input
+                                    type="checkbox"
+                                    id="isActive"
+                                    name="isActive"
+                                    value="true"
+                                    defaultChecked={editingCategory ? editingCategory.isActive !== false : true}
+                                    style={{ width: 16, height: 16, cursor: 'pointer' }}
+                                />
+                                <Label htmlFor="isActive" style={{ cursor: 'pointer', margin: 0, fontWeight: 500 }}>
+                                    Active Status
+                                </Label>
                             </div>
                         </div>
                     </div>

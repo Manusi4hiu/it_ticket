@@ -51,6 +51,7 @@ export interface Ticket {
     slaPausedAt?: Date;
     slaStatus: SLAStatus;
     takenAt?: Date;
+    transferredAt?: Date;
     resolutionSummary?: string;
     resolutionImageUrl?: string;
     resolvedAt?: Date;

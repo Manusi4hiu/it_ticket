@@ -29,6 +29,7 @@ import {
 import { Badge } from "~/components/ui/badge/badge";
 import type { Agent, Ticket } from "~/services/ticket.service";
 import type { Priority, Category, Status } from "~/services/settings.service";
+import { sortStatusesByWorkflow, canTakeTicket } from "~/utils/ticket-ui";
 import type { CurrentUser } from "../types";
 import styles from "../style.module.css";
 
@@ -45,6 +46,8 @@ interface TicketActionsPanelProps {
   currentUser: CurrentUser | null;
   isAdministrator: boolean;
   isManagement: boolean;
+  /** Apakah user login adalah pemilik/pengerja tiket (assignedTo)? Pemilik bisa mengoper. */
+  isTicketOwner?: boolean;
 
   // Form state
   status: string;
@@ -54,7 +57,7 @@ interface TicketActionsPanelProps {
   collaborators: string[];
   collaboratorIds: string[];
   newNote: string;
-  noteImage: File | null;
+  noteImage?: File | null;
 
   // Setters
   onStatusChange: (value: string) => void;
@@ -62,7 +65,7 @@ interface TicketActionsPanelProps {
   onCategoryChange: (value: string) => void;
   onAssignedToChange: (value: string) => void;
   onNoteChange: (value: string) => void;
-  onNoteImageChange: (file: File) => void;
+  onNoteImageChange?: (file: File | null) => void;
   onNoteImageClear: () => void;
   onAddNote: () => void;
 
@@ -99,6 +102,7 @@ export function TicketActionsPanel({
   currentUser,
   isAdministrator,
   isManagement,
+  isTicketOwner = false,
   status,
   priority,
   category,
@@ -126,6 +130,13 @@ export function TicketActionsPanel({
   const canEditCollaborator =
     (isAdministrator || assignedTo === currentUser?.name) && !isManagement;
 
+  // Otoritas mengubah tiket: hanya Admin, pemilik/pengerja tiket saat ini,
+  // atau tiket yang belum dipegang siapa pun (assignedTo kosong).
+  // Staff non-pemilik (mis. sudah mengoper ke orang lain) tidak bisa mengubah.
+  const canEditTicket =
+    !isManagement &&
+    (isAdministrator || isTicketOwner || !ticket.assignedTo);
+
   return (
     <div className={styles.section}>
       <div className={styles.sectionHeader}>
@@ -143,17 +154,26 @@ export function TicketActionsPanel({
             <Select
               value={status}
               onValueChange={onStatusChange}
-              disabled={isManagement}
+              disabled={!canEditTicket}
             >
               <SelectTrigger id="status">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {statuses.map((s) => (
-                  <SelectItem key={s.id} value={s.name}>
-                    {s.name}
-                  </SelectItem>
-                ))}
+                {/* Tiket yang pernah diambil / di-assign / bukan New TIDAK bisa
+                    kembali ke status default "New" — LOCK by backend,
+                    opsi New disembunyikan dari dropdown */}
+                {sortStatusesByWorkflow(statuses)
+                  .filter((s) => {
+                    const isNewStatus = s.isDefault || s.name.toLowerCase() === "new" || s.filterGroup === "new";
+                    const isLockedFromNew = Boolean(ticket.takenAt || ticket.assignedToId || ticket.status.toLowerCase() !== "new");
+                    return !(isLockedFromNew && isNewStatus);
+                  })
+                  .map((s) => (
+                    <SelectItem key={s.id} value={s.name}>
+                      {s.name}
+                    </SelectItem>
+                  ))}
               </SelectContent>
             </Select>
             {isManagement && (
@@ -161,12 +181,18 @@ export function TicketActionsPanel({
                 Management role has view-only access
               </p>
             )}
+            {!isManagement && !canEditTicket && (
+              <p style={{ fontSize: "0.75rem", color: "var(--color-neutral-9)", marginTop: "var(--space-1)" }}>
+                Hanya pemilik tiket ({ticket.assignedTo}) atau Administrator yang bisa mengubah.
+              </p>
+            )}
           </div>
 
-          {/* Priority */}
+          {/* Priority — Admin + pemilik tiket (backend: Management view-only,
+              staff non-pemilik ditolak untuk tiket taken) */}
           <div className={styles.formGroup}>
             <Label htmlFor="priority">Ticket Priority</Label>
-            {isAdministrator ? (
+            {canEditTicket ? (
               <Select value={priority} onValueChange={onPriorityChange}>
                 <SelectTrigger id="priority">
                   <SelectValue />
@@ -203,7 +229,7 @@ export function TicketActionsPanel({
           {/* Category */}
           <div className={styles.formGroup}>
             <Label htmlFor="category">Ticket Category</Label>
-            {!isManagement ? (
+            {canEditTicket ? (
               <Select value={category} onValueChange={onCategoryChange}>
                 <SelectTrigger id="category">
                   <SelectValue />
@@ -240,7 +266,11 @@ export function TicketActionsPanel({
               onValueChange={(value) =>
                 onAssignedToChange(value === "unassigned" ? "" : value)
               }
-              disabled={isManagement || !isAdministrator}
+              disabled={
+                isManagement ||
+                !(isAdministrator || isTicketOwner) ||
+                !canTakeTicket(ticket.status)
+              }
             >
               <SelectTrigger id="assignee">
                 <SelectValue placeholder="Select agent..." />
@@ -254,6 +284,11 @@ export function TicketActionsPanel({
                 ))}
               </SelectContent>
             </Select>
+            {(isAdministrator || isTicketOwner) && !canTakeTicket(ticket.status) && (
+              <p style={{ fontSize: "0.75rem", color: "var(--color-neutral-9)", marginTop: "var(--space-1)" }}>
+                Ticket {ticket.status} tidak bisa di-assign — ubah statusnya dulu ke status lain.
+              </p>
+            )}
           </div>
 
           {/* Collaborators */}
@@ -328,9 +363,11 @@ export function TicketActionsPanel({
                 id="note-image"
                 accept="image/*"
                 onChange={(e) => {
-                  if (e.target.files && e.target.files[0]) {
-                    onNoteImageChange(e.target.files[0]);
+                  const file = e.target.files?.[0];
+                  if (file && onNoteImageChange) {
+                    onNoteImageChange(file);
                   }
+                  e.target.value = '';
                 }}
                 className={styles.fileInput}
               />
@@ -340,23 +377,45 @@ export function TicketActionsPanel({
               </Label>
 
               {noteImage && (
-                <div className={styles.filePreview}>
-                  <div className={styles.previewInfo}>
-                    <ImageIcon size={14} style={{ marginRight: 6 }} />
-                    <span className={styles.fileName}>{noteImage.name}</span>
-                    <button
-                      type="button"
-                      onClick={onNoteImageClear}
-                      className={styles.removeFile}
-                    >
-                      <X size={14} />
-                    </button>
-                  </div>
+                <div style={{
+                  position: "relative",
+                  width: "fit-content",
+                  marginTop: 8,
+                  borderRadius: 6,
+                  overflow: "hidden",
+                  border: "1px solid rgba(255,255,255,0.15)",
+                }}>
                   <img
                     src={URL.createObjectURL(noteImage)}
-                    alt="Preview"
-                    className={styles.imagePreviewThumb}
+                    alt={noteImage.name}
+                    style={{ width: "100%", maxHeight: 120, objectFit: "cover" }}
                   />
+                  <div style={{ padding: "2px 6px", fontSize: "0.72rem", background: "rgba(0,0,0,0.6)", color: "#fff" }}>
+                    {noteImage.name} ({(noteImage.size / 1024).toFixed(0)} KB)
+                  </div>
+                  <button
+                    type="button"
+                    onClick={onNoteImageClear}
+                    style={{
+                      position: "absolute",
+                      top: 4,
+                      right: 4,
+                      background: "#ef4444",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "50%",
+                      width: 20,
+                      height: 20,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      cursor: "pointer",
+                      zIndex: 5
+                    }}
+                    title="Remove image"
+                  >
+                    <X size={12} />
+                  </button>
                 </div>
               )}
             </div>

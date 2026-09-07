@@ -7,7 +7,7 @@
  * @module settings/statuses
  */
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Form, useLoaderData, useActionData } from "react-router";
 import type { Route } from "./+types/route";
 import { Button } from "~/components/ui/button/button";
@@ -18,6 +18,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogT
 import { Alert, AlertDescription } from "~/components/ui/alert/alert";
 import { Plus, Pencil, Trash2, ClipboardList, Check, Circle } from "lucide-react";
 import { settingsApi } from "~/services/settings.service";
+import { sortStatusesByWorkflow, getStatusWorkflowRank, inferFilterGroup } from "~/utils/ticket-ui";
 import styles from "../style.module.css";
 import type { Status } from "~/services/settings.service";
 
@@ -39,12 +40,13 @@ export async function action({ request }: Route.ActionArgs) {
         const pausesSla = formData.get("pausesSla") === "true";
         const showOnDevboard = formData.get("showOnDevboard") === "true";
         const showOnItHelpdesk = formData.get("showOnItHelpdesk") === "true";
+        const filterGroup = formData.get("filterGroup") as string;
 
         if (!name) return Response.json({ error: "Status name is required" }, { status: 400 });
 
-        const response = await settingsApi.createStatus({ name, color, order, isDefault, requiresReason, pausesSla, showOnDevboard, showOnItHelpdesk });
-        if (!response.success) return Response.json({ error: response.error }, { status: 400 });
-        return Response.json({ success: true }, { status: 200 });
+        const response = await settingsApi.createStatus({ name, color, order, isDefault, requiresReason, pausesSla, showOnDevboard, showOnItHelpdesk, filterGroup: filterGroup || undefined });
+        if (!response.success) return { error: response.error };
+        return { success: true };
     }
 
     if (intent === "update") {
@@ -57,12 +59,22 @@ export async function action({ request }: Route.ActionArgs) {
         const pausesSla = formData.get("pausesSla") === "true";
         const showOnDevboard = formData.get("showOnDevboard") === "true";
         const showOnItHelpdesk = formData.get("showOnItHelpdesk") === "true";
+        const filterGroup = formData.get("filterGroup") as string;
 
         if (!id || !name) return Response.json({ error: "ID and Name are required" }, { status: 400 });
 
-        const response = await settingsApi.updateStatus(id, { name, color, order, isDefault, requiresReason, pausesSla, showOnDevboard, showOnItHelpdesk });
-        if (!response.success) return Response.json({ error: response.error }, { status: 400 });
-        return Response.json({ success: true }, { status: 200 });
+        const response = await settingsApi.updateStatus(id, { name, color, order, isDefault, requiresReason, pausesSla, showOnDevboard, showOnItHelpdesk, filterGroup: filterGroup || undefined });
+        if (!response.success) return { error: response.error };
+        return { success: true };
+    }
+
+    if (intent === "updateFilterGroup") {
+        const id = formData.get("id") as string;
+        const filterGroup = formData.get("filterGroup") as string;
+        if (!id) return { error: "ID is required" };
+        const response = await settingsApi.updateStatus(id, { filterGroup: filterGroup || undefined });
+        if (!response.success) return { error: response.error };
+        return { success: true };
     }
 
     if (intent === "delete") {
@@ -80,6 +92,18 @@ export default function StatusesSettings() {
     const actionData = useActionData() as { error?: string; success?: boolean } | undefined;
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingStatus, setEditingStatus] = useState<Status | null>(null);
+
+    // Fallback infer group dari nama (menjamin 4 tombol segmented tetap berfungsi
+    // walau status dihapus/filterGroup belum diset) — pakai util bersama dgn tickets page
+    // Safe variant utk editingStatus (bisa null saat create)
+    const inferGroupSafe = (s: Status | null): "new" | "progress" | "done" | "pending" =>
+        s ? inferFilterGroup(s.name, s.isDefault) : "progress";
+
+    // ── Settings status table — FIXED workflow order: New → Triaged → Assigned → In Progress → Resolved
+    // Independen dan tidak terpengaruh oleh urutan Dev Board kanban (Status.order)
+    const sortedStatuses = useMemo(() => {
+        return sortStatusesByWorkflow(statuses);
+    }, [statuses]);
 
     const openCreateDialog = () => {
         setEditingStatus(null);
@@ -133,9 +157,11 @@ export default function StatusesSettings() {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {statuses.map((status) => (
+                                        {sortedStatuses.map((status, index) => (
                                             <tr key={status.id}>
-                                                <td style={{ width: 60 }}>{status.order}</td>
+                                                <td style={{ width: 60, fontWeight: 600, color: 'var(--color-neutral-9)' }}>
+                                                    {index + 1}
+                                                </td>
                                                 <td style={{ fontWeight: 500 }}>
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                                         <Circle size={12} fill={status.color} stroke={status.color} />
@@ -205,7 +231,7 @@ export default function StatusesSettings() {
                     <DialogHeader>
                         <DialogTitle>{editingStatus ? 'Edit Status' : 'Create Status'}</DialogTitle>
                     </DialogHeader>
-                    <Form method="post" onSubmit={() => setIsDialogOpen(false)}>
+                    <Form key={editingStatus ? `edit-${editingStatus.id}` : 'create'} method="post" onSubmit={() => setIsDialogOpen(false)}>
                         <input type="hidden" name="intent" value={editingStatus ? "update" : "create"} />
                         {editingStatus && <input type="hidden" name="id" value={editingStatus.id} />}
 
@@ -254,6 +280,75 @@ export default function StatusesSettings() {
                                 />
                             </div>
 
+                            {/* ── 3 Flex: Masukan status ini ke filter tombol New / Progress / Done ──
+                                Setiap flex adalah opsi radio — pilih tombol mana yang memuat status ini.
+                                Kosong = Auto (infer dari nama). Menjamin 3 tombol segmented Tickets
+                                tetap berfungsi walau status dihapus. */}
+                            <div className={styles.formFullWidth} style={{ marginTop: 12 }}>
+                                <Label>Masukan status ke filter tombol (segmented filter Tickets):</Label>
+                                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 8 }}>
+                                    {([
+                                        { key: "new", label: "New", color: "#3B82F6" },
+                                        { key: "progress", label: "Progress", color: "#F59E0B" },
+                                        { key: "done", label: "Done", color: "#10B981" },
+                                        { key: "pending", label: "Pending", color: "#A855F7" },
+                                    ] as const).map((grp) => (
+                                        <label
+                                            key={grp.key}
+                                            htmlFor={`filterGroup-${grp.key}`}
+                                            style={{
+                                                flex: 1,
+                                                minWidth: 140,
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: 8,
+                                                padding: '10px 12px',
+                                                border: '1px solid var(--color-neutral-4)',
+                                                borderRadius: 10,
+                                                background: 'var(--color-neutral-1)',
+                                                cursor: 'pointer',
+                                                fontSize: '0.85rem',
+                                            }}
+                                        >
+                                            <input
+                                                type="radio"
+                                                id={`filterGroup-${grp.key}`}
+                                                name="filterGroup"
+                                                value={grp.key}
+                                                defaultChecked={(editingStatus?.filterGroup || inferGroupSafe(editingStatus)) === grp.key}
+                                            />
+                                            <span style={{ width: 10, height: 10, borderRadius: '50%', background: grp.color, flexShrink: 0 }} />
+                                            {grp.label}
+                                        </label>
+                                    ))}
+                                    <label
+                                        htmlFor="filterGroup-auto"
+                                        style={{
+                                            flex: 1,
+                                            minWidth: 140,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 8,
+                                            padding: '10px 12px',
+                                            border: '1px solid var(--color-neutral-4)',
+                                            borderRadius: 10,
+                                            background: 'var(--color-neutral-1)',
+                                            cursor: 'pointer',
+                                            fontSize: '0.85rem',
+                                        }}
+                                    >
+                                        <input
+                                            type="radio"
+                                            id="filterGroup-auto"
+                                            name="filterGroup"
+                                            value=""
+                                            defaultChecked={!(editingStatus?.filterGroup)}
+                                        />
+                                        <span style={{ fontSize: '0.72rem', color: 'var(--color-neutral-9)', fontStyle: 'italic' }}>Auto</span>
+                                    </label>
+                                </div>
+                            </div>
+
                             <div className={styles.formFullWidth} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
                                 <input 
                                     type="checkbox" 
@@ -271,7 +366,7 @@ export default function StatusesSettings() {
                                     id="requiresReason" 
                                     name="requiresReason" 
                                     value="true"
-                                    defaultChecked={editingStatus?.requiresReason}
+                                    defaultChecked={editingStatus ? editingStatus.requiresReason : true}
                                 />
                                 <Label htmlFor="requiresReason">Require reason when status changes to this</Label>
                             </div>
