@@ -90,7 +90,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     agents,
     statuses: (statusesRes.data?.data || []).filter((s: any) => s.showOnDevboard)
       .sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0))
-  };
+  });
 }
 
 export default function DevDashboard() {
