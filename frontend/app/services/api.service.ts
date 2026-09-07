@@ -226,7 +226,7 @@ export const ticketsApi = {
         if (image) {
             const formData = new FormData();
             Object.entries(ticket).forEach(([key, value]) => {
-                if (value !== undefined) formData.append(key, value as string);
+                if (value !== undefined && value !== null) formData.append(key, value as string);
             });
             formData.append('image', image);
             return apiRequest('/tickets', {
@@ -251,16 +251,19 @@ export const ticketsApi = {
     delete: async (id: string) =>
         apiRequest(`/tickets/${id}`, { method: 'DELETE' }),
 
-    assign: async (id: string, userId: string | null) =>
-        apiRequest(`/tickets/${id}/assign`, { method: 'PUT', body: JSON.stringify({ userId }) }),
+    assign: async (id: string, userId: string | null, transferReason?: string) =>
+        apiRequest(`/tickets/${id}/assign`, {
+            method: 'PUT',
+            body: JSON.stringify({ userId, ...(transferReason ? { transferReason } : {}) }),
+        }),
 
-    updateStatus: async (id: string, status: string, resolutionSummary?: string, resolvedAt?: string, image?: File) => {
-        if (image) {
+    updateStatus: async (id: string, status: string, resolutionSummary?: string, resolvedAt?: string, resolutionImage?: File) => {
+        if (resolutionImage) {
             const formData = new FormData();
             formData.append('status', status);
             if (resolutionSummary) formData.append('resolutionSummary', resolutionSummary);
             if (resolvedAt) formData.append('resolvedAt', resolvedAt);
-            formData.append('resolutionImage', image);
+            formData.append('resolutionImage', resolutionImage);
             return apiRequest(`/tickets/${id}/status`, {
                 method: 'PUT', body: formData, headers: {},
             });

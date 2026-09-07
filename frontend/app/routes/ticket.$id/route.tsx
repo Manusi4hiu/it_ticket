@@ -36,6 +36,10 @@ import { SlaCard } from "./components/SlaCard";
 import { TicketActionsPanel } from "./components/TicketActionsPanel";
 import { ResolveDialog } from "./components/ResolveDialog";
 import { ReasonDialog } from "./components/ReasonDialog";
+import { TransferDialog } from "./components/TransferDialog";
+import { AdminOverrideDialog } from "./components/AdminOverrideDialog";
+import { CategoryChangeDialog } from "./components/CategoryChangeDialog";
+import { PriorityChangeDialog } from "./components/PriorityChangeDialog";
 import { StaffProfileModal } from "./components/StaffProfileModal";
 import { PublicSidebar } from "./components/PublicSidebar";
 import { useTicketActions } from "./hooks/use-ticket-actions";
@@ -233,6 +237,11 @@ export default function TicketDetail({ loaderData }: Route.ComponentProps) {
                 currentUser={currentUser}
                 isAdministrator={isAdministrator}
                 isManagement={isManagement}
+                isTicketOwner={
+                  Boolean(session && currentUser && ticket.assignedToId) &&
+                  currentUser !== null &&
+                  String(currentUser.id) === String(ticket.assignedToId)
+                }
                 status={actions.status}
                 priority={actions.priority}
                 category={actions.category}
@@ -281,6 +290,59 @@ export default function TicketDetail({ loaderData }: Route.ComponentProps) {
           onSubmit={actions.handleSubmitReason}
           targetStatus={actions.status}
         />
+
+        {/* Dialog Oper (Transfer) — muncul saat assignee diganti ke staff lain */}
+        {!isPublic && actions.transferTarget && (
+          <TransferDialog
+            open={actions.showTransferDialog}
+            onOpenChange={actions.handleTransferDialogChange}
+            reason={actions.transferReason}
+            onReasonChange={actions.setTransferReason}
+            onSubmit={actions.handleSubmitTransferReason}
+            fromName={ticket.assignedTo || "Unassigned"}
+            toName={actions.transferTarget.agentName}
+            ticketCode={ticket.ticketCode}
+          />
+        )}
+
+        {/* Dialog Admin Override — Admin mengubah assignee/status/kategori tiket milik staff */}
+        {!isPublic && actions.adminOverride && (
+          <AdminOverrideDialog
+            open={actions.showAdminReasonDialog}
+            onOpenChange={actions.handleAdminReasonDialogChange}
+            reason={actions.adminReason}
+            onReasonChange={actions.setAdminReason}
+            onSubmit={actions.handleSubmitAdminReason}
+            changeLabel={actions.adminOverride.label}
+            ticketCode={ticket.ticketCode}
+          />
+        )}
+
+        {/* Dialog Ubah Kategori — staff pemilik ubah kategori tiketnya (sudah diambil) */}
+        {!isPublic && actions.categoryOverride && (
+          <CategoryChangeDialog
+            open={actions.showCategoryDialog}
+            onOpenChange={actions.handleCategoryDialogChange}
+            reason={actions.categoryReason}
+            onReasonChange={actions.setCategoryReason}
+            onSubmit={actions.handleSubmitCategoryReason}
+            changeLabel={actions.categoryOverride.label}
+            ticketCode={ticket.ticketCode}
+          />
+        )}
+
+        {/* Dialog Ubah Prioritas — staff pemilik ubah prioritas tiketnya (sudah diambil) */}
+        {!isPublic && actions.priorityOverride && (
+          <PriorityChangeDialog
+            open={actions.showPriorityDialog}
+            onOpenChange={actions.handlePriorityDialogChange}
+            reason={actions.priorityReason}
+            onReasonChange={actions.setPriorityReason}
+            onSubmit={actions.handleSubmitPriorityReason}
+            changeLabel={actions.priorityOverride.label}
+            ticketCode={ticket.ticketCode}
+          />
+        )}
 
         <StaffProfileModal
           open={actions.isStaffModalOpen}

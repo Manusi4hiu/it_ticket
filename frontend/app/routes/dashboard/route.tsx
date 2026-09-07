@@ -336,14 +336,16 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
               <span className={styles.tabCount}>{completedTotal}</span>
             </button>
           </div>
-          <Button
-            size="sm"
-            onClick={() => navigate("/submit-ticket")}
-            className={styles.createTicketBtn}
-          >
-            <Plus size={16} />
-            Manual Ticket
-          </Button>
+          {session.userRole !== 'Management' && (
+            <Button
+              size="sm"
+              onClick={() => navigate("/submit-ticket")}
+              className={styles.createTicketBtn}
+            >
+              <Plus size={16} />
+              Manual Ticket
+            </Button>
+          )}
         </div>
 
         {tickets.length === 0 ? (

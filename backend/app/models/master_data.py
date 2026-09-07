@@ -8,14 +8,14 @@ class Category(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     name = db.Column(db.String(50), unique=True, nullable=False)
     description = db.Column(db.String(255), nullable=True)
-    is_active = db.Column(db.Boolean, default=True)
+    is_active = db.Column(db.Boolean, default=True, server_default=db.true(), nullable=False)
 
     def to_dict(self):
         return {
             'id': self.id,
             'name': self.name,
             'description': self.description,
-            'isActive': self.is_active
+            'isActive': self.is_active if self.is_active is not None else True
         }
 
 class Priority(db.Model):
@@ -95,8 +95,9 @@ class Status(db.Model):
     name = db.Column(db.String(50), unique=True, nullable=False)
     color = db.Column(db.String(20), nullable=True, default='#6B7280') # Default gray
     order = db.Column(db.Integer, default=0) # For custom ordering in UI
+    filter_group = db.Column(db.String(20), nullable=True, default=None) # 'new' | 'progress' | 'done' | 'pending' — mapping tombol segmented filter Tickets
     is_default = db.Column(db.Boolean, default=False) # Only one should be true
-    requires_reason = db.Column(db.Boolean, default=False)
+    requires_reason = db.Column(db.Boolean, default=True)
     pauses_sla = db.Column(db.Boolean, default=False)
     show_on_devboard = db.Column(db.Boolean, default=False)
     show_on_it_helpdesk = db.Column(db.Boolean, default=True)
@@ -107,6 +108,7 @@ class Status(db.Model):
             'name': self.name,
             'color': self.color,
             'order': self.order,
+            'filterGroup': self.filter_group,
             'isDefault': self.is_default,
             'requiresReason': self.requires_reason,
             'pausesSla': self.pauses_sla,

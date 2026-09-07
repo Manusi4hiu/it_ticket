@@ -1,10 +1,17 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity, verify_jwt_in_request
+from sqlalchemy import case
 from app import db
 from app.models.ticket import Ticket
 from app.services.ticket_service import TicketService
 from app.services.file_service import FileService
 from app.constants import DEV_CATEGORY
+from app.utils.permissions import (
+    get_current_user,
+    is_administrator,
+    assign_permission_required,
+    status_change_permission_required,
+)
 
 tickets_bp = Blueprint('tickets', __name__)
 
@@ -20,6 +27,7 @@ def get_ticket_or_404(ticket_id):
     return ticket
 
 @tickets_bp.route('', methods=['GET'])
+@jwt_required()
 def get_tickets():
     """Get all tickets with optional filters"""
     # Query parameters
@@ -35,33 +43,41 @@ def get_tickets():
     
     if status:
         if ',' in status:
-            status_list = status.split(',')
-            query = query.filter(Ticket.status.in_(status_list))
+            status_list = [s.strip().lower() for s in status.split(',') if s.strip()]
+            query = query.filter(db.func.lower(Ticket.status).in_(status_list))
         else:
-            query = query.filter(Ticket.status == status)
+            query = query.filter(db.func.lower(Ticket.status) == status.strip().lower())
     
     if exclude_status:
         if ',' in exclude_status:
-            exclude_list = exclude_status.split(',')
-            query = query.filter(Ticket.status.notin_(exclude_list))
+            exclude_list = [s.strip().lower() for s in exclude_status.split(',') if s.strip()]
+            query = query.filter(db.func.lower(Ticket.status).notin_(exclude_list))
         else:
-            query = query.filter(Ticket.status != exclude_status)
+            query = query.filter(db.func.lower(Ticket.status) != exclude_status.strip().lower())
 
     if is_resolved is not None:
-        resolved_statuses = ['resolved', 'closed', 'completed']
+        resolved_statuses = ['resolved', 'completed']
         if is_resolved:
             query = query.filter(db.func.lower(Ticket.status).in_(resolved_statuses))
         else:
             query = query.filter(db.func.lower(Ticket.status).notin_(resolved_statuses))
 
     if priority:
-        query = query.filter(Ticket.priority == priority)
+        query = query.filter(db.func.lower(Ticket.priority) == priority.strip().lower())
     if category:
-        query = query.filter(Ticket.category == category)
+        query = query.filter(db.func.lower(Ticket.category) == category.strip().lower())
     else:
         query = query.filter(Ticket.category != DEV_CATEGORY)
     if assigned_to:
-        query = query.filter(Ticket.assigned_to_id == assigned_to)
+        if assigned_to.lower() in ('unassigned', 'null', 'none'):
+            query = query.filter(Ticket.assigned_to_id.is_(None))
+        else:
+            try:
+                assigned_id = int(assigned_to)
+                query = query.filter(Ticket.assigned_to_id == assigned_id)
+            except ValueError:
+                from app.models.user import User
+                query = query.join(Ticket.assigned_user).filter(User.full_name.ilike(f"%{assigned_to}%"))
     if search:
         # PostgreSQL Full-Text Search
         # Convert "server down" -> "server & down:*"
@@ -76,39 +92,34 @@ def get_tickets():
                 ).match(search_query, postgresql_regconfig='english')
             )
         )
-    
-    # Authenticate query visibility
-    is_authenticated = False
-    try:
-        verify_jwt_in_request(optional=True)
-        if get_jwt_identity():
-            is_authenticated = True
-    except Exception:
-        pass
-
-    if not is_authenticated:
-        if not search and not assigned_to:
-            return jsonify({'success': True, 'tickets': [], 'total': 0}), 200
 
     # Total count before pagination
     total = query.count()
     
-    # Pagination
+    # Ordering — workflow status first: New → Triaged → Assigned → In Progress → Resolved, then newest first
+    status_order = case(
+        (db.func.lower(Ticket.status) == 'new', 1),
+        (db.func.lower(Ticket.status) == 'triaged', 2),
+        (db.func.lower(Ticket.status) == 'assigned', 3),
+        (Ticket.status.ilike('%progress%'), 4),
+        (db.func.lower(Ticket.status) == 'resolved', 5),
+        else_=99
+    )
+    
+    # Pagination — clamp per_page to 1..100, validate page >= 1
     page = request.args.get('page', type=int)
-    per_page = request.args.get('per_page', default=20, type=int)
+    if page is not None and page < 1:
+        return jsonify({'success': False, 'error': 'Page harus berupa angka >= 1'}), 400
+
+    raw_per_page = request.args.get('per_page', default=20, type=int)
+    per_page = max(1, min(raw_per_page or 20, 100))
     
     if page:
-        query = query.order_by(Ticket.created_at.desc()).offset((page - 1) * per_page).limit(per_page)
+        query = query.order_by(status_order, Ticket.created_at.desc()).offset((page - 1) * per_page).limit(per_page)
     else:
-        query = query.order_by(Ticket.created_at.desc())
+        query = query.order_by(status_order, Ticket.created_at.desc())
 
     tickets = query.all()
-    
-    # Update SLA status for each ticket
-    for ticket in tickets:
-        ticket.sla_status = TicketService.calculate_sla_status(ticket.sla_deadline, ticket.resolved_at, ticket.sla_paused_at)
-    
-    db.session.commit()
     
     return jsonify({
         'success': True,
@@ -120,30 +131,15 @@ def get_tickets():
 
 
 @tickets_bp.route('/<ticket_id>', methods=['GET'])
+@jwt_required()
 def get_ticket(ticket_id):
-    """Get a single ticket by ID or ticket_code"""
+    """Get a single ticket by ID or ticket_code (auth required)"""
     ticket = get_ticket_or_404(ticket_id)
    
     if not ticket:
         return jsonify({'success': False, 'error': 'Ticket tidak ditemukan'}), 404
     
-    # Update SLA status
-    ticket.sla_status = TicketService.calculate_sla_status(ticket.sla_deadline, ticket.resolved_at, ticket.sla_paused_at)
-    db.session.commit()
-    
-    # Filter internal notes if not authenticated
-    is_authenticated = False
-    try:
-        verify_jwt_in_request(optional=True)
-        if get_jwt_identity():
-            is_authenticated = True
-    except Exception:
-        pass
-
     ticket_data = ticket.to_dict()
-    if not is_authenticated and 'notes' in ticket_data:
-        ticket_data['notes'] = [n for n in ticket_data['notes'] if not n.get('isInternal')]
-
     return jsonify({
         'success': True,
         'ticket': ticket_data
@@ -152,7 +148,7 @@ def get_ticket(ticket_id):
 
 @tickets_bp.route('', methods=['POST'])
 def create_ticket():
-    """Create a new ticket"""
+    """Create a new ticket with single image support (public/authenticated)"""
     # Handle both JSON and multipart/form-data
     if request.is_json:
         data = request.get_json()
@@ -166,8 +162,17 @@ def create_ticket():
     
     required_fields = ['title', 'description', 'category', 'submitterName']
     for field in required_fields:
-        if field not in data:
+        if field not in data or not str(data[field]).strip():
             return jsonify({'success': False, 'error': f'{field} diperlukan'}), 400
+
+    # Check authentication
+    is_authenticated = False
+    try:
+        verify_jwt_in_request(optional=True)
+        if get_jwt_identity():
+            is_authenticated = True
+    except Exception:
+        pass
     
     # Image handling
     image_url = FileService.save_file(image_file, 'tickets')
@@ -177,54 +182,67 @@ def create_ticket():
     
     # Create ticket via service
     try:
-        ticket = TicketService.create_ticket(data, image_url, idempotency_key)
+        ticket = TicketService.create_ticket(data, image_url, idempotency_key, is_authenticated=is_authenticated)
         return jsonify({
             'success': True,
             'ticket': ticket.to_dict(),
             'message': 'Ticket berhasil dibuat'
         }), 201
+    except ValueError as ve:
+        return jsonify({'success': False, 'error': str(ve)}), 400
     except Exception as e:
         return jsonify({
             'success': False,
             'error': f'Gagal membuat ticket: {str(e)}'
         }), 500
-    
+
 
 @tickets_bp.route('/<ticket_id>', methods=['PUT'])
 @jwt_required()
 def update_ticket(ticket_id):
-    """Update a ticket"""
+    """Update a ticket (Administrator/Staff penuh; Management view-only: boleh note, tidak boleh status/assign/priority/category)"""
     data = request.get_json()
     if not data:
         return jsonify({'success': False, 'error': 'No data provided'}), 400
-        
+
+    # ── RBAC: Management view-only ──
+    current_user = get_current_user()
+    if current_user and current_user.role == 'Management':
+        return jsonify({
+            'success': False,
+            'error': 'Unauthorized. Role Management bersifat view-only dan tidak dapat mengubah ticket.'
+        }), 403
+
     ticket = get_ticket_or_404(ticket_id)
     if not ticket:
         return jsonify({'success': False, 'error': 'Ticket tidak ditemukan'}), 404
 
-    # Validate requiresReason for status change (fix production bug where reason sometimes missing)
-    # For Resolved/Closed, resolutionSummary can satisfy the reason requirement
+    # Validate requiresReason for status change
     if 'status' in data:
         from app.models.master_data import Status
         new_status = Status.query.filter(Status.name.ilike(data['status'])).first()
         if new_status and getattr(new_status, 'requires_reason', False):
             reason = data.get('reason')
             has_reason = reason and str(reason).strip()
-            # If status is Resolved/Closed and has resolutionSummary, don't require separate reason
             is_resolved = new_status.name.lower() in ['resolved', 'closed']
             has_summary = data.get('resolutionSummary') and str(data.get('resolutionSummary')).strip()
             if not has_reason and not (is_resolved and has_summary):
                 return jsonify({'success': False, 'error': 'Reason is required for this status'}), 400
 
     user_id = get_jwt_identity()
-    ticket = TicketService.update_ticket(ticket.id, data, user_id=user_id)
+    try:
+        updated_ticket = TicketService.update_ticket(ticket.id, data, user_id=user_id)
+    except ValueError as ve:
+        return jsonify({'success': False, 'error': str(ve)}), 400
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Gagal mengupdate ticket: {str(e)}'}), 500
     
-    if not ticket:
+    if not updated_ticket:
         return jsonify({'success': False, 'error': 'Ticket tidak ditemukan'}), 404
     
     return jsonify({
         'success': True,
-        'ticket': ticket.to_dict(),
+        'ticket': updated_ticket.to_dict(),
         'message': 'Ticket berhasil diupdate'
     }), 200
 
@@ -232,8 +250,13 @@ def update_ticket(ticket_id):
 @tickets_bp.route('/<ticket_id>', methods=['DELETE'])
 @jwt_required()
 def delete_ticket(ticket_id):
-    """Delete a ticket"""
+    """Delete a ticket (admin only)"""
     user_id = get_jwt_identity()
+    from app.services.user_service import UserService
+    current_user = UserService.get_user_by_id(user_id)
+    if not current_user or current_user.role != 'Administrator':
+        return jsonify({'success': False, 'error': 'Unauthorized. Hanya Administrator yang dapat menghapus ticket.'}), 403
+
     ticket = get_ticket_or_404(ticket_id)
     if not ticket:
         return jsonify({'success': False, 'error': 'Ticket tidak ditemukan'}), 404
@@ -249,19 +272,30 @@ def delete_ticket(ticket_id):
 
 
 @tickets_bp.route('/<ticket_id>/assign', methods=['PUT'])
-@jwt_required()
+@assign_permission_required
 def assign_ticket(ticket_id):
-    """Assign a ticket to an agent"""
-    data = request.get_json()
+    """Assign/take/oper ticket (Administrator/Staff only — Management tidak bisa).
+
+    Body: {"userId": <id|null>, "transferReason": "alasan oper (WAJIB jika oper/transfer)"}
+    Oper = assign tiket yang sudah dipegang orang lain ke staff baru, wajib alasan.
+    """
+    data = request.get_json(silent=True) or {}
     user_id = data.get('userId')
-    
+    transfer_reason = data.get('transferReason') or data.get('reason')
+    current_user_id = get_jwt_identity()
+
     ticket = get_ticket_or_404(ticket_id)
     if not ticket:
         return jsonify({'success': False, 'error': 'Ticket tidak ditemukan'}), 404
-    ticket, error = TicketService.assign_ticket(ticket.id, user_id)
-    
+    try:
+        ticket, error = TicketService.assign_ticket(ticket.id, user_id, transfer_reason=transfer_reason, transferred_by_id=current_user_id)
+    except ValueError as ve:
+        return jsonify({'success': False, 'error': str(ve)}), 409
+
     if error:
-        return jsonify({'success': False, 'error': error}), 404
+        # 409 Conflict: aksi tidak valid untuk state ticket saat ini
+        # (mis. oper tanpa alasan, unassign tiket yang pernah diambil, resolved)
+        return jsonify({'success': False, 'error': error}), 409
     
     return jsonify({
         'success': True,
@@ -271,9 +305,9 @@ def assign_ticket(ticket_id):
 
 
 @tickets_bp.route('/<ticket_id>/status', methods=['PUT'])
-@jwt_required()
+@status_change_permission_required
 def update_ticket_status(ticket_id):
-    """Update ticket status - supports JSON and multipart/form-data"""
+    """Update ticket status (Administrator/Staff only — Management tidak bisa ubah status) - supports JSON and multipart/form-data with multi-image support"""
     # Handle both JSON and multipart/form-data
     if request.is_json:
         data = request.get_json()
@@ -316,7 +350,11 @@ def update_ticket_status(ticket_id):
     ticket = get_ticket_or_404(ticket_id)
     if not ticket:
         return jsonify({'success': False, 'error': 'Ticket tidak ditemukan'}), 404
-    ticket = TicketService.update_ticket_status(ticket.id, status, resolution_summary, resolved_at_str, reason, user_id, resolution_image_url)
+    try:
+        ticket = TicketService.update_ticket_status(ticket.id, status, resolution_summary, resolved_at_str, reason, user_id, resolution_image_url)
+    except ValueError as ve:
+        # 409: aturan bisnis melarang transisi ini (mis. LOCK status New utk tiket yg pernah diambil)
+        return jsonify({'success': False, 'error': str(ve)}), 409
 
     if not ticket:
         return jsonify({'success': False, 'error': 'Ticket tidak ditemukan'}), 404
@@ -343,7 +381,7 @@ def add_ticket_note(ticket_id):
         is_internal = request.form.get('isInternal') == 'true'
         image_file = request.files.get('image')
     
-    if not content:
+    if not content or not str(content).strip():
         return jsonify({'success': False, 'error': 'Content diperlukan'}), 400
     
     user_id = get_jwt_identity()

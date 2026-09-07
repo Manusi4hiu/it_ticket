@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useLoaderData, useNavigate } from "react-router";
 import type { Route } from "./+types/route";
 import {
@@ -47,8 +47,21 @@ import {
 } from "~/services/ticket.service";
 import { settingsApi } from "~/services/settings.service";
 import { ReasonDialog } from "~/routes/ticket.$id/components/ReasonDialog";
+import { TransferDialog } from "~/routes/ticket.$id/components/TransferDialog";
+import { PriorityChangeDialog } from "~/routes/ticket.$id/components/PriorityChangeDialog";
 import { ResolveDialog } from "~/routes/ticket.$id/components/ResolveDialog";
-import { requireAuth } from "~/services/session.service";
+import { requireRole } from "~/services/session.service";
+import { isSystemNote } from "~/utils/ticket-history";
+import {
+  validateFields,
+  hasErrors,
+  focusFirstError,
+  FieldError,
+  fieldErrorStyle,
+  required,
+  minLength,
+  maxLength,
+} from "~/utils/form-validation";
 import styles from "./style.module.css";
 
 // ── Status icons per name (lowercase key) ──
@@ -61,7 +74,8 @@ const STATUS_ICONS_MAP: Record<string, React.ReactNode> = {
 };
 
 export async function loader({ request }: Route.LoaderArgs) {
-  const session = await requireAuth(request);
+  // Management boleh akses Dev Board (view-only); Admin & Staff full access
+  const session = await requireRole(request, ["Administrator", "Staff", "Management"]);
 
   const [ticketsRes, agents, statusesRes] = await Promise.all([
     getTickets({ category: "Development", per_page: 150 }), // Only show Development-scoped tracking tasks
@@ -89,8 +103,9 @@ export default function DevDashboard() {
   const [activeDragColumn, setActiveDragColumn] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Authorization helper
-  const canManage = session?.userRole === "Administrator" || session?.userRole === "Staff";
+  // Authorization helper — Management view-only (bisa lihat, tidak bisa interaksi)
+  const isManagement = session?.userRole === "Management";
+  const canManage = (session?.userRole === "Administrator" || session?.userRole === "Staff") && !isManagement;
 
   // Detail Modal State
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
@@ -98,6 +113,7 @@ export default function DevDashboard() {
   const [newNoteContent, setNewNoteContent] = useState("");
   const [isNoteInternal, setIsNoteInternal] = useState(true);
   const [isNoteSubmitting, setIsNoteSubmitting] = useState(false);
+  const [noteError, setNoteError] = useState("");
 
   // Add Dev Task Modal State
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -106,6 +122,7 @@ export default function DevDashboard() {
   const [addTaskPriority, setAddTaskPriority] = useState("medium");
   const [addTaskAssigneeId, setAddTaskAssigneeId] = useState("unassigned");
   const [isTaskSubmitting, setIsTaskSubmitting] = useState(false);
+  const [addTaskErrors, setAddTaskErrors] = useState<Record<string, string>>({});
 
   // Edit Dev Task Modal State
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -114,6 +131,7 @@ export default function DevDashboard() {
   const [editTaskPriority, setEditTaskPriority] = useState("medium");
   const [editTaskAssigneeId, setEditTaskAssigneeId] = useState("unassigned");
   const [isTaskUpdating, setIsTaskUpdating] = useState(false);
+  const [editTaskErrors, setEditTaskErrors] = useState<Record<string, string>>({});
 
   // Delete Task Modal State
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -134,13 +152,31 @@ export default function DevDashboard() {
   const [resolutionError, setResolutionError] = useState("");
   const [resolutionImage, setResolutionImage] = useState<File | null>(null);
 
+  // Transfer assignee dialog state (oper task taken → alasan wajib, server 409 tanpa alasan)
+  const [showTransferDialog, setShowTransferDialog] = useState(false);
+  const [pendingTransfer, setPendingTransfer] = useState<{ toId: string; toName: string } | null>(null);
+  const [transferReason, setTransferReason] = useState("");
+
+  // Priority reason dialog state (ubah prioritas task taken → alasan wajib, server 400 tanpa alasan)
+  const [showPriorityDialog, setShowPriorityDialog] = useState(false);
+  const [priorityReason, setPriorityReason] = useState("");
+
+  // ── Otoritas task terpilih: Admin selalu bisa; staff hanya milik sendiri
+  // atau belum dipegang siapa pun (sejalan dengan guard server).
+  const currentUserId = String(session?.userId ?? "");
+  const canEditSelected = !!selectedTicket && !isManagement &&
+    (session?.userRole === "Administrator" ||
+      !selectedTicket.assignedToId ||
+      String(selectedTicket.assignedToId) === currentUserId);
+
   // Column reorder state (admin only)
-  const isAdministrator = session?.userRole === "Administrator";
+  const isAdministrator = String(session?.userRole || "").toLowerCase() === "administrator";
   const [isEditColumnsOpen, setIsEditColumnsOpen] = useState(false);
   const [columnOrder, setColumnOrder] = useState<Array<{ id: string | number; name: string; color: string }>>([]);
   const [isSavingOrder, setIsSavingOrder] = useState(false);
 
   const openEditColumns = () => {
+    if (!isAdministrator) return;
     setColumnOrder(statuses.map((s: any) => ({ id: s.id, name: s.name, color: s.color || "#6B7280" })));
     setIsEditColumnsOpen(true);
   };
@@ -156,6 +192,10 @@ export default function DevDashboard() {
   };
 
   const handleSaveColumnOrder = async () => {
+    if (!isAdministrator) {
+      alert("Only Administrator can edit column order");
+      return;
+    }
     setIsSavingOrder(true);
     try {
       const res = await settingsApi.reorderStatuses(columnOrder.map((c) => c.id));
@@ -178,7 +218,18 @@ export default function DevDashboard() {
 
   const handleAddDevTask = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!addTaskTitle.trim() || !addTaskDesc.trim() || isTaskSubmitting) return;
+    if (isTaskSubmitting) return;
+
+    // Validasi feedback eksplisit — jangan return diam-diam
+    const errors = validateFields({
+      addTaskTitle: [addTaskTitle, [required("Task Subject / Title"), minLength("Task Subject / Title", 3), maxLength("Task Subject / Title", 255)]],
+      addTaskDesc: [addTaskDesc, [required("Task Description"), minLength("Task Description", 3), maxLength("Task Description", 5000)]],
+    });
+    setAddTaskErrors(errors);
+    if (hasErrors(errors)) {
+      focusFirstError(errors);
+      return;
+    }
 
     setIsTaskSubmitting(true);
     try {
@@ -210,9 +261,13 @@ export default function DevDashboard() {
         setAddTaskDesc("");
         setAddTaskPriority("medium");
         setAddTaskAssigneeId("unassigned");
+        setAddTaskErrors({});
+      } else {
+        setAddTaskErrors({ form: "Gagal membuat task — server menolak permintaan. Periksa kembali isian lalu coba lagi." });
       }
-    } catch (err) {
-      console.error("Failed to add dev task:", err);
+    } catch (err: any) {
+      const msg = err?.message || err?.error || "Terjadi kesalahan tak terduga saat membuat task.";
+      setAddTaskErrors({ form: msg });
     } finally {
       setIsTaskSubmitting(false);
     }
@@ -245,15 +300,47 @@ export default function DevDashboard() {
     setEditTaskTitle(ticket.title);
     const cleanDesc = ticket.description.replace(/<[^>]*>/g, "");
     setEditTaskDesc(cleanDesc);
-    setEditTaskPriority(ticket.priority);
+    setEditTaskPriority(ticket.priority.toLowerCase());
     setEditTaskAssigneeId(ticket.assignedToId?.toString() || "unassigned");
     setIsEditDialogOpen(true);
     setIsDetailOpen(false);
   };
 
-  const handleEditDevTask = async (e: React.FormEvent) => {
+  const handleEditDevTask = async (e: React.FormEvent, reasonOverride?: string) => {
     e.preventDefault();
-    if (!selectedTicket || !editTaskTitle.trim() || !editTaskDesc.trim() || isTaskUpdating) return;
+    if (!selectedTicket || isTaskUpdating) return;
+
+    // Validasi feedback eksplisit — jangan return diam-diam
+    const errors = validateFields({
+      editTaskTitle: [editTaskTitle, [required("Task Subject / Title"), minLength("Task Subject / Title", 3), maxLength("Task Subject / Title", 255)]],
+      editTaskDesc: [editTaskDesc, [required("Task Description"), minLength("Task Description", 3), maxLength("Task Description", 5000)]],
+    });
+    setEditTaskErrors(errors);
+    if (hasErrors(errors)) {
+      focusFirstError(errors);
+      return;
+    }
+
+    // Prioritas berubah pada task taken → alasan WAJIB (server 400 tanpa alasan).
+    // Buka dialog alasan dulu, submit memanggil ulang fungsi ini dgn reason.
+    const priorityChanged = !!selectedTicket.takenAt &&
+      editTaskPriority.toLowerCase() !== String(selectedTicket.priority).toLowerCase();
+    if (priorityChanged && !reasonOverride) {
+      setPriorityReason("");
+      setShowPriorityDialog(true);
+      return;
+    }
+
+    // Oper assignee task taken wajib lewat dropdown Assignee di detail
+    // (alasan wajib — dialog edit tidak punya field alasan).
+    const newAssigneeStr = editTaskAssigneeId === "unassigned" ? null : editTaskAssigneeId;
+    const prevAssigneeStr = selectedTicket.assignedToId?.toString() || null;
+    if (prevAssigneeStr && newAssigneeStr !== prevAssigneeStr) {
+      setEditTaskErrors({ form: newAssigneeStr
+        ? "Untuk mengoper task ke staff lain, gunakan dropdown Assignee di detail task (alasan oper wajib diisi)."
+        : "Task yang sudah diambil tidak bisa dilepas ke unassigned — hanya bisa dioper ke staff lain via dropdown Assignee di detail task." });
+      return;
+    }
 
     setIsTaskUpdating(true);
     try {
@@ -262,6 +349,7 @@ export default function DevDashboard() {
         description: editTaskDesc,
         priority: editTaskPriority,
         assignedToId: editTaskAssigneeId === "unassigned" ? null : parseInt(editTaskAssigneeId, 10),
+        reason: reasonOverride || undefined,
       });
 
       if (updated) {
@@ -269,9 +357,13 @@ export default function DevDashboard() {
         setIsEditDialogOpen(false);
         setSelectedTicket(updated);
         setIsDetailOpen(true);
+        setEditTaskErrors({});
+      } else {
+        setEditTaskErrors({ form: "Gagal menyimpan perubahan — server menolak permintaan. Periksa kembali isian lalu coba lagi." });
       }
-    } catch (err) {
-      console.error("Failed to update dev task:", err);
+    } catch (err: any) {
+      const msg = err?.message || err?.error || "Terjadi kesalahan tak terduga saat menyimpan task.";
+      setEditTaskErrors({ form: msg });
     } finally {
       setIsTaskUpdating(false);
     }
@@ -280,6 +372,13 @@ export default function DevDashboard() {
   const handleCancelEdit = () => {
     setIsEditDialogOpen(false);
     setIsDetailOpen(true);
+  };
+
+  const handleSubmitPriorityReason = async () => {
+    if (!priorityReason.trim()) return;
+    setShowPriorityDialog(false);
+    await handleEditDevTask({ preventDefault: () => {} } as React.FormEvent, priorityReason.trim());
+    setPriorityReason("");
   };
 
   // Filter tickets by search query
@@ -295,8 +394,13 @@ export default function DevDashboard() {
     );
   }, [tickets, searchQuery]);
 
-  // Drag and Drop handlers
+  // Drag and Drop handlers — Management view-only: drag/drop dinonaktifkan.
+  // Staff non-pemilik juga tidak bisa drag task milik orang lain (server menolak).
   const handleDragStart = (e: React.DragEvent, ticketId: number) => {
+    if (isManagement) { e.preventDefault(); return; }
+    const t = tickets.find((x) => x.id === ticketId);
+    if (t && t.assignedToId && String(t.assignedToId) !== currentUserId &&
+      session?.userRole !== "Administrator") { e.preventDefault(); return; }
     setDraggedTicketId(ticketId);
     e.dataTransfer.setData("text/plain", ticketId.toString());
     e.dataTransfer.effectAllowed = "move";
@@ -308,6 +412,7 @@ export default function DevDashboard() {
   };
 
   const handleDragOver = (e: React.DragEvent, columnId: string) => {
+    if (isManagement) return; // kolom tidak menerima drop
     e.preventDefault();
     if (activeDragColumn !== columnId) {
       setActiveDragColumn(columnId);
@@ -331,6 +436,7 @@ export default function DevDashboard() {
         setTickets((prev) => prev.map((t) => (t.id === ticketId ? updated : t)));
       } else {
         setTickets((prev) => prev.map((t) => (t.id === ticketId ? originalTicket : t)));
+        alert("Gagal memindah status — server menolak. Kemungkinan: mengubah status task milik staff lain (hanya pemilik/Admin), atau Admin perlu alasan (ubah via halaman detail tiket).");
       }
     } catch (err) {
       console.error("Failed to update status:", err);
@@ -361,6 +467,7 @@ export default function DevDashboard() {
 
   const handleDrop = async (e: React.DragEvent, targetStatus: string) => {
     e.preventDefault();
+    if (isManagement) return; // Management view-only: drop ditolak
     setDraggedTicketId(null);
     setActiveDragColumn(null);
     const ticketIdStr = e.dataTransfer.getData("text/plain") || draggedTicketId?.toString();
@@ -384,7 +491,20 @@ export default function DevDashboard() {
     }
 
     const statusConfig = statuses.find((s: any) => s.name.toLowerCase() === targetStatus.toLowerCase());
+    // LOCK New: task taken tidak bisa dikembalikan ke New — tolak langsung dgn penjelasan
+    if (originalTicket.takenAt && (statusConfig as any)?.isDefault) {
+      alert("Task yang sudah pernah diambil tidak bisa dikembalikan ke status New. Gunakan oper (assign ke staff lain dengan alasan) jika ingin berpindah tangan.");
+      return;
+    }
     if (statusConfig?.requiresReason) {
+      setPendingStatusUpdate({ ticketId, targetStatus });
+      setShowReasonDialog(true);
+      return;
+    }
+
+    // Status berubah pada task taken → alasan WAJIB (server 400 tanpa alasan).
+    // Resolve punya dialog sendiri (return lebih awal di atas).
+    if (originalTicket.takenAt && originalTicket.assignedToId) {
       setPendingStatusUpdate({ ticketId, targetStatus });
       setShowReasonDialog(true);
       return;
@@ -403,6 +523,13 @@ export default function DevDashboard() {
 
   const handleSubmitResolution = async () => {
     if (!pendingStatusUpdate) return;
+    if (resolveDate) {
+      const dateObj = new Date(resolveDate);
+      if (dateObj > new Date()) {
+        setResolutionError("Waktu penyelesaian tidak boleh di masa depan (maksimal sekarang).");
+        return;
+      }
+    }
     if (resolutionSummary.trim().length < 20) {
       setResolutionError("Summary must be at least 20 characters.");
       return;
@@ -445,21 +572,58 @@ export default function DevDashboard() {
     }
   };
 
-  const handleAssignChange = async (agentIdStr: string) => {
+  const handleAssignChange = async (agentIdStr: string, reason?: string) => {
     if (!selectedTicket) return;
-    const agentId = agentIdStr === "unassigned" ? null : agentIdStr;
-    const updated = await assignTicket(selectedTicket.id.toString(), agentId);
-
-    if (updated) {
-      // Update local lists
-      setTickets((prev) => prev.map((t) => (t.id === selectedTicket.id ? updated : t)));
-      setSelectedTicket(updated);
+    // Guard: ticket resolved/closed/completed tidak boleh diubah assigneenya
+    const s = String(selectedTicket.status || "").toLowerCase();
+    if (["resolved", "closed", "completed"].includes(s)) {
+      alert(`Ticket dengan status '${selectedTicket.status}' tidak bisa di-take/di-assign. Ubah statusnya terlebih dahulu dari '${selectedTicket.status}' ke status lain.`);
+      return;
     }
+    const agentId = agentIdStr === "unassigned" ? null : agentIdStr;
+    // Oper task taken ke orang lain → alasan WAJIB (server 409 tanpa alasan).
+    // Buka dialog alasan dulu, submit memanggil ulang fungsi ini dgn reason.
+    const isTransfer = !!selectedTicket.assignedToId && agentId &&
+      String(selectedTicket.assignedToId) !== String(agentId);
+    if (isTransfer && !reason) {
+      const toAgent = agents.find((a: Agent) => String(a.id) === String(agentId));
+      setPendingTransfer({ toId: String(agentId), toName: toAgent?.name || "staff lain" });
+      setTransferReason("");
+      setShowTransferDialog(true);
+      return;
+    }
+    try {
+      const updated = await assignTicket(selectedTicket.id.toString(), agentId, reason);
+      if (updated) {
+        // Update local lists
+        setTickets((prev) => prev.map((t) => (t.id === selectedTicket.id ? updated : t)));
+        setSelectedTicket(updated);
+      } else {
+        alert("Gagal mengubah assignee — server menolak. Task taken hanya bisa dioper dengan alasan, dan task taken tidak bisa dilepas ke unassigned.");
+      }
+    } catch (err) {
+      console.error("Failed to assign ticket:", err);
+      alert("Gagal mengubah assignee — terjadi kesalahan. Coba lagi.");
+    }
+  };
+
+  const handleSubmitTransfer = async () => {
+    if (!pendingTransfer || !transferReason.trim()) return;
+    await handleAssignChange(pendingTransfer.toId, transferReason.trim());
+    setShowTransferDialog(false);
+    setPendingTransfer(null);
+    setTransferReason("");
   };
 
   const handleAddNote = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedTicket || !newNoteContent.trim() || isNoteSubmitting) return;
+    if (!selectedTicket || isNoteSubmitting) return;
+    // Feedback eksplisit bila note kosong
+    if (!newNoteContent.trim()) {
+      setNoteError("Catatan tidak boleh kosong / hanya spasi — tulis isi catatan dulu sebelum comment.");
+      return;
+    }
+    setNoteError("");
 
     setIsNoteSubmitting(true);
     try {
@@ -469,7 +633,7 @@ export default function DevDashboard() {
         setNewNoteContent("");
       }
     } catch (err) {
-      console.error("Failed to add note:", err);
+      setNoteError("Gagal menambahkan catatan — server menolak. Coba lagi.");
     } finally {
       setIsNoteSubmitting(false);
     }
@@ -498,10 +662,17 @@ export default function DevDashboard() {
               Edit Columns
             </Button>
           )}
-          <Button onClick={() => setIsAddDialogOpen(true)} className={styles.addDevTaskBtn}>
-            <Plus size={16} style={{ marginRight: 6 }} />
-            Add Dev Task
-          </Button>
+          {canManage && (
+            <Button onClick={() => setIsAddDialogOpen(true)} className={styles.addDevTaskBtn}>
+              <Plus size={16} style={{ marginRight: 6 }} />
+              Add Dev Task
+            </Button>
+          )}
+          {isManagement && (
+            <span style={{ fontSize: "0.75rem", color: "#94a3b8", fontStyle: "italic" }}>
+              View-only access
+            </span>
+          )}
         </div>
       </div>
 
@@ -545,14 +716,14 @@ export default function DevDashboard() {
               <div className={styles.cardContainer}>
                 {columnTickets.length === 0 ? (
                   <div className={styles.emptyColumn}>
-                    <span>Drop tickets here</span>
+                    <span>{isManagement ? "No tasks here" : "Drop tickets here"}</span>
                   </div>
                 ) : (
                   columnTickets.map((ticket) => (
                     <div
                       key={ticket.id}
-                      className={`${styles.ticketCard} ${draggedTicketId === ticket.id ? styles.cardIsDragging : ""}`}
-                      draggable
+                      className={`${styles.ticketCard} ${draggedTicketId === ticket.id ? styles.cardIsDragging : ""} ${isManagement ? styles.cardViewOnly : ""}`}
+                      draggable={!isManagement}
                       onDragStart={(e) => handleDragStart(e, ticket.id)}
                       onDragEnd={handleDragEnd}
                       onClick={() => handleOpenDetail(ticket)}
@@ -669,12 +840,17 @@ export default function DevDashboard() {
                     <Select
                       value={selectedTicket.assignedToId?.toString() || "unassigned"}
                       onValueChange={handleAssignChange}
+                      disabled={!canEditSelected}
                     >
                       <SelectTrigger style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="unassigned">Unassigned</SelectItem>
+                        {/* Tiket yang PERNAH diambil (takenAt) tidak bisa kembali
+                            unassigned — opsi disembunyikan permanen */}
+                        {!selectedTicket.takenAt && (
+                          <SelectItem value="unassigned">Unassigned</SelectItem>
+                        )}
                         {agents.map((agent: Agent) => (
                           <SelectItem key={agent.id} value={agent.id.toString()}>
                             {agent.name}
@@ -682,6 +858,13 @@ export default function DevDashboard() {
                         ))}
                       </SelectContent>
                     </Select>
+                    {!canEditSelected && (
+                      <p style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: 6 }}>
+                        {isManagement
+                          ? "Management role has view-only access"
+                          : `Task ini dipegang ${selectedTicket.assignedTo || "staff lain"} — hanya pemilik atau Administrator yang bisa mengubah assignee.`}
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -689,17 +872,22 @@ export default function DevDashboard() {
                 <div className={styles.detailNotesCol}>
                   <h5 className={styles.metaTitle} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <MessageSquare size={16} />
-                    Internal Developer Comments ({selectedTicket.notes?.length || 0})
+                    Internal Developer Comments ({selectedTicket.notes?.filter(n => !isSystemNote(n.content)).length || 0})
                   </h5>
 
                   <div className={styles.notesList}>
-                    {(!selectedTicket.notes || selectedTicket.notes.length === 0) ? (
-                      <div className={styles.emptyNotes}>
-                        <MessageSquare size={24} style={{ opacity: 0.2, marginBottom: 8 }} />
-                        <p>No comments added yet</p>
-                      </div>
-                    ) : (
-                      selectedTicket.notes.map((note) => (
+                    {(function() {
+                      // Hanya chat/notes developer — system notes (status/oper) tampil di Ticket History detail
+                      const staffNotes = (selectedTicket.notes || []).filter(n => !isSystemNote(n.content));
+                      if (staffNotes.length === 0) {
+                        return (
+                          <div className={styles.emptyNotes}>
+                            <MessageSquare size={24} style={{ opacity: 0.2, marginBottom: 8 }} />
+                            <p>No comments added yet</p>
+                          </div>
+                        );
+                      }
+                      return staffNotes.map((note) => (
                         <div
                           key={note.id}
                           className={`${styles.noteItem} ${note.isInternal ? styles.internalNote : ''}`}
@@ -715,46 +903,54 @@ export default function DevDashboard() {
                             <span className={styles.internalBadge}>Developer Only</span>
                           )}
                         </div>
-                      ))
-                    )}
+                      ));
+                    })()}
                   </div>
 
-                  <form onSubmit={handleAddNote} className={styles.noteForm}>
-                    <Textarea
-                      placeholder="Type your comment/notes here..."
-                      className={styles.noteTextarea}
-                      value={newNoteContent}
-                      onChange={(e) => setNewNoteContent(e.target.value)}
-                      required
-                    />
-                    <div className={styles.noteFormActions}>
-                      <div className={styles.notePrivateCheck}>
-                        <input
-                          type="checkbox"
-                          id="isInternal"
-                          checked={isNoteInternal}
-                          onChange={(e) => setIsNoteInternal(e.target.checked)}
-                          className={styles.checkbox}
-                        />
-                        <label htmlFor="isInternal" className={styles.checkboxLabel}>
-                          Private Note (Dev Only)
-                        </label>
+                  {!isManagement ? (
+                    <form onSubmit={handleAddNote} className={styles.noteForm}>
+                      <Textarea
+                        placeholder="Type your comment/notes here..."
+                        className={styles.noteTextarea}
+                        value={newNoteContent}
+                        onChange={(e) => { setNewNoteContent(e.target.value); if (noteError) setNoteError(""); }}
+                        required
+                        style={noteError ? { borderColor: "#ef4444", boxShadow: "0 0 0 1px rgba(239,68,68,0.4)" } : {}}
+                      />
+                      <FieldError message={noteError} />
+                      <div className={styles.noteFormActions}>
+                        <div className={styles.notePrivateCheck}>
+                          <input
+                            type="checkbox"
+                            id="isInternal"
+                            checked={isNoteInternal}
+                            onChange={(e) => setIsNoteInternal(e.target.checked)}
+                            className={styles.checkbox}
+                          />
+                          <label htmlFor="isInternal" className={styles.checkboxLabel}>
+                            Private Note (Dev Only)
+                          </label>
+                        </div>
+                        <Button
+                          type="submit"
+                          size="sm"
+                          disabled={isNoteSubmitting}
+                          style={{ height: '32px' }}
+                        >
+                          {isNoteSubmitting ? "Posting..." : "Comment"}
+                        </Button>
                       </div>
-                      <Button
-                        type="submit"
-                        size="sm"
-                        disabled={isNoteSubmitting || !newNoteContent.trim()}
-                        style={{ height: '32px' }}
-                      >
-                        {isNoteSubmitting ? "Posting..." : "Comment"}
-                      </Button>
-                    </div>
-                  </form>
+                    </form>
+                  ) : (
+                    <p style={{ fontSize: '0.72rem', color: '#94a3b8', fontStyle: 'italic' }}>
+                      Management role has view-only access
+                    </p>
+                  )}
                 </div>
               </div>
 
               <DialogFooter style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 16, marginTop: 16 }}>
-                {canManage && (
+                {isAdministrator && (
                   <Button
                     variant="outline"
                     onClick={() => setIsDeleteDialogOpen(true)}
@@ -763,10 +959,16 @@ export default function DevDashboard() {
                     Delete Task
                   </Button>
                 )}
-                {canManage && (
+                {canEditSelected ? (
                   <Button variant="outline" onClick={() => handleOpenEdit(selectedTicket)}>
                     Edit Task
                   </Button>
+                ) : (
+                  !isManagement && (
+                    <span style={{ fontSize: '0.72rem', color: '#94a3b8', fontStyle: 'italic', alignSelf: 'center' }}>
+                      Task ini dipegang {selectedTicket.assignedTo || "staff lain"} — hanya pemilik atau Administrator yang bisa mengedit.
+                    </span>
+                  )
                 )}
                 <Button variant="outline" onClick={() => setIsDetailOpen(false)}>
                   Close
@@ -794,29 +996,42 @@ export default function DevDashboard() {
             <DialogTitle className={styles.detailTitle}>Create New Dev Task</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleAddDevTask} className={styles.addTaskForm}>
+            <FieldError message={addTaskErrors.form} />
             <div className={styles.formGroup}>
               <label htmlFor="taskTitle" className={styles.formLabel}>Task Subject / Title *</label>
               <input
                 id="taskTitle"
+                data-error-field="addTaskTitle"
                 type="text"
                 required
                 placeholder="e.g., Fix authentication logic, Refactor database schema..."
                 className={styles.addTaskInput}
                 value={addTaskTitle}
-                onChange={(e) => setAddTaskTitle(e.target.value)}
+                onChange={(e) => {
+                  setAddTaskTitle(e.target.value);
+                  if (addTaskErrors.addTaskTitle) setAddTaskErrors((p) => ({ ...p, addTaskTitle: "" }));
+                }}
+                style={fieldErrorStyle(addTaskErrors.addTaskTitle)}
               />
+              <FieldError message={addTaskErrors.addTaskTitle} />
             </div>
-            
+
             <div className={styles.formGroup}>
               <label htmlFor="taskDesc" className={styles.formLabel}>Task Description *</label>
               <Textarea
                 id="taskDesc"
+                data-error-field="addTaskDesc"
                 required
                 placeholder="Please describe the work details..."
                 className={styles.addTaskTextarea}
                 value={addTaskDesc}
-                onChange={(e) => setAddTaskDesc(e.target.value)}
+                onChange={(e) => {
+                  setAddTaskDesc(e.target.value);
+                  if (addTaskErrors.addTaskDesc) setAddTaskErrors((p) => ({ ...p, addTaskDesc: "" }));
+                }}
+                style={fieldErrorStyle(addTaskErrors.addTaskDesc)}
               />
+              <FieldError message={addTaskErrors.addTaskDesc} />
             </div>
 
             <div className={styles.formGridRow}>
@@ -872,29 +1087,42 @@ export default function DevDashboard() {
             <DialogTitle className={styles.detailTitle}>Edit Dev Task</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleEditDevTask} className={styles.addTaskForm}>
+            <FieldError message={editTaskErrors.form} />
             <div className={styles.formGroup}>
               <label htmlFor="editTaskTitle" className={styles.formLabel}>Task Subject / Title *</label>
               <input
                 id="editTaskTitle"
+                data-error-field="editTaskTitle"
                 type="text"
                 required
                 placeholder="e.g., Fix authentication logic..."
                 className={styles.addTaskInput}
                 value={editTaskTitle}
-                onChange={(e) => setEditTaskTitle(e.target.value)}
+                onChange={(e) => {
+                  setEditTaskTitle(e.target.value);
+                  if (editTaskErrors.editTaskTitle) setEditTaskErrors((p) => ({ ...p, editTaskTitle: "" }));
+                }}
+                style={fieldErrorStyle(editTaskErrors.editTaskTitle)}
               />
+              <FieldError message={editTaskErrors.editTaskTitle} />
             </div>
-            
+
             <div className={styles.formGroup}>
               <label htmlFor="editTaskDesc" className={styles.formLabel}>Task Description *</label>
               <Textarea
                 id="editTaskDesc"
+                data-error-field="editTaskDesc"
                 required
                 placeholder="Please describe the work details..."
                 className={styles.addTaskTextarea}
                 value={editTaskDesc}
-                onChange={(e) => setEditTaskDesc(e.target.value)}
+                onChange={(e) => {
+                  setEditTaskDesc(e.target.value);
+                  if (editTaskErrors.editTaskDesc) setEditTaskErrors((p) => ({ ...p, editTaskDesc: "" }));
+                }}
+                style={fieldErrorStyle(editTaskErrors.editTaskDesc)}
               />
+              <FieldError message={editTaskErrors.editTaskDesc} />
             </div>
 
             <div className={styles.formGridRow}>
@@ -935,7 +1163,7 @@ export default function DevDashboard() {
               <Button type="button" variant="outline" onClick={handleCancelEdit}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={isTaskUpdating || !editTaskTitle.trim()} className={styles.btnLaunchTicket}>
+              <Button type="submit" disabled={isTaskUpdating} className={styles.btnLaunchTicket}>
                 {isTaskUpdating ? "Saving..." : "Save Changes"}
               </Button>
             </DialogFooter>
@@ -976,7 +1204,8 @@ export default function DevDashboard() {
       </Dialog>
 
       {/* Edit Column Order Dialog (admin only) */}
-      <Dialog open={isEditColumnsOpen} onOpenChange={setIsEditColumnsOpen}>
+      {isAdministrator && (
+        <Dialog open={isEditColumnsOpen} onOpenChange={setIsEditColumnsOpen}>
         <DialogContent className={styles.addTaskModalWidth}>
           <DialogHeader>
             <DialogTitle className={styles.detailTitle}>Edit Column Order</DialogTitle>
@@ -1032,7 +1261,8 @@ export default function DevDashboard() {
             </Button>
           </DialogFooter>
         </DialogContent>
-      </Dialog>
+        </Dialog>
+      )}
 
       <ReasonDialog
         open={showReasonDialog}
@@ -1047,6 +1277,33 @@ export default function DevDashboard() {
         onReasonChange={setStatusReason}
         onSubmit={handleSubmitReason}
         targetStatus={pendingStatusUpdate?.targetStatus || ""}
+      />
+
+      <TransferDialog
+        open={showTransferDialog}
+        onOpenChange={(open) => {
+          setShowTransferDialog(open);
+          if (!open) { setPendingTransfer(null); setTransferReason(""); }
+        }}
+        reason={transferReason}
+        onReasonChange={setTransferReason}
+        onSubmit={handleSubmitTransfer}
+        fromName={selectedTicket?.assignedTo || "staff lain"}
+        toName={pendingTransfer?.toName || "staff lain"}
+        ticketCode={selectedTicket?.ticketCode}
+      />
+
+      <PriorityChangeDialog
+        open={showPriorityDialog}
+        onOpenChange={(open) => {
+          setShowPriorityDialog(open);
+          if (!open) setPriorityReason("");
+        }}
+        reason={priorityReason}
+        onReasonChange={setPriorityReason}
+        onSubmit={handleSubmitPriorityReason}
+        changeLabel={`Prioritas: ${selectedTicket?.priority || ""} → ${editTaskPriority}`}
+        ticketCode={selectedTicket?.ticketCode}
       />
 
       <ResolveDialog

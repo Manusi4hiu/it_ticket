@@ -185,12 +185,18 @@
 }
 
 .priorityBadge {
-  padding: 4px 12px;
-  border-radius: 4px;
-  font-size: 0.8rem;
-  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1;
   background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  text-transform: capitalize;
+  white-space: nowrap;
 }
 
 .priorityCritical { color: #ff4d4d; border-color: rgba(239, 68, 68, 0.3); }

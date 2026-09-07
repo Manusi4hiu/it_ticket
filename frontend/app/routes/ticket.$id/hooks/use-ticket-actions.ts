@@ -8,7 +8,7 @@
  * di ticket.$id hanya fokus pada rendering.
  */
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useToast } from "~/hooks/use-toast";
 import { useNavigate } from "react-router";
 import {
@@ -85,6 +85,37 @@ export function useTicketActions({
   const [showReasonDialog, setShowReasonDialog] = useState(false);
   const [statusReason, setStatusReason] = useState("");
 
+  // ── Transfer (Oper) Dialog State ──
+  const [showTransferDialog, setShowTransferDialog] = useState(false);
+  const [transferTarget, setTransferTarget] = useState<{ agentId: number; agentName: string } | null>(null);
+  const [transferReason, setTransferReason] = useState("");
+
+  // ── Admin Override Reason Dialog State ──
+  // Admin mengubah assignee/status/kategori/priority tiket yang SUDAH DIAMBIL
+  // oleh staff lain -> alasan WAJIB, dikirim sebagai notifikasi ke staff terkait.
+  const [showAdminReasonDialog, setShowAdminReasonDialog] = useState(false);
+  const [adminOverride, setAdminOverride] = useState<{
+    field: 'assignedToId' | 'status' | 'category' | 'priority';
+    value: any;
+    label: string;
+  } | null>(null);
+  const [adminReason, setAdminReason] = useState("");
+  const isAdmin = currentUser?.role === "Administrator";
+
+  // ── Category Reason Dialog State (staff pemilik) ──
+  // Staff pemilik mengubah kategori tiketnya sendiri (yang sudah diambil)
+  // -> alasan wajib, tercatat ke Ticket History (tanpa notif admin).
+  const [showCategoryDialog, setShowCategoryDialog] = useState(false);
+  const [categoryOverride, setCategoryOverride] = useState<{ value: string; label: string } | null>(null);
+  const [categoryReason, setCategoryReason] = useState("");
+
+  // ── Priority Reason Dialog State (staff pemilik) ──
+  // Staff pemilik mengubah prioritas tiketnya sendiri (yang sudah diambil)
+  // -> alasan wajib, tercatat ke Ticket History (tanpa notif admin).
+  const [showPriorityDialog, setShowPriorityDialog] = useState(false);
+  const [priorityOverride, setPriorityOverride] = useState<{ value: string; label: string } | null>(null);
+  const [priorityReason, setPriorityReason] = useState("");
+
   // ── SLA Edit State ──
   const [isEditingResolvedAt, setIsEditingResolvedAt] = useState(false);
   const [editResolvedAtValue, setEditResolvedAtValue] = useState<string>("");
@@ -95,18 +126,18 @@ export function useTicketActions({
   const [loadingStaffTickets, setLoadingStaffTickets] = useState(false);
   const [staffTickets, setStaffTickets] = useState<Ticket[]>([]);
 
+  // ── Dialog submit race guard ──
+  // Submit sukses menutup dialog (setShowX(false)) → onOpenChange(false) jalan
+  // dengan closure `ticket` basi dan me-revert dropdown ke nilai lama,
+  // menimpa nilai baru yang baru saja disimpan. Tandai submit sukses agar
+  // revert dilewati.
+  const dialogSavedRef = useRef(false);
+
   // ─────────────────────────────────────────────
   // Handlers — Collaborator
   // ─────────────────────────────────────────────
 
-  /**
-   * Tambah collaborator ke ticket.
-   * Tidak mengizinkan agent yang sudah menjadi assignee.
-   *
-   * @param collaboratorId - ID agent yang akan ditambah
-   */
   const handleAddCollaborator = async (collaboratorId: string) => {
-    // Agent.id adalah number, bandingkan dengan string form
     const agent = agents.find((a) => String(a.id) === collaboratorId);
     if (!agent) return;
     if (collaboratorIds.includes(collaboratorId) || agent.name === assignedTo) return;
@@ -128,17 +159,12 @@ export function useTicketActions({
     }
   };
 
-  /**
-   * Hapus collaborator dari ticket.
-   *
-   * @param collaboratorName - Nama collaborator yang akan dihapus
-   */
-  const handleRemoveCollaborator = async (collaboratorName: string) => {
-    const agent = agents.find((a) => a.name === collaboratorName);
+  const handleRemoveCollaborator = async (collaboratorId: string) => {
+    const agent = agents.find((a) => String(a.id) === collaboratorId);
     if (!agent) return;
 
-    const newIds = collaboratorIds.filter((id) => id !== String(agent.id));
-    const newNames = collaborators.filter((c) => c !== collaboratorName);
+    const newIds = collaboratorIds.filter((id) => id !== collaboratorId);
+    const newNames = collaborators.filter((name) => name !== agent.name);
     setCollaboratorIds(newIds);
     setCollaborators(newNames);
 
@@ -163,11 +189,19 @@ export function useTicketActions({
       const updated = await updateTicket(String(ticket.id), { [field]: value });
       if (updated) {
         setTicket(updated);
+        setStatus(updated.status);
+        setCategory(updated.category);
+        setPriority(updated.priority);
+        setAssignedTo(updated.assignedTo || "");
         toast({ title: "Saved", description: `${displayName} updated.`, variant: "success" });
+      } else {
+        toast({ title: "Error", description: `Failed to update ${displayName}.`, variant: "destructive" });
+        if (field === 'priority') setPriority(ticket.priority);
+        if (field === 'category') setCategory(ticket.category);
+        if (field === 'assignedToId') setAssignedTo(ticket.assignedTo || "");
       }
     } catch {
       toast({ title: "Error", description: `Failed to update ${displayName}.`, variant: "destructive" });
-      // Revert local state on error
       if (field === 'priority') setPriority(ticket.priority);
       if (field === 'category') setCategory(ticket.category);
       if (field === 'assignedToId') setAssignedTo(ticket.assignedTo || "");
@@ -175,11 +209,64 @@ export function useTicketActions({
   };
 
   const handlePriorityChange = (val: string) => {
-    setPriority(val); // Optimistic UI
+    if (!val) return;
+    // No-op: prioritas sama — tidak ada dialog
+    if (val.toLowerCase() === String(ticket.priority).toLowerCase()) {
+      setPriority(ticket.priority);
+      return;
+    }
+    // Cek apakah ini perubahan prioritas pertama kali (gratis tanpa dialog):
+    const priorityChangeCount = (ticket.notes || []).filter(
+      (n) => n.content?.toLowerCase().includes("prioritas diganti dari")
+    ).length;
+    const isFirstChange = priorityChangeCount === 0;
+
+    if (!isFirstChange) {
+      const isStaffHoldingTicket = ticket.assignedToId && currentUser && String(currentUser.id) !== String(ticket.assignedToId);
+      if (isAdmin && isStaffHoldingTicket) {
+        setAdminOverride({ field: 'priority', value: val, label: `Prioritas: ${ticket.priority} → ${val}` });
+        setAdminReason("");
+        setShowAdminReasonDialog(true);
+        return;
+      }
+      // Staff pemilik atau Admin pada tiket sendiri / unassigned: dialog reason prioritas
+      setPriorityOverride({ value: val, label: `Prioritas: ${ticket.priority} → ${val}` });
+      setPriorityReason("");
+      setShowPriorityDialog(true);
+      return;
+    }
+    setPriority(val);
     handleUpdateField('priority', val, 'Priority');
   };
 
   const handleCategoryChange = (val: string) => {
+    if (!val || !val.trim()) return;
+    // No-op: kategori sama — tidak ada dialog
+    if (val === ticket.category) {
+      setCategory(ticket.category);
+      return;
+    }
+    // Cek apakah ini perubahan kategori pertama kali (gratis tanpa dialog):
+    // Gratis jika dari 'Uncategorized' atau belum pernah ada catatan perubahan kategori di notes
+    const categoryChangeCount = (ticket.notes || []).filter(
+      (n) => n.content?.toLowerCase().includes("kategori diganti dari")
+    ).length;
+    const isFirstChange = String(ticket.category).trim().toLowerCase() === "uncategorized" || categoryChangeCount === 0;
+
+    if (!isFirstChange) {
+      const isStaffHoldingTicket = ticket.assignedToId && currentUser && String(currentUser.id) !== String(ticket.assignedToId);
+      if (isAdmin && isStaffHoldingTicket) {
+        setAdminOverride({ field: 'category', value: val, label: `Kategori: ${ticket.category} → ${val}` });
+        setAdminReason("");
+        setShowAdminReasonDialog(true);
+        return;
+      }
+      // Staff pemilik atau Admin pada tiket sendiri / unassigned: dialog reason kategori
+      setCategoryOverride({ value: val, label: `Kategori: ${ticket.category} → ${val}` });
+      setCategoryReason("");
+      setShowCategoryDialog(true);
+      return;
+    }
     setCategory(val);
     handleUpdateField('category', val, 'Category');
   };
@@ -191,15 +278,211 @@ export function useTicketActions({
     } else {
       const selectedAgent = agents.find((a) => a.name === val);
       if (selectedAgent) {
+        // OPER (transfer): tiket SUDAH dipegang sebelumnya dan dipindah ke staff lain
+        // Perubahan pertama (dari unassigned -> staff): GRATIS tanpa alasan.
+        // Perubahan ke-2+ (transfer antar staff): WAJIB alasan dialog.
+        const currentHolderId = ticket.assignedToId;
+        const isTransfer = Boolean(currentHolderId) && String(currentHolderId) !== String(selectedAgent.id);
+        if (isTransfer) {
+          if (isAdmin) {
+            setAdminOverride({ field: 'assignedToId', value: selectedAgent.id, label: `Assignee: ${ticket.assignedTo} → ${selectedAgent.name}` });
+            setAdminReason("");
+            setShowAdminReasonDialog(true);
+            return;
+          }
+          setTransferTarget({ agentId: selectedAgent.id, agentName: selectedAgent.name });
+          setShowTransferDialog(true);
+          return; // jangan langsung assign — tunggu reason diisi
+        }
         setAssignedTo(selectedAgent.name);
         handleUpdateField('assignedToId', selectedAgent.id, 'Assignee');
       }
     }
   };
 
+  const handleTransferDialogChange = (open: boolean) => {
+    setShowTransferDialog(open);
+    if (!open) {
+      setTransferReason("");
+      setTransferTarget(null);
+      if (!dialogSavedRef.current) setAssignedTo(ticket.assignedTo || "");
+      dialogSavedRef.current = false;
+    }
+  };
+
+  // ── Admin Override Reason handlers ──
+  const handleAdminReasonDialogChange = (open: boolean) => {
+    setShowAdminReasonDialog(open);
+    if (!open) {
+      setAdminOverride(null);
+      setAdminReason("");
+      // revert tampilan ke nilai asli tiket — lewati jika baru saja sukses submit
+      if (!dialogSavedRef.current) {
+        setCategory(ticket.category);
+        setStatus(ticket.status);
+        setPriority(ticket.priority);
+        setAssignedTo(ticket.assignedTo || "");
+      }
+      dialogSavedRef.current = false;
+    }
+  };
+
+  // ── Category Reason handlers (staff pemilik) ──
+  const handleCategoryDialogChange = (open: boolean) => {
+    setShowCategoryDialog(open);
+    if (!open) {
+      setCategoryOverride(null);
+      setCategoryReason("");
+      // revert dropdown — lewati jika baru saja sukses submit (anti race)
+      if (!dialogSavedRef.current) setCategory(ticket.category);
+      dialogSavedRef.current = false;
+    }
+  };
+
+  // ── Priority Reason handlers (staff pemilik) ──
+  const handlePriorityDialogChange = (open: boolean) => {
+    setShowPriorityDialog(open);
+    if (!open) {
+      setPriorityOverride(null);
+      setPriorityReason("");
+      // revert dropdown — lewati jika baru saja sukses submit (anti race)
+      if (!dialogSavedRef.current) setPriority(ticket.priority);
+      dialogSavedRef.current = false;
+    }
+  };
+
+  const handleSubmitCategoryReason = async () => {
+    if (!categoryOverride) return;
+    if (!categoryReason.trim()) {
+      toast({ title: "Alasan Wajib", description: "Alasan perubahan kategori wajib diisi — akan tercatat di Ticket History.", variant: "destructive" });
+      return;
+    }
+    try {
+      const updated = await updateTicket(String(ticket.id), {
+        category: categoryOverride.value,
+        reason: categoryReason.trim(),
+      });
+      if (updated) {
+        setTicket(updated);
+        setCategory(updated.category);
+        dialogSavedRef.current = true;
+        setShowCategoryDialog(false);
+        setCategoryOverride(null);
+        setCategoryReason("");
+        toast({ title: "Kategori Diubah", description: "Perubahan tercatat di Ticket History.", variant: "success" });
+      } else {
+        toast({ title: "Error", description: "Gagal mengubah kategori.", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Error", description: "Gagal mengubah kategori.", variant: "destructive" });
+      handleCategoryDialogChange(false);
+    }
+  };
+
+  const handleSubmitPriorityReason = async () => {
+    if (!priorityOverride) return;
+    if (!priorityReason.trim()) {
+      toast({ title: "Alasan Wajib", description: "Alasan perubahan prioritas wajib diisi — akan tercatat di Ticket History.", variant: "destructive" });
+      return;
+    }
+    try {
+      const updated = await updateTicket(String(ticket.id), {
+        priority: priorityOverride.value,
+        reason: priorityReason.trim(),
+      });
+      if (updated) {
+        setTicket(updated);
+        setPriority(updated.priority);
+        dialogSavedRef.current = true;
+        setShowPriorityDialog(false);
+        setPriorityOverride(null);
+        setPriorityReason("");
+        toast({ title: "Prioritas Diubah", description: "Perubahan tercatat di Ticket History.", variant: "success" });
+      } else {
+        toast({ title: "Error", description: "Gagal mengubah prioritas.", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Error", description: "Gagal mengubah prioritas.", variant: "destructive" });
+      handlePriorityDialogChange(false);
+    }
+  };
+
+  const handleSubmitAdminReason = async () => {
+    if (!adminOverride) return;
+    if (!adminReason.trim()) {
+      toast({ title: "Alasan Wajib", description: "Alasan dari Admin wajib diisi — akan dikirim sebagai notifikasi ke staff terkait.", variant: "destructive" });
+      return;
+    }
+    try {
+      let updated: Ticket | null = null;
+
+      if (adminOverride.field === 'assignedToId') {
+        // Perubahan assignee: pakai endpoint oper (/assign) — status tiket TIDAK
+        // ikut diutak-atik (tiket Assigned tetap Assigned). Alasan dikirim ke
+        // pemilik lama + assignee baru lewat jalur oper admin.
+        updated = await assignTicket(String(ticket.id), String(adminOverride.value), adminReason.trim());
+      } else {
+        updated = await updateTicket(String(ticket.id), {
+          [adminOverride.field]: adminOverride.value,
+          reason: adminReason.trim(),
+        });
+      }
+
+      if (updated) {
+        setTicket(updated);
+        setStatus(updated.status);
+        setCategory(updated.category);
+        setPriority(updated.priority);
+        setAssignedTo(updated.assignedTo || "");
+        dialogSavedRef.current = true;
+        setShowAdminReasonDialog(false);
+        setAdminOverride(null);
+        setAdminReason("");
+        toast({ title: "Saved", description: `${adminOverride.label} — alasan dikirim ke staff terkait.`, variant: "success" });
+      } else {
+        toast({ title: "Error", description: "Gagal mengubah tiket.", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Error", description: "Gagal mengubah tiket.", variant: "destructive" });
+      handleAdminReasonDialogChange(false);
+    }
+  };
+
+  const handleSubmitTransferReason = async () => {
+    if (!transferTarget) return;
+    if (!transferReason.trim()) {
+      toast({ title: "Reason Required", description: "Alasan oper wajib diisi — jelaskan mengapa tiket ini dioper.", variant: "destructive" });
+      return;
+    }
+    try {
+      const updated = await assignTicket(String(ticket.id), String(transferTarget.agentId), transferReason.trim());
+      if (updated) {
+        setTicket(updated);
+        setAssignedTo(updated.assignedTo || "");
+        dialogSavedRef.current = true;
+        setShowTransferDialog(false);
+        setTransferReason("");
+        setTransferTarget(null);
+        toast({ title: "Ticket Transferred", description: `Tiket berhasil dioper ke ${transferTarget.agentName}.`, variant: "success" });
+      } else {
+        toast({ title: "Error", description: "Gagal mengoper tiket.", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Error", description: "Gagal mengoper tiket.", variant: "destructive" });
+    }
+  };
+
   const handleStatusChange = (newStatus: string) => {
+    // Guard: Radix Select kadang emit onValueChange dgn value kosong saat
+    // re-render/reset — jangan dianggap perubahan status (mencegah dialog reason liar).
+    if (!newStatus || !newStatus.trim()) return;
+    if (newStatus === ticket.status) {
+      // Tidak ada perubahan nyata — sinkronkan tampilan saja.
+      setStatus(ticket.status);
+      return;
+    }
     setStatus(newStatus);
-    
+
     const isResolvingWithoutSummary =
       (newStatus.toLowerCase() === "resolved" || newStatus.toLowerCase() === "closed") &&
       !ticket?.resolutionSummary;
@@ -208,15 +491,27 @@ export function useTicketActions({
       setShowResolveDialog(true);
       return;
     }
-    
-    // Check if the new status requires a reason
-    const targetStatus = statuses.find(s => s.name === newStatus);
+
+    // Admin mengubah status tiket milik staff -> wajib alasan (notif ke pemilik).
+    // Dialog reason status HANYA jika status benar-benar berubah ke status lain.
+    const isStaffHoldingTicket = ticket.assignedToId && currentUser && String(currentUser.id) !== String(ticket.assignedToId);
+    if (isAdmin && isStaffHoldingTicket && newStatus !== ticket.status) {
+      setAdminOverride({ field: 'status', value: newStatus, label: `Status: ${ticket.status} → ${newStatus}` });
+      setAdminReason("");
+      setShowAdminReasonDialog(true);
+      return;
+    }
+
+    // Status reason dialog: sinkron dengan master data status.requiresReason
+    const targetStatus = statuses.find(
+      (s) => s.name.trim().toLowerCase() === newStatus.trim().toLowerCase()
+    );
     if (targetStatus?.requiresReason) {
+      setStatusReason("");
       setShowReasonDialog(true);
       return;
     }
 
-    // Direct save
     handleUpdateStatusDirect(newStatus);
   };
 
@@ -231,12 +526,13 @@ export function useTicketActions({
         setTicket(updated);
         setStatus(updated.status);
         toast({ title: "Saved", description: "Status updated.", variant: "success" });
+        dialogSavedRef.current = true;
         setShowReasonDialog(false);
         setStatusReason("");
       }
     } catch {
       toast({ title: "Error", description: "Failed to update status.", variant: "destructive" });
-      setStatus(ticket.status); // Revert
+      setStatus(ticket.status);
     }
   };
 
@@ -251,7 +547,9 @@ export function useTicketActions({
   const handleReasonDialogChange = (open: boolean) => {
     setShowReasonDialog(open);
     if (!open) {
-      setStatus(ticket.status);
+      // revert dropdown — lewati jika baru saja sukses submit (anti race)
+      if (!dialogSavedRef.current) setStatus(ticket.status);
+      dialogSavedRef.current = false;
       setStatusReason("");
     }
   };
@@ -260,11 +558,6 @@ export function useTicketActions({
   // Handlers — Resolve Dialog
   // ─────────────────────────────────────────────
 
-  /**
-   * Buka dialog resolve dengan validasi:
-   * - Hanya assignee yang boleh resolve
-   * - Ticket harus sudah di-assign
-   */
   const handleOpenResolveDialog = () => {
     if (ticket?.assignedTo && ticket.assignedTo !== currentUser?.name) {
       toast({
@@ -280,7 +573,7 @@ export function useTicketActions({
         description: "Please assign this ticket to yourself before resolving it.",
         variant: "destructive",
       });
-      setStatus(ticket.status); // revert
+      setStatus(ticket.status);
       return;
     }
 
@@ -291,11 +584,14 @@ export function useTicketActions({
     setShowResolveDialog(true);
   };
 
-  /**
-   * Submit form resolve ticket dengan validasi resolution summary.
-   * Minimum 20 karakter.
-   */
   const handleSubmitResolution = async () => {
+    if (resolveDate) {
+      const dateObj = new Date(resolveDate);
+      if (dateObj > new Date()) {
+        setResolutionError("Waktu penyelesaian tidak boleh di masa depan (maksimal sekarang).");
+        return;
+      }
+    }
     if (!resolutionSummary.trim()) {
       setResolutionError("Resolution summary is required");
       return;
@@ -346,12 +642,6 @@ export function useTicketActions({
   // Handlers — Staff Modal
   // ─────────────────────────────────────────────
 
-  /**
-   * Buka modal profile staff dan muat daftar ticket yang dikerjakan.
-   * Jika staff tidak ada di agents list, fetch dari API secara spesifik.
-   *
-   * @param staffId - ID staff (string)
-   */
   const handleStaffClick = async (staffId: string) => {
     const agent = agents.find((a) => String(a.id) === staffId);
     let staffInfo: StaffInfo | undefined = agent
@@ -386,37 +676,60 @@ export function useTicketActions({
       const { tickets } = await getTickets({ assignedTo: staffId });
       setStaffTickets(tickets);
     } catch {
-      // Gagal muat tickets staff — modal tetap terbuka tapi kosong
+      // Silent fail
     } finally {
       setLoadingStaffTickets(false);
     }
   };
 
   // ─────────────────────────────────────────────
-  // Handlers — Note Image
+  // Handlers — Note Image with Compression
   // ─────────────────────────────────────────────
 
-  /**
-   * Handle upload gambar untuk note — compress sebelum set state.
-   *
-   * @param file - File gambar dari input
-   */
-  const handleNoteImageChange = async (file: File) => {
-    const compressed = await compressImage(file);
-    setNoteImage(compressed);
+  const handleNoteImageChange = async (file: File | null) => {
+    if (!file) {
+      setNoteImage(null);
+      return;
+    }
+
+    try {
+      const compressed = await compressImage(file, { maxWidth: 1920, maxHeight: 1080, quality: 0.75 });
+      setNoteImage(compressed);
+    } catch (err) {
+      console.error("Compression error:", err);
+      setNoteImage(file);
+    }
+  };
+
+  const handleClearNoteImage = () => {
+    setNoteImage(null);
   };
 
   const handleResolutionImageChange = async (file: File | null) => {
-    if (!file) { setResolutionImage(null); return; }
-    const compressed = await compressImage(file);
-    setResolutionImage(compressed);
+    if (!file) {
+      setResolutionImage(null);
+      return;
+    }
+
+    setResolutionError("");
+    try {
+      const compressed = await compressImage(file, { maxWidth: 1920, maxHeight: 1080, quality: 0.75 });
+      setResolutionImage(compressed);
+    } catch (err) {
+      console.error("Compression error:", err);
+      setResolutionImage(file);
+    }
+  };
+
+  const handleClearResolutionImage = () => {
+    setResolutionImage(null);
   };
 
   /**
    * Tambah internal note secara terpisah tanpa update status ticket
    */
   const handleAddNote = async () => {
-    if (!newNote && !noteImage) {
+    if (!newNote.trim() && !noteImage) {
       toast({ title: "Wait a moment", description: "Please add a note or image.", variant: "destructive" });
       return;
     }
@@ -424,7 +737,7 @@ export function useTicketActions({
     try {
       const note = await addTicketNote(
         String(ticket.id),
-        newNote || "Note with image",
+        newNote || "Note with image documentation",
         true,
         noteImage || undefined
       );
@@ -456,9 +769,6 @@ export function useTicketActions({
   // Handlers — Edit Resolved At
   // ─────────────────────────────────────────────
 
-  /**
-   * Buka form edit waktu resolved dan pre-fill dengan nilai saat ini.
-   */
   const handleOpenEditResolvedAt = () => {
     const d = ticket.resolvedAt
       ? new Date(ticket.resolvedAt)
@@ -467,30 +777,28 @@ export function useTicketActions({
     setIsEditingResolvedAt(true);
   };
 
-  /**
-   * Simpan perubahan waktu resolved ke API.
-   */
   const handleSaveResolvedAt = async () => {
     if (!editResolvedAtValue) return;
     const dateObj = new Date(editResolvedAtValue);
     if (isNaN(dateObj.getTime())) return;
+    if (dateObj > new Date()) {
+      toast({
+        title: "Error",
+        description: "Waktu penyelesaian tidak boleh di masa depan (maksimal sekarang).",
+        variant: "destructive",
+      });
+      return;
+    }
 
     try {
       const updated = await updateTicket(String(ticket.id), { resolvedAt: dateObj });
       if (updated) setTicket(updated);
       setIsEditingResolvedAt(false);
     } catch {
-      // Silent — pengguna bisa coba lagi
+      // Silent
     }
   };
 
-  // ─────────────────────────────────────────────
-  // Assign to Self (dashboard shortcut dipakai juga di sini)
-  // ─────────────────────────────────────────────
-
-  /**
-   * Assign ticket ke user yang sedang login.
-   */
   const handleAssignToSelf = async () => {
     if (!currentUser) return;
     try {
@@ -498,6 +806,7 @@ export function useTicketActions({
       if (updated) {
         setTicket(updated);
         setAssignedTo(updated.assignedTo || "");
+        setStatus(updated.status);
       }
     } catch {
       toast({ title: "Error", description: "Gagal assign ticket.", variant: "destructive" });
@@ -515,12 +824,15 @@ export function useTicketActions({
     collaboratorIds,
     newNote, setNewNote,
     noteImage, setNoteImage,
+    handleNoteImageChange,
+    handleClearNoteImage,
     resolutionSummary, setResolutionSummary,
     showResolveDialog, setShowResolveDialog,
     resolutionError,
     resolveDate, setResolveDate,
     resolutionImage, setResolutionImage,
     handleResolutionImageChange,
+    handleClearResolutionImage,
     isEditingResolvedAt, setIsEditingResolvedAt,
     editResolvedAtValue, setEditResolvedAtValue,
     isStaffModalOpen, setIsStaffModalOpen,
@@ -530,6 +842,34 @@ export function useTicketActions({
     showReasonDialog,
     handleReasonDialogChange,
     statusReason, setStatusReason,
+
+    // Transfer (Oper) Dialog State
+    showTransferDialog,
+    handleTransferDialogChange,
+    transferTarget,
+    transferReason, setTransferReason,
+    handleSubmitTransferReason,
+
+    // Admin Override Reason Dialog State
+    showAdminReasonDialog,
+    handleAdminReasonDialogChange,
+    adminOverride,
+    adminReason, setAdminReason,
+    handleSubmitAdminReason,
+
+    // Category Reason Dialog State (staff pemilik)
+    showCategoryDialog,
+    handleCategoryDialogChange,
+    categoryOverride,
+    categoryReason, setCategoryReason,
+    handleSubmitCategoryReason,
+
+    // Priority Reason Dialog State (staff pemilik)
+    showPriorityDialog,
+    handlePriorityDialogChange,
+    priorityOverride,
+    priorityReason, setPriorityReason,
+    handleSubmitPriorityReason,
 
     // Handlers
     handleStatusChange,
@@ -542,7 +882,6 @@ export function useTicketActions({
     handleOpenResolveDialog,
     handleSubmitResolution,
     handleStaffClick,
-    handleNoteImageChange,
     handleAddNote,
     handleOpenEditResolvedAt,
     handleSaveResolvedAt,

@@ -175,21 +175,22 @@
 
 .dataTable {
     width: 100%;
+    min-width: 780px;
     border-collapse: collapse;
 }
 
 .dataTable thead {
-    background: #111c30;
+    background: rgba(17, 24, 39, 0.6);
 }
 
 .dataTable th {
     text-align: left;
     padding: var(--space-4) var(--space-5);
-    font-size: 0.78rem;
+    font-size: 0.875rem;
     font-weight: 700;
-    color: #93c5fd;
+    color: #9ca3af;
     text-transform: uppercase;
-    letter-spacing: 0.08em;
+    letter-spacing: 1px;
     border-bottom: 2px solid rgba(59, 130, 246, 0.4);
     position: sticky;
     top: 0;
@@ -366,28 +367,20 @@
     backdrop-filter: blur(20px);
     border: 1px solid rgba(59, 130, 246, 0.2);
     border-radius: 16px;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
+    overflow: hidden;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-}
-
-.tableContainer::-webkit-scrollbar {
-    height: 8px;
-}
-
-.tableContainer::-webkit-scrollbar-track {
-    background: rgba(255, 255, 255, 0.05);
-}
-
-.tableContainer::-webkit-scrollbar-thumb {
-    background: rgba(59, 130, 246, 0.3);
-    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
 }
 
 .scrollableArea {
     max-height: 350px;
-    overflow-y: auto;
-    overflow-x: auto;
+    overflow: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    position: relative;
+    flex: 1;
+    min-height: 0;
 }
 
 .scrollableArea::-webkit-scrollbar {
@@ -407,15 +400,7 @@
 .scrollableArea::-webkit-scrollbar-thumb:hover {
     background: rgba(59, 130, 246, 0.5);
 }
-/* Responsive table: horizontal scroll on small screens */
-.tableContainer .dataTable,
-.dataTable {
-  min-width: 780px;
-}
-.scrollableArea {
-  overscroll-behavior-x: contain;
-  -webkit-overflow-scrolling: touch;
-}
+/* Horizontal scroll is handled by min-width on .dataTable (780px) + overflow:auto on .scrollableArea */
 @media (max-width: 720px) {
   .container {
     padding: 14px 12px 20px;

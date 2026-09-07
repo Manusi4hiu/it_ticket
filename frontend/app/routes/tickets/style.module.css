@@ -1,14 +1,4 @@
-﻿/* ── Tickets Ledger — self-contained dark theme (matches original shell) ── */
-.container {
-  padding: 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-  color: #f3f4f6;
-  height: calc(100dvh - 70px);
-  box-sizing: border-box;
-}
-
+/* ── Tickets Ledger — self-contained dark theme (matches original shell) ── */
 .container {
   padding: 24px;
   display: flex;
@@ -36,19 +26,17 @@
 /* Filter bar */
 .filterBar {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  padding: 12px;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
   background: rgba(17, 24, 39, 0.5);
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.searchInputWrapper {
+.searchInputWrapperFull {
   position: relative;
-  flex: 1;
-  min-width: 220px;
+  width: 100%;
 }
 
 .searchInput {
@@ -56,10 +44,11 @@
   background: rgba(17, 24, 39, 0.6);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
-  padding: 8px 12px 8px 36px;
+  padding: 10px 14px 10px 40px;
   color: #fff;
-  font-size: 0.9rem;
+  font-size: 0.92rem;
   transition: all 0.2s ease;
+  box-sizing: border-box;
 }
 
 .searchInput:focus {
@@ -70,42 +59,141 @@
 
 .searchIcon {
   position: absolute;
-  left: 10px;
+  left: 12px;
   top: 50%;
   transform: translateY(-50%);
   color: #9ca3af;
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
 }
 
-.filterGroup {
+.searchClearBtn {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  color: #9ca3af;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.searchClearBtn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Segmented Status Controls */
+.segmentedControls {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  width: 100%;
+}
+
+.segmentedButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 42px;
+  padding: 0 16px;
+  border-radius: 10px;
+  background: rgba(17, 24, 39, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #9ca3af;
+  font-size: 0.86rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.segmentedButton:hover {
+  background: rgba(30, 41, 59, 0.8);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.segmentedButtonActive {
+  background: rgba(59, 130, 246, 0.16) !important;
+  border: 1.5px solid #3b82f6 !important;
+  color: #60a5fa !important;
+  box-shadow: 0 0 15px rgba(59, 130, 246, 0.25);
+}
+
+.segmentedCount {
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+}
+
+.segmentedButtonActive .segmentedCount {
+  background: rgba(59, 130, 246, 0.3);
+  color: #93c5fd;
+}
+
+/* Active filters summary bar */
+.activeFiltersBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-top: 4px;
+}
+
+.activeFilterPills {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
 }
 
-.selectTrigger {
-  background: rgba(17, 24, 39, 0.6) !important;
-  border: 1px solid rgba(255, 255, 255, 0.1) !important;
-  color: #f3f4f6 !important;
-  height: 36px !important;
-  font-size: 0.85rem !important;
-  border-radius: 8px !important;
-  min-width: 128px;
+.filterPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  background: rgba(59, 130, 246, 0.15);
+  color: #93c5fd;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  padding: 3px 8px;
+  border-radius: 6px;
 }
 
-.clearButton {
+.filterPillClose {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  color: #93c5fd;
+}
+
+.filterPillClose:hover {
+  color: #fff;
+}
+
+.clearAllButton {
   color: #9ca3af !important;
-  font-size: 0.85rem !important;
+  font-size: 0.82rem !important;
   font-weight: 600 !important;
-  padding: 0 var(--space-2) !important;
-  height: 36px !important;
+  padding: 4px 8px !important;
+  height: auto !important;
+  background: transparent !important;
+  border: none !important;
+  cursor: pointer;
 }
 
-.clearButton:hover {
-  color: #fff !important;
-  background: rgba(255, 255, 255, 0.05) !important;
+.clearAllButton:hover {
+  color: #f87171 !important;
 }
 
 /* ── Table container: visible border + card feel ── */
@@ -113,7 +201,7 @@
   background: rgba(17, 24, 39, 0.55);
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  overflow: hidden;
+  overflow: visible;
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -138,23 +226,144 @@
 /* Header row — strong contrast vs body */
 .table th {
   text-align: left;
-  padding: var(--space-4) var(--space-5);
-  font-size: 0.78rem;
+  padding: var(--space-3) var(--space-4);
+  font-size: 0.76rem;
   font-weight: 700;
   color: #9ca3af;
   text-transform: uppercase;
-  letter-spacing: 1px;
+  letter-spacing: 0.8px;
   border-bottom: 2px solid rgba(59, 130, 246, 0.4);
   position: sticky;
   top: 0;
-  z-index: 10;
+  z-index: 20;
   background: #111c30;
   white-space: nowrap;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  user-select: none;
 }
 
 .table thead {
   background: rgba(17, 24, 39, 0.6);
+}
+
+/* In-header Column Filter */
+.thFilterContainer {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 100%;
+}
+
+.thFilterButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  padding: 4px 6px;
+  margin: -4px -6px;
+  color: inherit;
+  font: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+  width: 100%;
+}
+
+.thFilterButton:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.thFilterButtonActive {
+  color: #60a5fa !important;
+  background: rgba(59, 130, 246, 0.15) !important;
+}
+
+.thChevron {
+  transition: transform 0.2s ease;
+  opacity: 0.6;
+}
+
+.thFilterButton:hover .thChevron {
+  opacity: 1;
+}
+
+.filterBadgeDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #3b82f6;
+  box-shadow: 0 0 6px #3b82f6;
+  display: inline-block;
+  margin-left: 2px;
+}
+
+/* Column Filter Popover */
+.columnFilterPopover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 200px;
+  max-width: 280px;
+  max-height: 300px;
+  overflow-y: auto;
+  background: #1a2234;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  padding: 6px;
+  box-shadow: 0 14px 35px rgba(0, 0, 0, 0.7);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: normal;
+}
+
+.columnFilterSearch {
+  width: 100%;
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 0.8rem;
+  color: #fff;
+  margin-bottom: 4px;
+  box-sizing: border-box;
+}
+
+.columnFilterSearch:focus {
+  outline: none;
+  border-color: #3b82f6;
+}
+
+.columnFilterItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 10px;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  color: #e5e7eb;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  user-select: none;
+}
+
+.columnFilterItem:hover {
+  background: rgba(59, 130, 246, 0.18);
+  color: #fff;
+}
+
+.columnFilterItemActive {
+  background: rgba(59, 130, 246, 0.28) !important;
+  color: #93c5fd !important;
+  font-weight: 600;
 }
 
 /* Body rows — clear separators + hover */
@@ -219,13 +428,13 @@
   flex-shrink: 0;
 }
 
-/* Status colors — distinct hues */
+/* Status colors */
 .statusNew { background: rgba(59, 130, 246, 0.14); color: #93c5fd; border-color: rgba(59, 130, 246, 0.35); }
 .statusInProgress { background: rgba(245, 158, 11, 0.14); color: #fcd34d; border-color: rgba(245, 158, 11, 0.35); }
 .statusResolved { background: rgba(16, 185, 129, 0.14); color: #6ee7b7; border-color: rgba(16, 185, 129, 0.35); }
-.statusClosed { background: rgba(107, 114, 128, 0.14); color: #9ca3af; border-color: rgba(107, 114, 128, 0.3); }
+.statusPending { background: rgba(168, 85, 247, 0.14); color: #d8b4fe; border-color: rgba(168, 85, 247, 0.35); }
 
-/* Priority colors — icon + label pair */
+/* Priority colors */
 .priorityCritical { color: #f87171; }
 .priorityHigh { color: #fb923c; }
 .priorityMedium { color: #fbbf24; }
@@ -282,19 +491,69 @@
   box-shadow: 0 6px 16px rgba(16, 185, 129, 0.35) !important;
 }
 
-.miniDeleteButton {
-  color: #6b7280 !important;
-  padding: 5px !important;
-  transition: all 0.2s ease !important;
-  display: flex !important;
+.deleteRedBtn {
+  display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
+  width: 34px !important;
+  height: 34px !important;
+  min-width: 34px !important;
+  padding: 0 !important;
+  background: rgba(239, 68, 68, 0.15) !important;
+  border: 1.5px solid #ef4444 !important;
   border-radius: 8px !important;
+  color: #f87171 !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.2) !important;
+}
+
+.deleteRedBtn:hover {
+  background: rgba(239, 68, 68, 0.35) !important;
+  border-color: #f87171 !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 14px rgba(239, 68, 68, 0.5) !important;
+  transform: scale(1.08) !important;
+}
+
+.deleteRedBtn svg {
+  width: 16px !important;
+  height: 16px !important;
+  color: #f87171 !important;
+  stroke: #f87171 !important;
+  transition: transform 0.2s ease !important;
+}
+
+.deleteRedBtn:hover svg {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+}
+
+.miniDeleteButton {
+  background: rgba(239, 68, 68, 0.14) !important;
+  border: 1px solid rgba(239, 68, 68, 0.35) !important;
+  color: #f87171 !important;
+  height: 32px !important;
+  padding: 0 12px !important;
+  gap: 6px !important;
+  font-size: 0.8rem !important;
+  font-weight: 600 !important;
+  border-radius: 8px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  box-shadow: 0 2px 6px rgba(239, 68, 68, 0.15) !important;
+  white-space: nowrap !important;
 }
 
 .miniDeleteButton:hover {
-  background: rgba(239, 68, 68, 0.12) !important;
-  color: #f87171 !important;
+  background: rgba(239, 68, 68, 0.28) !important;
+  border-color: #ef4444 !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.35) !important;
+  transform: translateY(-1px) !important;
 }
 
 /* Pagination */
@@ -361,13 +620,13 @@
 @media (max-width: 1024px) {
   .container { padding: 16px; gap: 14px; height: auto; }
   .table { min-width: 800px; }
+  .segmentedControls { gap: 8px; }
 }
 
 @media (max-width: 720px) {
   .container { padding: 14px 12px; gap: 12px; }
   .title { font-size: 1.2rem; }
-  .filterBar { flex-direction: column; align-items: stretch; }
-  .searchInputWrapper { min-width: 0; }
+  .segmentedControls { grid-template-columns: 1fr; }
   .table { min-width: 720px; }
   .pagination { justify-content: center; flex-wrap: wrap; }
 }

@@ -23,6 +23,7 @@ export interface Status {
     name: string;
     color: string;
     order: number;
+    filterGroup?: string | null;
     isDefault: boolean;
     requiresReason: boolean;
     pausesSla: boolean;

@@ -159,13 +159,14 @@
   color: #ffffff;
 }
 
-/* Kanban Layout — all columns in one row, horizontal scroll when narrow */
+/* Kanban Layout — all columns expand to fill space evenly, horizontal scroll when narrow */
 .kanbanBoard {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(230px, 1fr);
-  gap: 12px;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 14px;
   flex: 1;
+  width: 100%;
   min-height: 0;
   overflow-x: auto;
   overflow-y: hidden;
@@ -177,6 +178,8 @@
 .kanbanBoard::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 4px; }
 
 .kanbanColumn {
+  flex: 1 1 0;
+  min-width: 260px;
   display: flex;
   flex-direction: column;
   background: rgba(10, 25, 47, 0.25);
@@ -271,6 +274,15 @@
 .cardIsDragging {
   opacity: 0.4;
   border: 1px dashed rgba(59, 130, 246, 0.5);
+}
+
+/* View-only mode (Management) — card tidak draggable, cursor pointer utk buka detail */
+.cardViewOnly {
+  cursor: pointer;
+}
+
+.cardViewOnly:active {
+  cursor: pointer;
 }
 
 .cardHeader {
