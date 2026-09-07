@@ -171,7 +171,21 @@ class TicketService:
             
             # If everything succeeded, commit the whole transaction
             db.session.commit()
+
+            # Send email confirmation to submitter (non-blocking)
+            try:
+                from app.services.email_service import EmailService
+                EmailService.send_ticket_confirmation(ticket)
+            except Exception as email_err:
+                # Email failure must NOT rollback or fail the ticket creation
+                import logging
+                logging.getLogger(__name__).error(
+                    f"[Email] Unexpected error sending confirmation for "
+                    f"{ticket.ticket_code}: {email_err}"
+                )
+
             return ticket
+
 
         except Exception as e:
             db.session.rollback()
