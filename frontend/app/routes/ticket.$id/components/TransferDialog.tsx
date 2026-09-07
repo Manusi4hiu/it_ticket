@@ -1,4 +1,4 @@
-import { MessageSquare } from "lucide-react";
+import { ArrowRightLeft, MessageSquare } from "lucide-react";
 import { Button } from "~/components/ui/button/button";
 import { Label } from "~/components/ui/label/label";
 import { Textarea } from "~/components/ui/textarea/textarea";
@@ -12,23 +12,27 @@ import {
 } from "~/components/ui/dialog/dialog";
 import styles from "../style.module.css";
 
-interface ReasonDialogProps {
+interface TransferDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   reason: string;
   onReasonChange: (value: string) => void;
   onSubmit: () => void;
-  targetStatus: string;
+  fromName: string;
+  toName: string;
+  ticketCode?: string;
 }
 
-export function ReasonDialog({
+export function TransferDialog({
   open,
   onOpenChange,
   reason,
   onReasonChange,
   onSubmit,
-  targetStatus,
-}: ReasonDialogProps) {
+  fromName,
+  toName,
+  ticketCode,
+}: TransferDialogProps) {
   const isReasonEmpty = reason.trim().length === 0;
 
   return (
@@ -36,19 +40,24 @@ export function ReasonDialog({
       <DialogContent className={styles.dialogContent}>
         <DialogHeader>
           <DialogTitle className={styles.dialogTitle}>
-            <MessageSquare className={styles.dialogIcon} />
-            Reason Required
+            <ArrowRightLeft className={styles.dialogIcon} />
+            Oper (Transfer) Tiket
           </DialogTitle>
           <DialogDescription className={styles.dialogDescription}>
-            Please provide a reason for changing the ticket status to <strong>{targetStatus}</strong>.
+            {ticketCode ? (
+              <>Tiket <strong>{ticketCode}</strong> akan dioper dari <strong>{fromName}</strong> ke <strong>{toName}</strong>.</>
+            ) : (
+              <>Tiket akan dioper dari <strong>{fromName}</strong> ke <strong>{toName}</strong>.</>
+            )}{" "}
+            Alasan oper wajib diisi dan akan tercatat di status history.
           </DialogDescription>
         </DialogHeader>
 
         <div className={styles.dialogBody}>
-          <Label htmlFor="status-reason">Reason *</Label>
+          <Label htmlFor="transfer-reason">Alasan Oper *</Label>
           <Textarea
-            id="status-reason"
-            placeholder="Enter reason..."
+            id="transfer-reason"
+            placeholder="Contoh: Saya sedang mengerjakan tiket prioritas lain, jadi tiket ini saya oper ke Anda yang lebih paham topiknya..."
             rows={4}
             value={reason}
             onChange={(e) => onReasonChange(e.target.value)}
@@ -56,7 +65,7 @@ export function ReasonDialog({
           {isReasonEmpty && (
             <p style={{ marginTop: 6, fontSize: "0.75rem", color: "#fca5a5", display: "flex", gap: 6 }}>
               <span style={{ fontWeight: 700 }}>!</span>
-              Reason wajib diisi sebelum bisa submit — jelaskan alasan perubahan status ke "{targetStatus}".
+              Alasan oper wajib diisi — jelaskan mengapa tiket ini dipindahkan ke staff lain.
             </p>
           )}
         </div>
@@ -66,7 +75,8 @@ export function ReasonDialog({
             Cancel
           </Button>
           <Button onClick={onSubmit} disabled={isReasonEmpty}>
-            Submit Reason
+            <MessageSquare style={{ width: "16px", height: "16px", marginRight: 6 }} />
+            Oper Tiket
           </Button>
         </DialogFooter>
       </DialogContent>

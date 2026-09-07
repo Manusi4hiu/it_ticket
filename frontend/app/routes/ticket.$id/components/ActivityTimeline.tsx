@@ -9,6 +9,7 @@
 import { MessageSquare } from "lucide-react";
 import type { TicketNote } from "~/services/ticket.service";
 import { formatDate } from "~/utils/date";
+import { isSystemNote } from "~/utils/ticket-history";
 import styles from "../style.module.css";
 
 // ─────────────────────────────────────────────
@@ -41,7 +42,9 @@ interface ActivityTimelineProps {
  * <ActivityTimeline notes={ticket.notes} />
  */
 export function ActivityTimeline({ notes }: ActivityTimelineProps) {
-  const filteredNotes = notes.filter(note => !note.content.includes('Status changed'));
+  // Activity & Notes khusus chat/notes staff — semua system notes
+  // (perubahan status, transfer/take assignee, kategori) tampil di Ticket History.
+  const filteredNotes = notes.filter(note => !isSystemNote(note.content));
 
   return (
     <div className={styles.section} id="activity">

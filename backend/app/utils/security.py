@@ -20,9 +20,19 @@ def sanitize_html(text, allowed_tags=None):
         return None
     if not isinstance(text, str):
         return text
-    import html
-    cleaned = bleach.clean(text, tags=allowed_tags or ALLOWED_TAGS_USER, strip=True)
-    return html.unescape(cleaned)
+    import unicodedata
+    try:
+        # Normalize multibyte
+        text = unicodedata.normalize('NFKC', text)
+        tags_to_use = allowed_tags if allowed_tags is not None else ALLOWED_TAGS_USER
+        cleaned = bleach.clean(text, tags=tags_to_use, strip=True)
+        return cleaned
+    except Exception:
+        # Fallback: strip all tags safely
+        try:
+            return bleach.clean(text, tags=set(), strip=True)
+        except Exception:
+            return ""
 
 
 def sanitize_dict(data, fields_to_sanitize=None):

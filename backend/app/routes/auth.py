@@ -1,9 +1,11 @@
 from flask import Blueprint, request, jsonify
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 from app.services.auth_service import AuthService
 from app.utils.decorators import admin_required
 
 auth_bp = Blueprint('auth', __name__)
+
+jwt_blocklist = set()
 
 @auth_bp.route('/login', methods=['POST'])
 def login():
@@ -46,9 +48,11 @@ def get_current_user():
 @auth_bp.route('/logout', methods=['POST'])
 @jwt_required()
 def logout():
-    """Logout user (client should discard token)"""
-    # With JWT, logout is handled client-side by discarding the token
-    # We can implement token blacklisting if needed
+    """Logout user and revoke token"""
+    jwt_payload = get_jwt()
+    jti = jwt_payload.get("jti")
+    if jti:
+        jwt_blocklist.add(jti)
     return jsonify({
         'success': True,
         'message': 'Logout berhasil'

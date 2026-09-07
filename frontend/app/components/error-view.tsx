@@ -8,9 +8,13 @@ interface ErrorViewProps {
     title: string;
     message: string;
     type: "unauthorized" | "not-found" | "error";
+    /** Label tombol utama custom (opsional). Jika kosong, fallback default per type. */
+    actionLabel?: string;
+    /** Handler tombol utama custom (opsional). Jika kosong, fallback default per type. */
+    onAction?: () => void;
 }
 
-export function ErrorView({ code, title, message, type }: ErrorViewProps) {
+export function ErrorView({ code, title, message, type, actionLabel, onAction }: ErrorViewProps) {
     const navigate = useNavigate();
 
     const getIcon = () => {
@@ -20,6 +24,15 @@ export function ErrorView({ code, title, message, type }: ErrorViewProps) {
             default: return <AlertCircle size={60} />;
         }
     };
+
+    const primaryAction = () => {
+        if (onAction) return onAction;
+        if (type === "unauthorized") return () => navigate("/login");
+        return () => navigate("/");
+    };
+
+    const primaryLabel = actionLabel
+        ?? (type === "unauthorized" ? "Login Now" : "Back to Home");
 
     return (
         <div className={styles.container}>
@@ -36,17 +49,14 @@ export function ErrorView({ code, title, message, type }: ErrorViewProps) {
                 <p className={styles.message}>{message}</p>
 
                 <div className={styles.actions}>
-                    {type === "unauthorized" ? (
-                        <Button className={styles.primaryButton} onClick={() => navigate("/login")}>
+                    <Button className={styles.primaryButton} onClick={primaryAction()}>
+                        {type === "unauthorized" && !actionLabel ? (
                             <LogIn style={{ width: "18px", height: "18px", marginRight: "8px" }} />
-                            Login Now
-                        </Button>
-                    ) : (
-                        <Button className={styles.primaryButton} onClick={() => navigate("/")}>
+                        ) : (
                             <Home style={{ width: "18px", height: "18px", marginRight: "8px" }} />
-                            Back to Home
-                        </Button>
-                    )}
+                        )}
+                        {primaryLabel}
+                    </Button>
 
                     <Button
                         variant="outline"

@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.services.user_service import UserService
 from app.models.user import User
+from app.utils.permissions import admin_required, role_required, get_current_user
 
 users_bp = Blueprint('users', __name__)
 
@@ -21,6 +22,7 @@ def get_users():
 
 
 @users_bp.route('/agents', methods=['GET'])
+@jwt_required()
 def get_agents():
     """Get users who can be assigned to tickets (all staff)"""
     users = UserService.get_agents()
@@ -32,6 +34,7 @@ def get_agents():
 
 
 @users_bp.route('/<user_id>', methods=['GET'])
+@jwt_required()
 def get_user(user_id):
     """Get a single user by ID"""
     user = UserService.get_user_by_id(user_id)
@@ -46,14 +49,11 @@ def get_user(user_id):
 
 
 @users_bp.route('', methods=['POST'])
-@jwt_required()
+@admin_required
 def create_user():
-    """Create a new user (admin only)"""
+    """Create a new user (admin only — manage user roles adalah privilege Administrator)"""
     current_user_id = get_jwt_identity()
     current_user = UserService.get_user_by_id(current_user_id)
-    
-    if not current_user or current_user.role != 'Administrator':
-        return jsonify({'success': False, 'error': 'Unauthorized. Admin only.'}), 403
     
     data = request.get_json()
     
@@ -102,7 +102,7 @@ def update_user(user_id):
 
 
 @users_bp.route('/<user_id>', methods=['DELETE'])
-@jwt_required()
+@admin_required
 def delete_user(user_id):
     """Delete a user (admin only)"""
     current_user_id = get_jwt_identity()
@@ -135,11 +135,11 @@ def get_user_performance(user_id):
 
 
 @users_bp.route('/performance', methods=['GET'])
-@jwt_required()
+@role_required('Administrator', 'Management', 'Staff')
 def get_all_performance():
-    """Get performance statistics for all staff members"""
+    """Get performance statistics for all staff members (reports/analytics: Admin/Management/Staff)"""
     results = UserService.get_all_performance()
-    
+
     return jsonify({
         'success': True,
         'performance': results

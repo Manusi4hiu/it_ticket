@@ -25,14 +25,14 @@ class Ticket(db.Model):
     __tablename__ = 'tickets'
     
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    ticket_code = db.Column(db.String(20), unique=True, nullable=True) # e.g., FIN-001
-    code_counter = db.Column(db.Integer, nullable=True) # Per department sequence
+    ticket_code = db.Column(db.String(20), unique=True, nullable=False, index=True)
+    code_counter = db.Column(db.Integer, nullable=False, default=1)
     title = db.Column(db.String(255), nullable=False)
     description = db.Column(db.Text, nullable=False)
-    status = db.Column(db.String(20), nullable=False, default='new', index=True)  # new, triaged, assigned, in-progress, resolved, closed
+    status = db.Column(db.String(50), nullable=False, default='New', index=True)
     priority = db.Column(db.String(20), nullable=False, default='medium', index=True)  # low, medium, high, critical
     category = db.Column(db.String(50), nullable=False, index=True)  # Hardware, Software, Network, Other
-    image_url = db.Column(db.String(255), nullable=True)
+    image_url = db.Column(db.Text, nullable=True)
     idempotency_key = db.Column(db.String(36), unique=True, nullable=True)
     
     # Submitter info
@@ -54,18 +54,20 @@ class Ticket(db.Model):
     sla_status = db.Column(db.String(20), default='good')  # good, warning, breached
     sla_paused_at = db.Column(db.DateTime, nullable=True)
     taken_at = db.Column(db.DateTime, nullable=True)  # Timestamp ketika ticket pertama kali di-assign/diambil
+    transferred_at = db.Column(db.DateTime, nullable=True)  # Timestamp terakhir tiket di-OPER ke assignee saat ini
     
     # Resolution
     resolution_summary = db.Column(db.Text, nullable=True)
-    resolution_image_url = db.Column(db.String(255), nullable=True)
+    resolution_image_url = db.Column(db.Text, nullable=True)
     resolved_at = db.Column(db.DateTime, nullable=True, index=True)
     
     # Timestamps
     created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True)
     updated_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
-    # Notes relationship
+    # Notes and Notifications relationship
     notes = db.relationship('TicketNote', back_populates='ticket', cascade='all, delete-orphan', order_by='TicketNote.created_at')
+    notifications = db.relationship('Notification', backref='ticket', cascade='all, delete-orphan')
     
     def to_dict(self, include_notes=True):
         """Convert ticket to dictionary"""
@@ -90,6 +92,7 @@ class Ticket(db.Model):
             'slaStatus': self.sla_status,
             'slaPausedAt': format_iso_date(self.sla_paused_at),
             'takenAt': format_iso_date(self.taken_at),
+            'transferredAt': format_iso_date(self.transferred_at),
             'resolutionSummary': self.resolution_summary,
             'resolutionImageUrl': self.resolution_image_url,
             'resolvedAt': format_iso_date(self.resolved_at),
@@ -114,7 +117,7 @@ class TicketNote(db.Model):
     ticket_id = db.Column(db.Integer, db.ForeignKey('tickets.id'), nullable=False)
     content = db.Column(db.Text, nullable=False)
     author_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    image_url = db.Column(db.String(255), nullable=True)
+    image_url = db.Column(db.Text, nullable=True)
     is_internal = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     

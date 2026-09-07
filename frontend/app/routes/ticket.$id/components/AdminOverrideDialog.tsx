@@ -1,4 +1,4 @@
-import { MessageSquare } from "lucide-react";
+import { ShieldCheck, Send } from "lucide-react";
 import { Button } from "~/components/ui/button/button";
 import { Label } from "~/components/ui/label/label";
 import { Textarea } from "~/components/ui/textarea/textarea";
@@ -12,23 +12,26 @@ import {
 } from "~/components/ui/dialog/dialog";
 import styles from "../style.module.css";
 
-interface ReasonDialogProps {
+interface AdminOverrideDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   reason: string;
   onReasonChange: (value: string) => void;
   onSubmit: () => void;
-  targetStatus: string;
+  /** Deskripsi perubahan, contoh: "Assignee: Staff A → Staff B" */
+  changeLabel: string;
+  ticketCode?: string;
 }
 
-export function ReasonDialog({
+export function AdminOverrideDialog({
   open,
   onOpenChange,
   reason,
   onReasonChange,
   onSubmit,
-  targetStatus,
-}: ReasonDialogProps) {
+  changeLabel,
+  ticketCode,
+}: AdminOverrideDialogProps) {
   const isReasonEmpty = reason.trim().length === 0;
 
   return (
@@ -36,19 +39,21 @@ export function ReasonDialog({
       <DialogContent className={styles.dialogContent}>
         <DialogHeader>
           <DialogTitle className={styles.dialogTitle}>
-            <MessageSquare className={styles.dialogIcon} />
-            Reason Required
+            <ShieldCheck className={styles.dialogIcon} />
+            Admin Override — Alasan Wajib
           </DialogTitle>
           <DialogDescription className={styles.dialogDescription}>
-            Please provide a reason for changing the ticket status to <strong>{targetStatus}</strong>.
+            Anda mengubah tiket{ticketCode ? <> <strong>{ticketCode}</strong></> : null} yang sedang dipegang staff:{" "}
+            <strong>{changeLabel}</strong>. Alasan wajib diisi dan akan dikirim
+            sebagai notifikasi ke staff terkait.
           </DialogDescription>
         </DialogHeader>
 
         <div className={styles.dialogBody}>
-          <Label htmlFor="status-reason">Reason *</Label>
+          <Label htmlFor="admin-reason">Alasan Perubahan *</Label>
           <Textarea
-            id="status-reason"
-            placeholder="Enter reason..."
+            id="admin-reason"
+            placeholder="Contoh: Perlu dipercepat karena SLA hampir breach, jadi saya pindahkan ke staff yang lebih available..."
             rows={4}
             value={reason}
             onChange={(e) => onReasonChange(e.target.value)}
@@ -56,7 +61,8 @@ export function ReasonDialog({
           {isReasonEmpty && (
             <p style={{ marginTop: 6, fontSize: "0.75rem", color: "#fca5a5", display: "flex", gap: 6 }}>
               <span style={{ fontWeight: 700 }}>!</span>
-              Reason wajib diisi sebelum bisa submit — jelaskan alasan perubahan status ke "{targetStatus}".
+              Alasan wajib diisi — notifikasi dengan alasan ini akan dikirim ke pemilik tiket
+              (dan assignee baru jika assignee diganti).
             </p>
           )}
         </div>
@@ -66,7 +72,8 @@ export function ReasonDialog({
             Cancel
           </Button>
           <Button onClick={onSubmit} disabled={isReasonEmpty}>
-            Submit Reason
+            <Send style={{ width: "16px", height: "16px", marginRight: 6 }} />
+            Simpan & Kirim Alasan
           </Button>
         </DialogFooter>
       </DialogContent>

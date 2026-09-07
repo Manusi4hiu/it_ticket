@@ -159,17 +159,27 @@
   color: #ffffff;
 }
 
-/* Kanban Layout */
+/* Kanban Layout — all columns expand to fill space evenly, horizontal scroll when narrow */
 .kanbanBoard {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 12px;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 14px;
   flex: 1;
+  width: 100%;
   min-height: 0;
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
 }
 
+.kanbanBoard::-webkit-scrollbar { height: 8px; }
+.kanbanBoard::-webkit-scrollbar-track { background: transparent; }
+.kanbanBoard::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 4px; }
+
 .kanbanColumn {
+  flex: 1 1 0;
+  min-width: 260px;
   display: flex;
   flex-direction: column;
   background: rgba(10, 25, 47, 0.25);
@@ -235,7 +245,7 @@
   min-height: 0;
 }
 
-/* Card Styling */
+/* Card Styling — jangan dikecilkan saat banyak task, tetap full detail + scroll */
 .ticketCard {
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid rgba(255, 255, 255, 0.06);
@@ -246,6 +256,8 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   position: relative;
   overflow: hidden;
+  flex-shrink: 0;
+  min-height: 118px;
 }
 
 .ticketCard:hover {
@@ -262,6 +274,15 @@
 .cardIsDragging {
   opacity: 0.4;
   border: 1px dashed rgba(59, 130, 246, 0.5);
+}
+
+/* View-only mode (Management) — card tidak draggable, cursor pointer utk buka detail */
+.cardViewOnly {
+  cursor: pointer;
+}
+
+.cardViewOnly:active {
+  cursor: pointer;
 }
 
 .cardHeader {
@@ -558,6 +579,25 @@
   color: rgba(255, 255, 255, 0.75);
   margin: 0;
   line-height: 1.4;
+}
+
+.noteBody p {
+  margin: 0 0 4px 0;
+}
+
+.noteBody p:last-child {
+  margin-bottom: 0;
+}
+
+.noteBody strong {
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.noteBody em {
+  color: #f59e0b;
+  font-style: normal;
+  font-weight: 600;
 }
 
 .internalBadge {

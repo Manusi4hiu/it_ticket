@@ -35,6 +35,7 @@ def seed_database():
             {"name": "Software", "description": "Application and OS issues"},
             {"name": "Network", "description": "Connectivity and VPN issues"},
             {"name": "Access", "description": "Login and permission issues"},
+            {"name": "Development", "description": "Development tasks (Dev Board Kanban)"},
             {"name": "Other", "description": "Miscellaneous requests"}
         ]
         
@@ -54,12 +55,13 @@ def seed_database():
 
         # Create statuses
         statuses_data = [
-            {"name": "New", "color": "#3B82F6", "order": 1, "is_default": True},
-            {"name": "Triaged", "color": "#8B5CF6", "order": 2, "is_default": False},
-            {"name": "Assigned", "color": "#F59E0B", "order": 3, "is_default": False},
-            {"name": "In Progress", "color": "#10B981", "order": 4, "is_default": False},
-            {"name": "Resolved", "color": "#059669", "order": 5, "is_default": False},
-            {"name": "Closed", "color": "#6B7280", "order": 6, "is_default": False},
+            {"name": "New", "color": "#3B82F6", "order": 1, "is_default": True, "filter_group": "new"},
+            {"name": "Triaged", "color": "#8B5CF6", "order": 2, "is_default": False, "filter_group": "progress"},
+            {"name": "Assigned", "color": "#F59E0B", "order": 3, "is_default": False, "filter_group": "progress"},
+            {"name": "In Progress", "color": "#10B981", "order": 4, "is_default": False, "filter_group": "progress"},
+            {"name": "Pending", "color": "#A855F7", "order": 5, "is_default": False, "filter_group": "pending"},
+            {"name": "Resolved", "color": "#059669", "order": 6, "is_default": False, "filter_group": "done"},
+            {"name": "Closed", "color": "#6B7280", "order": 7, "is_default": False, "filter_group": "done"},
         ]
 
         for stat in statuses_data:

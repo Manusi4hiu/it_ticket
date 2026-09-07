@@ -52,7 +52,7 @@ class SystemLog(db.Model):
             'userId': self.user_id,
             'userName': self.user.full_name if self.user else 'Guest',
             'targetId': self.target_id,
-            'metadata': self.metadata_json
+            'metadata': metadata
         }
     
     def __repr__(self):

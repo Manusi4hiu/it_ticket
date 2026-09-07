@@ -9,7 +9,7 @@
 
 import { CheckCircle, Clock, AlertTriangle } from "lucide-react";
 import { Button } from "~/components/ui/button/button";
-import { formatDate, formatDuration, formatTimeRemaining } from "~/utils/date";
+import { formatDate, formatDuration, formatTimeRemaining, toDatetimeLocalString } from "~/utils/date";
 import type { Ticket } from "~/services/ticket.service";
 import type { CurrentUser } from "../types";
 import styles from "../style.module.css";
@@ -234,6 +234,7 @@ function ResolvedTimeSection({
           <input
             type="datetime-local"
             value={editResolvedAtValue}
+            max={toDatetimeLocalString(new Date())}
             onChange={(e) => onEditResolvedAtChange(e.target.value)}
             className={styles.input}
             style={{

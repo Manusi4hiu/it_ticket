@@ -86,3 +86,15 @@ backend/app/static/uploads/*
 # Runner Script (Opsional)
 # ======================
 run_all.py
+
+# ======================
+# Audit / Test Artifacts — JANGAN commit (dipindah ke HERMES ANALISIS / QA TESTING di luar repo)
+# ======================
+audit_findings.json
+audit_findings_*.json
+fix_new_assigned_tickets.py
+fix_*.py
+e2e/
+playwright-report/
+test-results/
+playwright.config.ts
