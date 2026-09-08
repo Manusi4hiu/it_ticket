@@ -238,13 +238,35 @@ export default function TicketsList({ loaderData }: Route.ComponentProps) {
   }, [currentStatusList, progressStatusNames, isNewActive, isDoneActive, isPendingActive]);
 
   const handleSegmentedStatusClick = (type: "new" | "progress" | "done" | "pending") => {
-    // Grup kosong (tidak ada status di grup itu) -> kirim sentinel yg tidak match
-    // status apa pun, sehingga hasil filter = kosong (bukan bocor ke status grup lain)
     const SENTINEL_EMPTY = "__none__";
     const groupNames = type === "new" ? newStatusNames : type === "progress" ? progressStatusNames : type === "pending" ? pendingStatusNames : doneStatusNames;
     const isActive = type === "new" ? isNewActive : type === "progress" ? isProgressActive : type === "pending" ? isPendingActive : isDoneActive;
-    const value = groupNames.length > 0 ? groupNames.join(",") : SENTINEL_EMPTY;
-    handleFilterChange("status", isActive ? "all" : value);
+    
+    let current = [...currentStatusList];
+    const groupLower = groupNames.map(s => s.toLowerCase());
+    
+    if (isActive) {
+      // Remove this group from active filters
+      current = current.filter(s => !groupLower.includes(s) && s !== SENTINEL_EMPTY);
+    } else {
+      // Add this group to active filters
+      if (groupNames.length === 0) {
+        if (!current.includes(SENTINEL_EMPTY)) current.push(SENTINEL_EMPTY);
+      } else {
+        groupLower.forEach(s => {
+          if (!current.includes(s)) current.push(s);
+        });
+      }
+    }
+    
+    if (current.length === 0) {
+      handleFilterChange("status", "all");
+    } else {
+      // Reconstruct with original casing for clean URL (API is case-insensitive anyway)
+      const correctCasing = statuses.filter(s => current.includes(s.name.toLowerCase())).map(s => s.name);
+      if (current.includes(SENTINEL_EMPTY)) correctCasing.push(SENTINEL_EMPTY);
+      handleFilterChange("status", correctCasing.join(","));
+    }
   };
 
   const handleTakeTicket = async (ticketId: number) => {

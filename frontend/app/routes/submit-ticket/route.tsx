@@ -62,7 +62,7 @@ export async function action({ request }: Route.ActionArgs) {
     const category = (formData.get("category") as string || "Uncategorized").trim();
     const subject = (formData.get("subject") as string || "").trim();
     const description = (formData.get("description") as string || "").trim();
-    
+
     const image = formData.get("image") as File | null;
     const validImage = image && typeof image === 'object' && image.size > 0 && image.name ? image : undefined;
 
@@ -367,7 +367,7 @@ export default function SubmitTicket({ actionData, loaderData }: Route.Component
                                             maxLength={5000}
                                         />
                                     </div>
-                                    
+
                                     <div className={styles.formGroup}>
                                         <Label htmlFor="image" className={styles.label}>
                                             <ImageIcon size={14} />
@@ -385,9 +385,6 @@ export default function SubmitTicket({ actionData, loaderData }: Route.Component
                                                     style={{ padding: '8px 12px', height: 'auto' }}
                                                 />
                                             </div>
-                                            <p style={{ fontSize: '0.8rem', color: 'var(--color-neutral-9)', marginTop: -4 }}>
-                                                Gambar akan dikompresi otomatis untuk menghemat ruang penyimpanan.
-                                            </p>
 
                                             {fileError && (
                                                 <Alert variant="destructive" className={styles.errorAlert} style={{ marginTop: 4 }}>

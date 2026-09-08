@@ -894,11 +894,16 @@ class TicketService:
                 )
 
         if is_admin and ticket.taken_at and ticket.assigned_to_id and old_status_name_snap != status:
+            is_resolved_target = str(status).strip().lower() in ('resolved', 'closed')
+            has_summary = resolution_summary and str(resolution_summary).strip()
             if not (reason and str(reason).strip()):
-                raise ValueError(
-                    "Alasan wajib diisi: Admin mengubah status tiket yang sedang dipegang staff. "
-                    "Alasan akan dikirim sebagai notifikasi ke pemilik tiket."
-                )
+                if is_resolved_target and has_summary:
+                    reason = str(resolution_summary).strip()
+                else:
+                    raise ValueError(
+                        "Alasan wajib diisi: Admin mengubah status tiket yang sedang dipegang staff. "
+                        "Alasan akan dikirim sebagai notifikasi ke pemilik tiket."
+                    )
 
         # ── Status berubah pada tiket taken oleh PEMILIK (non-admin) ->
         # alasan WAJIB (cermin update_ticket). Resolved/Closed dikecualikan
