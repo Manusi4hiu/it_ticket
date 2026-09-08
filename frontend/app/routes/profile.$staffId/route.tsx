@@ -94,7 +94,7 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
       ? (assigned.filter((t) => t.slaStatus !== "breached").length / assigned.length) * 100
       : 0;
 
-    return Response.json({
+    return {
       assigned,
       resolved,
       inProgress,
@@ -103,7 +103,7 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
       avgResolutionTime: avgResTime,
       resolutionRate: resRate,
       slaCompliance: slaComp
-    });
+    };
   }, [tickets, staff.name, staff.email, isAgent]);
 
   const {
