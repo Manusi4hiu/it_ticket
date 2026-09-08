@@ -489,7 +489,7 @@ export default function DevDashboard() {
       !originalTicket.resolutionSummary;
 
     if (isResolvingWithoutSummary) {
-      setResolveCategory(originalTicket?.category || "Development");
+      setResolveCategory("");
       setResolveCategoryError("");
       setPendingStatusUpdate({ ticketId, targetStatus });
       setShowResolveDialog(true);
@@ -536,8 +536,8 @@ export default function DevDashboard() {
         return;
       }
     }
-    if (resolutionSummary.trim().length < 20) {
-      setResolutionError("Summary must be at least 20 characters.");
+    if (!resolutionSummary.trim()) {
+      setResolutionError("Resolution summary is required.");
       return;
     }
     setResolutionError("");

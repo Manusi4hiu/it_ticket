@@ -100,6 +100,8 @@ export default function TicketCalendar() {
   const [resolutionError, setResolutionError] = useState("");
   const [resolveDate, setResolveDate] = useState(new Date().toISOString().split("T")[0]);
   const [resolutionImage, setResolutionImage] = useState<File | null>(null);
+  const [resolveCategory, setResolveCategory] = useState("");
+  const [resolveCategoryError, setResolveCategoryError] = useState("");
 
   // Add Dev Task Modal State (Quick task creation)
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -340,8 +342,8 @@ export default function TicketCalendar() {
         return;
       }
     }
-    if (resolutionSummary.trim().length < 20) {
-      setResolutionError("Summary must be at least 20 characters.");
+    if (!resolutionSummary.trim()) {
+      setResolutionError("Resolution summary is required.");
       return;
     }
     setResolutionError("");
@@ -765,8 +767,14 @@ export default function TicketCalendar() {
             setResolutionImage(null);
             setPendingStatusUpdate(null);
             setResolutionError("");
+            setResolveCategory("");
+            setResolveCategoryError("");
           }
         }}
+        categories={[]}
+        resolveCategory={resolveCategory}
+        onResolveCategoryChange={setResolveCategory}
+        resolveCategoryError={resolveCategoryError}
         resolveDate={resolveDate}
         onResolveDateChange={setResolveDate}
         resolutionSummary={resolutionSummary}
