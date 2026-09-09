@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { useSearchParams, useNavigate } from "react-router";
+import { useSearchParams, useNavigate, useRevalidator } from "react-router";
 import type { Route } from "./+types/route";
 import {
   Search,
@@ -102,6 +102,7 @@ export default function TicketsList({ loaderData }: Route.ComponentProps) {
 
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { revalidate } = useRevalidator();
   const [searchValue, setSearchValue] = useState(initialFilters.search || "");
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
   const [jumpPage, setJumpPage] = useState("");
@@ -159,7 +160,9 @@ export default function TicketsList({ loaderData }: Route.ComponentProps) {
 
   const handleFilterChange = (key: string, value: string) => {
     const newParams = new URLSearchParams(searchParams);
-    if (value === "all" || !value) {
+    if (key === "status" && value === "all") {
+      newParams.set(key, "all");
+    } else if (value === "all" || !value) {
       newParams.delete(key);
     } else {
       newParams.set(key, value);
@@ -210,6 +213,7 @@ export default function TicketsList({ loaderData }: Route.ComponentProps) {
   // Segmented status buttons active state
   const currentStatusParam = searchParams.get("status") || "";
   const currentStatusList = useMemo(() => {
+    if (currentStatusParam === "all") return [];
     return currentStatusParam.split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
   }, [currentStatusParam]);
 
@@ -273,6 +277,7 @@ export default function TicketsList({ loaderData }: Route.ComponentProps) {
     const updated = await assignTicket(ticketId.toString(), session.userId.toString());
     if (updated) {
       setTickets(prev => prev.map(t => t.id === ticketId ? { ...t, assignedTo: updated.assignedTo, assignedToId: updated.assignedToId, status: updated.status, updatedAt: updated.updatedAt } : t));
+      revalidate();
     }
   };
 
@@ -355,6 +360,17 @@ export default function TicketsList({ loaderData }: Route.ComponentProps) {
 
           {/* 2. Segmented Status Buttons (New, Progress, Done, Pending) */}
           <div className={styles.segmentedControls}>
+            <button
+              type="button"
+              className={`${styles.segmentedButton} ${currentStatusParam === "all" ? styles.segmentedButtonActive : ""}`}
+              onClick={() => handleFilterChange("status", "all")}
+            >
+              <span>ALL STATUS</span>
+              <span className={styles.segmentedCount}>
+                {(stats?.new ?? 0) + (stats?.workedOn ?? 0) + (stats?.resolved ?? 0) + (stats?.pending ?? 0)}
+              </span>
+            </button>
+
             <button
               type="button"
               className={`${styles.segmentedButton} ${isNewActive ? styles.segmentedButtonActive : ""}`}

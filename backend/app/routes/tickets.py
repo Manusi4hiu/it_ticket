@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity, verify_jwt_in_request
 from sqlalchemy import case
+from sqlalchemy.orm import joinedload, selectinload
 from app import db
 from app.models.ticket import Ticket
 from app.services.ticket_service import TicketService
@@ -39,7 +40,10 @@ def get_tickets():
     search = request.args.get('search')
     is_resolved = request.args.get('is_resolved', type=lambda v: v.lower() == 'true')
     
-    query = Ticket.query
+    query = Ticket.query.options(
+        joinedload(Ticket.assigned_user),
+        selectinload(Ticket.collaborators)
+    )
     
     if status:
         if ',' in status:
