@@ -87,17 +87,14 @@ export function getStatusWorkflowRank(statusOrName: string | { name: string; isD
   // 1. Initial/Default status always comes first
   if (isDef || lower === 'new') return 1;
 
-  // 2. Resolved/Closed status always comes last
-  if (lower.includes('resolve') || lower.includes('done') || lower.includes('closed') || lower === 'completed') {
-    return 90;
-  }
-
-  // 3. Intermediate/In-progress stages (e.g. Triaged, Assigned, In Progress, Testing, etc.)
+  // 2. Lifecycle order: match backend ORDER BY
+  // New(1) → Triaged(2) → Assigned(3) → In Progress(4) → Pending(5) → Resolved(6) → Closed(7)
   if (lower.includes('triage')) return 2;
   if (lower.includes('assign')) return 3;
   if (lower.includes('progress') || lower.includes('work') || lower.includes('dev')) return 4;
-  // 4. Pending: menunggu (tiket ditahan) — setelah progress, sebelum done
   if (lower.includes('pending') || lower.includes('hold') || lower.includes('wait')) return 5;
+  if (lower.includes('resolve') || lower === 'completed') return 6;
+  if (lower.includes('done') || lower.includes('closed')) return 7;
   return 10;
 }
 

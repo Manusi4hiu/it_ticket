@@ -67,21 +67,46 @@ def get_tickets():
             query = query.filter(db.func.lower(Ticket.status).notin_(resolved_statuses))
 
     if priority:
-        query = query.filter(db.func.lower(Ticket.priority) == priority.strip().lower())
+        priority_list = [p.strip().lower() for p in priority.split(',') if p.strip()]
+        if len(priority_list) == 1:
+            query = query.filter(db.func.lower(Ticket.priority) == priority_list[0])
+        else:
+            query = query.filter(db.func.lower(Ticket.priority).in_(priority_list))
     if category:
-        query = query.filter(db.func.lower(Ticket.category) == category.strip().lower())
+        category_list = [c.strip().lower() for c in category.split(',') if c.strip()]
+        if len(category_list) == 1:
+            query = query.filter(db.func.lower(Ticket.category) == category_list[0])
+        else:
+            query = query.filter(db.func.lower(Ticket.category).in_(category_list))
     else:
         query = query.filter(Ticket.category != DEV_CATEGORY)
     if assigned_to:
-        if assigned_to.lower() in ('unassigned', 'null', 'none'):
-            query = query.filter(Ticket.assigned_to_id.is_(None))
-        else:
-            try:
-                assigned_id = int(assigned_to)
-                query = query.filter(Ticket.assigned_to_id == assigned_id)
-            except ValueError:
+        unassigned_tokens = ('unassigned', 'null', 'none')
+        assigned_values = [a.strip() for a in assigned_to.split(',') if a.strip()]
+        has_unassigned = any(a.lower() in unassigned_tokens for a in assigned_values)
+        named_values = [a for a in assigned_values if a.lower() not in unassigned_tokens]
+
+        conditions = []
+        if has_unassigned:
+            conditions.append(Ticket.assigned_to_id.is_(None))
+        if named_values:
+            assigned_ids = []
+            assigned_names = []
+            for value in named_values:
+                try:
+                    assigned_ids.append(int(value))
+                except ValueError:
+                    assigned_names.append(value)
+            if assigned_ids:
+                conditions.append(Ticket.assigned_to_id.in_(assigned_ids))
+            if assigned_names:
                 from app.models.user import User
-                query = query.join(Ticket.assigned_user).filter(User.full_name.ilike(f"%{assigned_to}%"))
+                name_conditions = [User.full_name.ilike(f"%{name}%") for name in assigned_names]
+                query = query.outerjoin(Ticket.assigned_user)
+                conditions.append(db.or_(*name_conditions))
+
+        if conditions:
+            query = query.filter(db.or_(*conditions))
     if search:
         # PostgreSQL Full-Text Search
         # Convert "server down" -> "server & down:*"
@@ -100,13 +125,16 @@ def get_tickets():
     # Total count before pagination
     total = query.count()
     
-    # Ordering — workflow status first: New → Triaged → Assigned → In Progress → Resolved, then newest first
+    # Ordering — workflow status lifecycle first: New → Triaged → Assigned → In Progress
+    # → Pending → Resolved → Closed, then newest first
     status_order = case(
         (db.func.lower(Ticket.status) == 'new', 1),
         (db.func.lower(Ticket.status) == 'triaged', 2),
         (db.func.lower(Ticket.status) == 'assigned', 3),
         (Ticket.status.ilike('%progress%'), 4),
-        (db.func.lower(Ticket.status) == 'resolved', 5),
+        (db.func.lower(Ticket.status) == 'pending', 5),
+        (db.func.lower(Ticket.status) == 'resolved', 6),
+        (db.func.lower(Ticket.status) == 'closed', 7),
         else_=99
     )
     
