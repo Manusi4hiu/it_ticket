@@ -21,6 +21,7 @@ import {
   TrendingDown,
   ArrowRight,
   Shield,
+  Users,
 } from "lucide-react";
 import { Button } from "~/components/ui/button/button";
 import { getTickets, getAgents, type Ticket } from "~/services/ticket.service";
@@ -538,16 +539,7 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
   }, [activeTab, assignedTickets, inProgressTickets, newlyAssignedTickets, pendingTickets, resolvedTickets, breachedTickets]);
 
   const renderStatusBadge = (ticket: Ticket) => {
-    const isBreached = ticket.slaStatus === "breached";
     const statusLower = (ticket.status || "").toLowerCase().trim();
-
-    if (activeTab === "breached" || (isBreached && activeTab === "all")) {
-      return (
-        <span className={`${styles.ticketStatusPill} ${styles.ticketStatusPillRed}`}>
-          ● SLA Breached
-        </span>
-      );
-    }
 
     if (statusLower === "resolved" || statusLower === "closed" || statusLower === "completed" || statusLower === "done") {
       return (
@@ -591,6 +583,29 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
   const renderTicketCard = (ticket: Ticket) => {
     const priorityInfo = formatPriority(ticket.priority);
     const ticketCode = ticket.ticketCode || `IT-${String(ticket.id).padStart(4, "0")}`;
+    const isBreached = ticket.slaStatus === "breached";
+
+    const staffIdStr = String(staff.id || staffId);
+    const staffNameLower = (staff.name || "").toLowerCase().trim();
+    const staffUserLower = (staff.username || "").toLowerCase().trim();
+    const staffEmailLower = (staff.email || "").toLowerCase().trim();
+
+    const isPrimaryAssignee =
+      (ticket.assignedToId != null && String(ticket.assignedToId) === staffIdStr) ||
+      (ticket.assignedTo &&
+        (ticket.assignedTo.toLowerCase().trim() === staffNameLower ||
+          ticket.assignedTo.toLowerCase().trim() === staffUserLower ||
+          (staffEmailLower && ticket.assignedTo.toLowerCase().trim() === staffEmailLower)));
+
+    const isCollab =
+      (ticket.collaboratorIds && ticket.collaboratorIds.some((cid) => String(cid) === staffIdStr)) ||
+      (ticket.collaborators &&
+        ticket.collaborators.some((c) => {
+          const cl = c.toLowerCase().trim();
+          return cl === staffNameLower || cl === staffUserLower;
+        }));
+
+    const isCollabOnly = !isPrimaryAssignee && isCollab;
 
     return (
       <div
@@ -602,14 +617,36 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
           <div className={styles.ticketIdGroup}>
             <TicketIcon className={styles.ticketIdIcon} />
             <span className={styles.ticketIdText}>{ticketCode}</span>
+            {isCollabOnly && (
+              <span
+                className={styles.collabBadge}
+                title={`Contributed as Collaborator (Assigned to: ${ticket.assignedTo || "Other staff"})`}
+              >
+                <Users style={{ width: 10, height: 10 }} />
+                Collaborator
+              </span>
+            )}
           </div>
-          {renderStatusBadge(ticket)}
-          <ChevronRight className={styles.ticketChevron} />
+          <div className={styles.ticketBadgesRight}>
+            {renderStatusBadge(ticket)}
+            {isBreached && (
+              <span className={styles.slaBreachedBadge} title="SLA Breached">
+                <AlertTriangle style={{ width: 9, height: 9 }} />
+                SLA Breached
+              </span>
+            )}
+            <ChevronRight className={styles.ticketChevron} />
+          </div>
         </div>
 
         <div className={styles.ticketCardBody}>
           <h4 className={styles.ticketCardTitle}>{ticket.title}</h4>
           <p className={styles.ticketCardDesc}>{ticket.description || "No description provided."}</p>
+          {isCollabOnly && ticket.assignedTo && (
+            <div className={styles.collabNote}>
+              Lead Assignee: {ticket.assignedTo}
+            </div>
+          )}
         </div>
 
         <div className={styles.ticketCardFooter}>

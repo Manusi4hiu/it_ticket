@@ -551,12 +551,14 @@
   gap: 8px;
   margin-bottom: 8px;
   min-width: 0;
+  flex-wrap: wrap;
 }
 
 .ticketIdGroup {
   display: flex;
   align-items: center;
   gap: 6px;
+  flex-wrap: wrap;
 }
 
 .ticketIdIcon {
@@ -572,6 +574,13 @@
   font-family: var(--font-mono, monospace);
 }
 
+.ticketBadgesRight {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
 .ticketStatusPill {
   display: inline-flex;
   align-items: center;
@@ -580,6 +589,7 @@
   font-weight: 600;
   padding: 2px 9px;
   border-radius: 9999px;
+  white-space: nowrap;
 }
 
 .ticketStatusPillGreen {
@@ -610,6 +620,44 @@
   background: rgba(239, 68, 68, 0.15);
   border: 1px solid rgba(239, 68, 68, 0.3);
   color: #f87171;
+}
+
+.slaBreachedBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.625rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 9999px;
+  background: rgba(239, 68, 68, 0.18);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #f87171;
+  white-space: nowrap;
+}
+
+.collabBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.625rem;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 9999px;
+  background: rgba(168, 85, 247, 0.16);
+  border: 1px solid rgba(168, 85, 247, 0.38);
+  color: #c084fc;
+  white-space: nowrap;
+}
+
+.collabNote {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  color: #c084fc;
+  margin-top: 6px;
+  font-weight: 500;
 }
 
 .ticketChevron {
