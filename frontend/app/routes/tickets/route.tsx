@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { useSearchParams, useNavigate } from "react-router";
+import { useSearchParams, useNavigate, useRevalidator } from "react-router";
 import type { Route } from "./+types/route";
 import {
   Search,
@@ -36,7 +36,7 @@ import {
   type Ticket,
   type Agent
 } from "~/services/ticket.service";
-import { settingsApi, type Status, type Category } from "~/services/settings.service";
+import { settingsApi, type Status, type Category, type Priority } from "~/services/settings.service";
 import { requireAuth } from "~/services/session.service";
 import { sortStatusesByWorkflow, getStatusWorkflowRank, canTakeTicket, inferFilterGroup } from "~/utils/ticket-ui";
 import styles from "./style.module.css";
@@ -45,19 +45,18 @@ export async function loader({ request }: Route.LoaderArgs) {
   const session = await requireAuth(request);
   const url = new URL(request.url);
   
-  const [agents, statusResponse, categoryResponse] = await Promise.all([
-    getAgents(),
-    settingsApi.getStatuses(),
-    settingsApi.getCategories()
-  ]);
+  const statusResponse = await settingsApi.getStatuses();
 
   const allStatuses = statusResponse.data?.data || [];
-  const defaultStatusObj = allStatuses.find((s: any) => s.isDefault);
-  const defaultStatusName = defaultStatusObj ? defaultStatusObj.name : "NEW";
 
+  // Default view (tanpa status param) = grup New — tiket New adalah kerjaan utama helpdesk.
+  // status=all eksplisit = semua status tanpa batasan.
+  const newDefaultNames = allStatuses
+    .filter((s: any) => (s.filterGroup || inferFilterGroup(s.name, s.isDefault)) === "new")
+    .map((s: any) => s.name);
   const statusParam = url.searchParams.get("status");
   const filters = {
-    status: statusParam === "all" ? undefined : (statusParam || defaultStatusName),
+    status: !statusParam ? (newDefaultNames.join(",") || undefined) : (statusParam === "all" ? undefined : statusParam),
     priority: url.searchParams.get("priority") || undefined,
     category: url.searchParams.get("category") || undefined,
     assignedTo: url.searchParams.get("assignedTo") || undefined,
@@ -66,11 +65,11 @@ export async function loader({ request }: Route.LoaderArgs) {
     per_page: 15
   };
 
-  const [ticketResponse, agents, statusResponse, categoryResponse, statsResponse] = await Promise.all([
+  const [ticketResponse, agents, categoryResponse, priorityResponse, statsResponse] = await Promise.all([
     getTickets(filters),
     getAgents(),
-    settingsApi.getStatuses(),
     settingsApi.getCategories(),
+    settingsApi.getPriorities(),
     getTicketStats()
   ]);
 
@@ -81,10 +80,13 @@ export async function loader({ request }: Route.LoaderArgs) {
     agents,
     // Closed tetap di-hide dari halaman utama by design; status lain semua masuk
     statuses: (statusResponse.data?.data || []).filter((s: any) => s.showOnItHelpdesk !== false && s.name.toLowerCase() !== 'closed') as Status[],
-    categories: (categoryResponse.data?.data || []) as Category[],
+    // Dropdown filter tersinkron master data: hanya yg Active (isActive !== false).
+    // Kategori/priority baru yg Active otomatis muncul tanpa ubah kode.
+    categories: ((categoryResponse.data?.data || []) as Category[]).filter((c: any) => c.isActive !== false),
+    priorities: ((priorityResponse.data?.data || []) as Priority[]).filter((p: any) => p.isActive !== false),
     stats: statsResponse,
     filters
-  };
+  });
 }
 
 export default function TicketsList({ loaderData }: Route.ComponentProps) {
@@ -95,6 +97,7 @@ export default function TicketsList({ loaderData }: Route.ComponentProps) {
     agents, 
     statuses, 
     categories, 
+    priorities,
     stats,
     filters: initialFilters 
   } = loaderData;
@@ -107,6 +110,7 @@ export default function TicketsList({ loaderData }: Route.ComponentProps) {
 
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { revalidate } = useRevalidator();
   const [searchValue, setSearchValue] = useState(initialFilters.search || "");
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
   const [jumpPage, setJumpPage] = useState("");
@@ -165,7 +169,12 @@ export default function TicketsList({ loaderData }: Route.ComponentProps) {
   const handleFilterChange = (key: string, value: string) => {
     const newParams = new URLSearchParams(searchParams);
     if (value === "all" || !value) {
-      newParams.delete(key);
+      // status=all ditulis eksplisit (beda dari param absen = default view New)
+      if (key === "status" && value === "all") {
+        newParams.set(key, "all");
+      } else {
+        newParams.delete(key);
+      }
     } else {
       newParams.set(key, value);
     }
@@ -182,6 +191,30 @@ export default function TicketsList({ loaderData }: Route.ComponentProps) {
     setSearchParams(new URLSearchParams());
     setSearchValue("");
     setActiveHeaderDropdown(null);
+  };
+
+  // ── Multi-select filter helpers ─────────────────────────────────────────
+  // Nilai filter disimpan di URL sebagai comma-joined (mis. "New,In Progress").
+  // Empty = wildcard/match-all. Toggle satu nilai tanpa wipe nilai lain.
+
+  const getFilterList = (key: string): string[] => {
+    if (key === "status") return currentStatusList;
+    const raw = searchParams.get(key) || "";
+    return raw.split(",").map(v => v.trim()).filter(Boolean);
+  };
+
+  const toggleFilterValue = (key: string, value: string) => {
+    const current = getFilterList(key);
+    const lower = value.toLowerCase();
+    const next = current.filter(v => v.toLowerCase() !== lower);
+    if (!current.some(v => v.toLowerCase() === lower)) {
+      next.push(value);
+    }
+    let out = next;
+    if (key === "status") {
+      out = next.map(v => statuses.find(s => s.name.toLowerCase() === v.toLowerCase())?.name || v);
+    }
+    handleFilterChange(key, out.length ? out.join(",") : "all");
   };
 
   // Dynamically categorize statuses into New, Progress, Done, and Pending groups.
@@ -212,50 +245,77 @@ export default function TicketsList({ loaderData }: Route.ComponentProps) {
     };
   }, [statuses]);
 
-  // Segmented status buttons active state
+  // Segmented status buttons active state (multi-select chips):
+  // tombol grup highlight selama SALAH SATU status grupnya ada di filter aktif.
   const currentStatusParam = searchParams.get("status") || "";
   const currentStatusList = useMemo(() => {
+    // Param absen = default view (grup New); status=all = tanpa batasan status.
+    if (!currentStatusParam) return newStatusNames.map(s => s.toLowerCase());
+    if (currentStatusParam === "all") return [];
     return currentStatusParam.split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
-  }, [currentStatusParam]);
+  }, [currentStatusParam, newStatusNames]);
 
   const isNewActive = useMemo(() => {
-    if (currentStatusList.length === 0) return false;
+    if (currentStatusList.length === 0 || newStatusNames.length === 0) return false;
     const lowerNew = newStatusNames.map(s => s.toLowerCase());
-    return currentStatusList.every(s => lowerNew.includes(s));
+    return currentStatusList.some(s => lowerNew.includes(s));
   }, [currentStatusList, newStatusNames]);
 
   const isDoneActive = useMemo(() => {
-    if (currentStatusList.length === 0) return false;
+    if (currentStatusList.length === 0 || doneStatusNames.length === 0) return false;
     const lowerDone = doneStatusNames.map(s => s.toLowerCase());
-    return currentStatusList.every(s => lowerDone.includes(s));
+    return currentStatusList.some(s => lowerDone.includes(s));
   }, [currentStatusList, doneStatusNames]);
 
   const isPendingActive = useMemo(() => {
-    if (currentStatusList.length === 0) return false;
+    if (currentStatusList.length === 0 || pendingStatusNames.length === 0) return false;
     const lowerPending = pendingStatusNames.map(s => s.toLowerCase());
-    return currentStatusList.every(s => lowerPending.includes(s));
+    return currentStatusList.some(s => lowerPending.includes(s));
   }, [currentStatusList, pendingStatusNames]);
 
   const isProgressActive = useMemo(() => {
-    if (currentStatusList.length === 0) return false;
+    if (currentStatusList.length === 0 || progressStatusNames.length === 0) return false;
     const lowerProgress = progressStatusNames.map(s => s.toLowerCase());
-    return currentStatusList.some(s => lowerProgress.includes(s)) && !isNewActive && !isDoneActive && !isPendingActive;
-  }, [currentStatusList, progressStatusNames, isNewActive, isDoneActive, isPendingActive]);
+    return currentStatusList.some(s => lowerProgress.includes(s));
+  }, [currentStatusList, progressStatusNames]);
 
   const handleSegmentedStatusClick = (type: "new" | "progress" | "done" | "pending") => {
-    // Grup kosong (tidak ada status di grup itu) -> kirim sentinel yg tidak match
-    // status apa pun, sehingga hasil filter = kosong (bukan bocor ke status grup lain)
     const SENTINEL_EMPTY = "__none__";
     const groupNames = type === "new" ? newStatusNames : type === "progress" ? progressStatusNames : type === "pending" ? pendingStatusNames : doneStatusNames;
     const isActive = type === "new" ? isNewActive : type === "progress" ? isProgressActive : type === "pending" ? isPendingActive : isDoneActive;
-    const value = groupNames.length > 0 ? groupNames.join(",") : SENTINEL_EMPTY;
-    handleFilterChange("status", isActive ? "all" : value);
+    
+    let current = [...currentStatusList];
+    const groupLower = groupNames.map(s => s.toLowerCase());
+    
+    if (isActive) {
+      // Remove this group from active filters
+      current = current.filter(s => !groupLower.includes(s) && s !== SENTINEL_EMPTY);
+    } else {
+      // Add this group to active filters
+      if (groupNames.length === 0) {
+        if (!current.includes(SENTINEL_EMPTY)) current.push(SENTINEL_EMPTY);
+      } else {
+        groupLower.forEach(s => {
+          if (!current.includes(s)) current.push(s);
+        });
+      }
+    }
+    
+    if (current.length === 0) {
+      handleFilterChange("status", "all");
+    } else {
+      // Reconstruct with original casing for clean URL (API is case-insensitive anyway)
+      const correctCasing = statuses.filter(s => current.includes(s.name.toLowerCase())).map(s => s.name);
+      if (current.includes(SENTINEL_EMPTY)) correctCasing.push(SENTINEL_EMPTY);
+      handleFilterChange("status", correctCasing.join(","));
+    }
   };
 
   const handleTakeTicket = async (ticketId: number) => {
     const updated = await assignTicket(ticketId.toString(), session.userId.toString());
     if (updated) {
       setTickets(prev => prev.map(t => t.id === ticketId ? { ...t, assignedTo: updated.assignedTo, assignedToId: updated.assignedToId, status: updated.status, updatedAt: updated.updatedAt } : t));
+      revalidate();
     }
   };
 
@@ -273,13 +333,14 @@ export default function TicketsList({ loaderData }: Route.ComponentProps) {
   const totalPages = Math.ceil(totalTickets / initialFilters.per_page);
 
   const getPriorityIcon = (priority: string) => {
-    const p = priority.toLowerCase();
+    const p = String(priority || "").toLowerCase();
     switch (p) {
       case 'critical': return <AlertTriangle className={`${styles.priorityIcon} ${styles.priorityCritical}`} />;
       case 'high': return <AlertCircle className={`${styles.priorityIcon} ${styles.priorityHigh}`} />;
       case 'medium': return <Clock className={`${styles.priorityIcon} ${styles.priorityMedium}`} />;
       case 'low': return <ArrowDownCircle className={`${styles.priorityIcon} ${styles.priorityLow}`} />;
-      default: return null;
+      // Priority custom dari master data: fallback ikon netral agar tetap tampil
+      default: return <Clock className={`${styles.priorityIcon} ${styles.priorityMedium}`} />;
     }
   };
 
@@ -291,11 +352,14 @@ export default function TicketsList({ loaderData }: Route.ComponentProps) {
     return styles.statusInProgress;
   };
 
-  // Active filters list for chips/pills
-  const currentAssignedTo = searchParams.get("assignedTo");
-  const currentPriority = searchParams.get("priority");
-  const currentCategory = searchParams.get("category");
-  const hasActiveFilters = Boolean(currentStatusParam || currentAssignedTo || currentPriority || currentCategory || searchValue);
+  // Active filters list for chips/pills (multi-select: comma-joined values)
+  const currentAssignedToList = getFilterList("assignedTo");
+  const currentPriorityList = getFilterList("priority");
+  const currentCategoryList = getFilterList("category");
+  const currentAssignedTo = currentAssignedToList.length ? currentAssignedToList.join(",") : "";
+  const currentPriority = currentPriorityList.length ? currentPriorityList.join(",") : "";
+  const currentCategory = currentCategoryList.length ? currentCategoryList.join(",") : "";
+  const hasActiveFilters = Boolean((currentStatusParam && currentStatusParam !== "all") || currentAssignedTo || currentPriority || currentCategory || searchValue);
 
   // Filtered lists for popover search
   const filteredAgents = useMemo(() => {
@@ -338,6 +402,17 @@ export default function TicketsList({ loaderData }: Route.ComponentProps) {
 
           {/* 2. Segmented Status Buttons (New, Progress, Done, Pending) */}
           <div className={styles.segmentedControls}>
+            <button
+              type="button"
+              className={`${styles.segmentedButton} ${currentStatusParam === "all" ? styles.segmentedButtonActive : ""}`}
+              onClick={() => handleFilterChange("status", "all")}
+            >
+              <span>ALL STATUS</span>
+              <span className={styles.segmentedCount}>
+                {(stats?.new ?? 0) + (stats?.workedOn ?? 0) + (stats?.resolved ?? 0) + (stats?.pending ?? 0)}
+              </span>
+            </button>
+
             <button
               type="button"
               className={`${styles.segmentedButton} ${isNewActive ? styles.segmentedButtonActive : ""}`}
@@ -388,7 +463,7 @@ export default function TicketsList({ loaderData }: Route.ComponentProps) {
             <div className={styles.activeFiltersBar}>
               <div className={styles.activeFilterPills}>
                 <span style={{ fontSize: "0.78rem", color: "var(--color-neutral-9)" }}>Active filters:</span>
-                {currentStatusParam && (
+                {currentStatusParam && currentStatusParam !== "all" && (
                   <span className={styles.filterPill}>
                     Status: {currentStatusParam}
                     <span className={styles.filterPillClose} onClick={() => handleFilterChange("status", "all")}><X size={12} /></span>
@@ -396,7 +471,9 @@ export default function TicketsList({ loaderData }: Route.ComponentProps) {
                 )}
                 {currentAssignedTo && (
                   <span className={styles.filterPill}>
-                    Assignee: {currentAssignedTo === "unassigned" ? "Unassigned" : (agents.find(a => String(a.id) === currentAssignedTo)?.name || currentAssignedTo)}
+                    Assignee: {currentAssignedToList
+                      .map(v => v === "unassigned" ? "Unassigned" : (agents.find(a => String(a.id) === v)?.name || v))
+                      .join(", ")}
                     <span className={styles.filterPillClose} onClick={() => handleFilterChange("assignedTo", "all")}><X size={12} /></span>
                   </span>
                 )}
@@ -464,27 +541,27 @@ export default function TicketsList({ loaderData }: Route.ComponentProps) {
                           />
                         )}
                         <div
-                          className={`${styles.columnFilterItem} ${!currentAssignedTo ? styles.columnFilterItemActive : ""}`}
+                          className={`${styles.columnFilterItem} ${currentAssignedToList.length === 0 ? styles.columnFilterItemActive : ""}`}
                           onClick={() => handleFilterChange("assignedTo", "all")}
                         >
                           <span>All Assignees</span>
-                          {!currentAssignedTo && <Check size={14} />}
+                          {currentAssignedToList.length === 0 && <Check size={14} />}
                         </div>
                         <div
-                          className={`${styles.columnFilterItem} ${currentAssignedTo === "unassigned" ? styles.columnFilterItemActive : ""}`}
-                          onClick={() => handleFilterChange("assignedTo", "unassigned")}
+                          className={`${styles.columnFilterItem} ${currentAssignedToList.includes("unassigned") ? styles.columnFilterItemActive : ""}`}
+                          onClick={() => toggleFilterValue("assignedTo", "unassigned")}
                         >
                           <span>Unassigned</span>
-                          {currentAssignedTo === "unassigned" && <Check size={14} />}
+                          {currentAssignedToList.includes("unassigned") && <Check size={14} />}
                         </div>
                         <div style={{ height: 1, background: "rgba(255,255,255,0.1)", margin: "3px 0" }} />
                         {filteredAgents.map((agent) => {
-                          const isSelected = currentAssignedTo === String(agent.id) || currentAssignedTo === agent.name;
+                          const isSelected = currentAssignedToList.some(v => v === String(agent.id) || v.toLowerCase() === agent.name.toLowerCase());
                           return (
                             <div
                               key={agent.id}
                               className={`${styles.columnFilterItem} ${isSelected ? styles.columnFilterItemActive : ""}`}
-                              onClick={() => handleFilterChange("assignedTo", String(agent.id))}
+                              onClick={() => toggleFilterValue("assignedTo", String(agent.id))}
                             >
                               <span>{agent.name}</span>
                               {isSelected && <Check size={14} />}
@@ -516,29 +593,25 @@ export default function TicketsList({ loaderData }: Route.ComponentProps) {
                     {activeHeaderDropdown === "priority" && (
                       <div className={styles.columnFilterPopover}>
                         <div
-                          className={`${styles.columnFilterItem} ${!currentPriority ? styles.columnFilterItemActive : ""}`}
+                          className={`${styles.columnFilterItem} ${currentPriorityList.length === 0 ? styles.columnFilterItemActive : ""}`}
                           onClick={() => handleFilterChange("priority", "all")}
                         >
                           <span>All Priorities</span>
-                          {!currentPriority && <Check size={14} />}
+                          {currentPriorityList.length === 0 && <Check size={14} />}
                         </div>
                         <div style={{ height: 1, background: "rgba(255,255,255,0.1)", margin: "3px 0" }} />
-                        {[
-                          { id: "critical", label: "Critical", color: "#f87171" },
-                          { id: "high", label: "High", color: "#fb923c" },
-                          { id: "medium", label: "Medium", color: "#fbbf24" },
-                          { id: "low", label: "Low", color: "#9ca3af" }
-                        ].map((p) => {
-                          const isSelected = currentPriority?.toLowerCase() === p.id;
+                        {/* Sinkron master data priorities (bukan hardcode) */}
+                        {priorities.map((p) => {
+                          const isSelected = currentPriorityList.some(v => v.toLowerCase() === p.name.toLowerCase());
                           return (
                             <div
                               key={p.id}
                               className={`${styles.columnFilterItem} ${isSelected ? styles.columnFilterItemActive : ""}`}
-                              onClick={() => handleFilterChange("priority", p.id)}
+                              onClick={() => toggleFilterValue("priority", p.name)}
                             >
                               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: p.color }} />
-                                <span>{p.label}</span>
+                                <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: p.color || "#9ca3af" }} />
+                                <span>{p.name}</span>
                               </div>
                               {isSelected && <Check size={14} />}
                             </div>
@@ -549,48 +622,8 @@ export default function TicketsList({ loaderData }: Route.ComponentProps) {
                   </div>
                 </th>
 
-                {/* STATUS Column Header with Popover Filter */}
-                <th style={{ width: '130px' }}>
-                  <div className={styles.thFilterContainer}>
-                    <button
-                      type="button"
-                      className={`${styles.thFilterButton} ${currentStatusParam ? styles.thFilterButtonActive : ""}`}
-                      onClick={() => setActiveHeaderDropdown(activeHeaderDropdown === "status" ? null : "status")}
-                    >
-                      <span>
-                        Status
-                        {currentStatusParam && <span className={styles.filterBadgeDot} />}
-                      </span>
-                      <ChevronDown size={14} className={styles.thChevron} style={{ transform: activeHeaderDropdown === "status" ? "rotate(180deg)" : "none" }} />
-                    </button>
-
-                    {activeHeaderDropdown === "status" && (
-                      <div className={styles.columnFilterPopover}>
-                        <div
-                          className={`${styles.columnFilterItem} ${!currentStatusParam ? styles.columnFilterItemActive : ""}`}
-                          onClick={() => handleFilterChange("status", "all")}
-                        >
-                          <span>All Statuses</span>
-                          {!currentStatusParam && <Check size={14} />}
-                        </div>
-                        <div style={{ height: 1, background: "rgba(255,255,255,0.1)", margin: "3px 0" }} />
-                        {sortedStatuses.map((s) => {
-                          const isSelected = currentStatusParam.toLowerCase() === s.name.toLowerCase();
-                          return (
-                            <div
-                              key={s.id}
-                              className={`${styles.columnFilterItem} ${isSelected ? styles.columnFilterItemActive : ""}`}
-                              onClick={() => handleFilterChange("status", s.name)}
-                            >
-                              <span>{s.name}</span>
-                              {isSelected && <Check size={14} />}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                </th>
+                {/* STATUS Column Header — teks saja, tanpa dropdown */}
+                <th style={{ width: '130px' }}>Status</th>
 
                 {/* CATEGORY Column Header with Popover Filter */}
                 <th style={{ width: '140px' }}>
@@ -620,20 +653,20 @@ export default function TicketsList({ loaderData }: Route.ComponentProps) {
                           />
                         )}
                         <div
-                          className={`${styles.columnFilterItem} ${!currentCategory ? styles.columnFilterItemActive : ""}`}
+                          className={`${styles.columnFilterItem} ${currentCategoryList.length === 0 ? styles.columnFilterItemActive : ""}`}
                           onClick={() => handleFilterChange("category", "all")}
                         >
                           <span>All Categories</span>
-                          {!currentCategory && <Check size={14} />}
+                          {currentCategoryList.length === 0 && <Check size={14} />}
                         </div>
                         <div style={{ height: 1, background: "rgba(255,255,255,0.1)", margin: "3px 0" }} />
                         {filteredCategories.map((c) => {
-                          const isSelected = currentCategory?.toLowerCase() === c.name.toLowerCase();
+                          const isSelected = currentCategoryList.some(v => v.toLowerCase() === c.name.toLowerCase());
                           return (
                             <div
                               key={c.id}
                               className={`${styles.columnFilterItem} ${isSelected ? styles.columnFilterItemActive : ""}`}
-                              onClick={() => handleFilterChange("category", c.name)}
+                              onClick={() => toggleFilterValue("category", c.name)}
                             >
                               <span>{c.name}</span>
                               {isSelected && <Check size={14} />}

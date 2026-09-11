@@ -88,13 +88,13 @@ export default function Analytics({ loaderData }: Route.ComponentProps) {
     if (resolvedCount >= 5 && avgTime <= 4) performance = "excellent";
     else if (resolvedCount >= 2 || avgTime <= 8) performance = "good";
 
-    return Response.json({
+    return {
       name: agent.name,
       assigned: total,
       resolved: resolvedCount,
       avgTime: `${avgTime.toFixed(1)}h`,
       performance,
-    });
+    };
   }), [agentsPerformance]);
 
   const trendData = useMemo(() => stats.trend || [], [stats.trend]);

@@ -490,6 +490,7 @@ export function useTicketActions({
       !ticket?.resolutionSummary;
 
     if (isResolvingWithoutSummary) {
+      setResolveCategory("");
       setShowResolveDialog(true);
       return;
     }
@@ -582,7 +583,7 @@ export function useTicketActions({
     setResolutionError("");
     setResolutionSummary("");
     setResolutionImage(null);
-    setResolveCategory(ticket.category || "");
+    setResolveCategory("");
     setResolveCategoryError("");
     setResolveDate(toDatetimeLocalString(new Date()));
     setShowResolveDialog(true);
@@ -598,10 +599,6 @@ export function useTicketActions({
     }
     if (!resolutionSummary.trim()) {
       setResolutionError("Resolution summary is required");
-      return;
-    }
-    if (resolutionSummary.trim().length < 20) {
-      setResolutionError("Please provide a more detailed resolution (minimum 20 characters)");
       return;
     }
 

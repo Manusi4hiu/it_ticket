@@ -156,25 +156,57 @@ export function ResolveDialog({
         </DialogHeader>
 
         <div className={styles.dialogBody}>
-          {/* Waktu resolve aktual */}
-          <div style={{ marginBottom: "var(--space-4)" }}>
-            <Label htmlFor="resolve-date">Actual Time Resolve *</Label>
-            <input
-              type="datetime-local"
-              id="resolve-date"
-              className={styles.input}
-              style={{
-                width: "100%",
-                padding: "var(--space-2)",
-                borderRadius: "var(--radius-sm)",
-                border: "1px solid var(--color-neutral-4)",
-                marginTop: "var(--space-1)",
-              }}
-              value={resolveDate}
-              max={toDatetimeLocalString(new Date())}
-              onChange={(e) => onResolveDateChange(e.target.value)}
-              required
-            />
+          <div style={{ display: "flex", gap: "var(--space-4)", marginBottom: "var(--space-4)" }}>
+            {/* Waktu resolve aktual */}
+            <div style={{ flex: 1 }}>
+              <Label htmlFor="resolve-date">Actual Time Resolve *</Label>
+              <input
+                type="datetime-local"
+                id="resolve-date"
+                className={styles.input}
+                style={{
+                  width: "100%",
+                  padding: "var(--space-2)",
+                  borderRadius: "var(--radius-sm)",
+                  border: "1px solid var(--color-neutral-4)",
+                  marginTop: "var(--space-1)",
+                }}
+                value={resolveDate}
+                max={toDatetimeLocalString(new Date())}
+                onChange={(e) => onResolveDateChange(e.target.value)}
+                required
+              />
+            </div>
+
+            {/* Category Update */}
+            <div style={{ flex: 1 }}>
+              <Label htmlFor="resolve-category">Category *</Label>
+              <select
+                id="resolve-category"
+                className={styles.input}
+                style={{
+                  width: "100%",
+                  padding: "var(--space-2)",
+                  borderRadius: "var(--radius-sm)",
+                  border: resolveCategoryError ? "1px solid #ef4444" : "1px solid var(--color-neutral-4)",
+                  marginTop: "var(--space-1)",
+                  backgroundColor: "transparent"
+                }}
+                value={resolveCategory}
+                onChange={(e) => onResolveCategoryChange(e.target.value)}
+                required
+              >
+                <option value="" disabled hidden>Select Category</option>
+                {categories.map((c: any) => (
+                  <option key={c.id || c.name} value={c.name}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+              {resolveCategoryError && (
+                <p style={errorTextStyle}>{resolveCategoryError}</p>
+              )}
+            </div>
           </div>
 
           {/* Resolution Summary */}

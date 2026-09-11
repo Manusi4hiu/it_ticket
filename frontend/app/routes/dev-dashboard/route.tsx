@@ -89,12 +89,13 @@ export async function loader({ request }: Route.LoaderArgs) {
     initialTickets: ticketsRes.tickets,
     agents,
     statuses: (statusesRes.data?.data || []).filter((s: any) => s.showOnDevboard)
-      .sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0))
-  };
+      .sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0)),
+    categories: categoriesRes.data?.data || []
+  });
 }
 
 export default function DevDashboard() {
-  const { session, initialTickets, agents, statuses: loaderStatuses } = useLoaderData() as typeof loader extends (...args: any[]) => Promise<infer T> ? T : any;
+  const { session, initialTickets, agents, statuses: loaderStatuses, categories } = useLoaderData() as typeof loader extends (...args: any[]) => Promise<infer T> ? T : any;
   const navigate = useNavigate();
   const [statuses, setStatuses] = useState<any[]>(loaderStatuses);
 
@@ -488,7 +489,7 @@ export default function DevDashboard() {
       !originalTicket.resolutionSummary;
 
     if (isResolvingWithoutSummary) {
-      setResolveCategory(originalTicket?.category || "Development");
+      setResolveCategory("");
       setResolveCategoryError("");
       setPendingStatusUpdate({ ticketId, targetStatus });
       setShowResolveDialog(true);
@@ -535,8 +536,8 @@ export default function DevDashboard() {
         return;
       }
     }
-    if (resolutionSummary.trim().length < 20) {
-      setResolutionError("Summary must be at least 20 characters.");
+    if (!resolutionSummary.trim()) {
+      setResolutionError("Resolution summary is required.");
       return;
     }
     setResolutionError("");

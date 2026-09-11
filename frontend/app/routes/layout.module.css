@@ -207,20 +207,29 @@
 }
 
 /* ── Responsive navbar ── */
-@media (max-width: 1200px) {
+@media (max-width: 992px) {
   .header {
     padding: var(--space-3) var(--space-4);
   }
   .headerContent {
-    flex-direction: column;
-    align-items: stretch;
+    flex-wrap: wrap;
     gap: var(--space-3);
-  }
-  .headerLeft {
-    justify-content: space-between;
   }
   .navBar {
     width: 100%;
+    justify-content: space-between;
+  }
+}
+
+@media (max-width: 768px) {
+  .headerContent {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .headerLeft {
+    justify-content: flex-start;
+  }
+  .navBar {
     flex-wrap: wrap;
     gap: var(--space-3);
   }

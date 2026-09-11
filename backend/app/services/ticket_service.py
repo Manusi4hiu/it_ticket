@@ -237,7 +237,21 @@ class TicketService:
             
             # If everything succeeded, commit the whole transaction
             db.session.commit()
+
+            # Send email confirmation to submitter (non-blocking)
+            try:
+                from app.services.email_service import EmailService
+                EmailService.send_ticket_confirmation(ticket)
+            except Exception as email_err:
+                # Email failure must NOT rollback or fail the ticket creation
+                import logging
+                logging.getLogger(__name__).error(
+                    f"[Email] Unexpected error sending confirmation for "
+                    f"{ticket.ticket_code}: {email_err}"
+                )
+
             return ticket
+
 
         except Exception as e:
             db.session.rollback()
@@ -880,11 +894,16 @@ class TicketService:
                 )
 
         if is_admin and ticket.taken_at and ticket.assigned_to_id and old_status_name_snap != status:
+            is_resolved_target = str(status).strip().lower() in ('resolved', 'closed')
+            has_summary = resolution_summary and str(resolution_summary).strip()
             if not (reason and str(reason).strip()):
-                raise ValueError(
-                    "Alasan wajib diisi: Admin mengubah status tiket yang sedang dipegang staff. "
-                    "Alasan akan dikirim sebagai notifikasi ke pemilik tiket."
-                )
+                if is_resolved_target and has_summary:
+                    reason = str(resolution_summary).strip()
+                else:
+                    raise ValueError(
+                        "Alasan wajib diisi: Admin mengubah status tiket yang sedang dipegang staff. "
+                        "Alasan akan dikirim sebagai notifikasi ke pemilik tiket."
+                    )
 
         # ── Status berubah pada tiket taken oleh PEMILIK (non-admin) ->
         # alasan WAJIB (cermin update_ticket). Resolved/Closed dikecualikan
