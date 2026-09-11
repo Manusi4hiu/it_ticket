@@ -2,6 +2,7 @@ import smtplib
 import logging
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from html import escape
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +38,13 @@ class EmailService:
         try:
             cfg = EmailService._get_config()
             tracking_url = f"{cfg['frontend_url']}/ticket/{ticket.ticket_code}"
+
+            # Escape all user input for safe HTML rendering
+            safe_name = escape(ticket.submitter_name)
+            safe_code = escape(ticket.ticket_code)
+            safe_title = escape(ticket.title)
+            safe_priority = escape(ticket.priority.capitalize())
+            safe_status = escape(ticket.status)
 
             subject = f"[{ticket.ticket_code}] Tiket IT Anda Berhasil Diterima"
 
@@ -86,7 +94,7 @@ class EmailService:
           <tr>
             <td style="padding:32px;">
               <p style="margin:0 0 16px;font-size:15px;color:#374151;">
-                Halo <strong>{ticket.submitter_name}</strong>,
+                Halo <strong>{safe_name}</strong>,
               </p>
               <p style="margin:0 0 24px;font-size:14px;color:#6b7280;line-height:1.6;">
                 Tiket Anda telah berhasil diterima oleh tim IT Support.
@@ -99,7 +107,7 @@ class EmailService:
                 <p style="margin:0 0 4px;font-size:12px;color:#6b7280;
                            text-transform:uppercase;letter-spacing:0.05em;">Kode Tiket Anda</p>
                 <p style="margin:0;font-size:28px;font-weight:700;color:#1e40af;
-                           letter-spacing:0.1em;">{ticket.ticket_code}</p>
+                           letter-spacing:0.1em;">{safe_code}</p>
               </div>
 
               <!-- Detail Table -->
@@ -109,17 +117,17 @@ class EmailService:
                   <td style="padding:10px 0;border-bottom:1px solid #f3f4f6;
                               font-size:13px;color:#6b7280;width:35%;">Judul</td>
                   <td style="padding:10px 0;border-bottom:1px solid #f3f4f6;
-                              font-size:13px;color:#111827;font-weight:500;">{ticket.title}</td>
+                              font-size:13px;color:#111827;font-weight:500;">{safe_title}</td>
                 </tr>
                 <tr>
                   <td style="padding:10px 0;border-bottom:1px solid #f3f4f6;
                               font-size:13px;color:#6b7280;">Prioritas</td>
                   <td style="padding:10px 0;border-bottom:1px solid #f3f4f6;
-                              font-size:13px;color:#111827;">{ticket.priority.capitalize()}</td>
+                              font-size:13px;color:#111827;">{safe_priority}</td>
                 </tr>
                 <tr>
                   <td style="padding:10px 0;font-size:13px;color:#6b7280;">Status</td>
-                  <td style="padding:10px 0;font-size:13px;color:#111827;">{ticket.status}</td>
+                  <td style="padding:10px 0;font-size:13px;color:#111827;">{safe_status}</td>
                 </tr>
               </table>
 
