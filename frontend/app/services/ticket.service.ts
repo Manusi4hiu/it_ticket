@@ -104,6 +104,7 @@ export async function createTicket(ticket: {
     submitterEmail: string;
     submitterPhone?: string;
     submitterDepartment?: string;
+    receiveUpdates?: boolean;
 }, image?: File, idempotencyKey?: string): Promise<Ticket | null> {
     const response = await ticketsApi.create(ticket, image, idempotencyKey);
 

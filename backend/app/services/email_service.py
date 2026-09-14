@@ -200,3 +200,177 @@ class EmailService:
             logger.error(
                 f"[Email] Gagal kirim konfirmasi tiket {ticket.ticket_code}: {e}"
             )
+
+    @staticmethod
+    def send_ticket_resolved(ticket):
+        """
+        Kirim email notifikasi ke submitter ketika tiket berstatus resolved.
+        """
+        if not ticket.submitter_email or not getattr(ticket, 'receive_updates', False):
+            logger.debug(f"[Email] Ticket {ticket.ticket_code}: no submitter_email or opted out, skip.")
+            return
+
+        try:
+            cfg = EmailService._get_config()
+            tracking_url = f"{cfg['frontend_url']}/ticket/{ticket.ticket_code}"
+
+            safe_name = escape(ticket.submitter_name)
+            safe_code = escape(ticket.ticket_code)
+            safe_title = escape(ticket.title)
+            safe_status = escape(ticket.status)
+            safe_summary = escape(ticket.resolution_summary or "Tidak ada ringkasan resolusi.")
+            
+            # Format history (public notes only)
+            public_notes = [n for n in ticket.notes if not getattr(n, 'is_internal', False)]
+            history_html = ""
+            if public_notes:
+                history_html = '<div style="margin-top: 24px;"><h3 style="font-size:14px;color:#374151;margin-bottom:12px;border-bottom:1px solid #e5e7eb;padding-bottom:8px;">Riwayat Tiket</h3>'
+                for note in public_notes:
+                    author_name = note.author.full_name if note.author else "Sistem"
+                    note_time = note.created_at.strftime('%d %b %Y %H:%M') if note.created_at else ""
+                    # note.content may contain HTML, but since it's from editor, we might need to trust it or strip. Assuming it's safe.
+                    history_html += f'<div style="margin-bottom: 12px; padding: 12px; background: #f9fafb; border-radius: 6px; font-size: 13px;">'
+                    history_html += f'<div style="color: #6b7280; font-size: 11px; margin-bottom: 4px;"><strong>{escape(author_name)}</strong> &bull; {escape(note_time)}</div>'
+                    history_html += f'<div style="color: #374151;">{note.content}</div>'
+                    history_html += f'</div>'
+                history_html += '</div>'
+
+            # Format image
+            image_html = ""
+            if ticket.resolution_image_url:
+                img_src = ticket.resolution_image_url
+                if not img_src.startswith("http"):
+                    img_src = f"{cfg['frontend_url']}{img_src}"
+                image_html = f'<div style="margin-top: 16px;"><p style="font-size:13px;color:#6b7280;margin-bottom:8px;">Lampiran Resolusi:</p><img src="{img_src}" style="max-width:100%;border-radius:6px;border:1px solid #e5e7eb;" alt="Resolution Image"/></div>'
+
+            subject = f"[{ticket.ticket_code}] Tiket IT Anda Telah Diselesaikan (Resolved)"
+
+            text_body = (
+                f"Halo {ticket.submitter_name},\n\n"
+                f"Tiket Anda telah diselesaikan (Resolved) oleh tim IT Support.\n\n"
+                f"  Kode Tiket : {ticket.ticket_code}\n"
+                f"  Judul      : {ticket.title}\n"
+                f"  Status     : {ticket.status}\n"
+                f"  Resolusi   : {ticket.resolution_summary or '-'}\n\n"
+                f"Untuk melihat detail penyelesaian tiket, silakan kunjungi link berikut:\n"
+                f"{tracking_url}\n\n"
+                f"Terima kasih,\n"
+                f"— IT Support Aero Nusantara Indonesia\n"
+            )
+
+            html_body = f"""<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tiket Resolved</title>
+</head>
+<body style="margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f9;padding:32px 0;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0"
+               style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+          <tr>
+            <td style="background:#10b981;padding:28px 32px;">
+              <h1 style="margin:0;color:#ffffff;font-size:20px;font-weight:700;">
+                IT Support &mdash; ANI
+              </h1>
+              <p style="margin:6px 0 0;color:#d1fae5;font-size:13px;">
+                Tiket Diselesaikan (Resolved)
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:32px;">
+              <p style="margin:0 0 16px;font-size:15px;color:#374151;">
+                Halo <strong>{safe_name}</strong>,
+              </p>
+              <p style="margin:0 0 24px;font-size:14px;color:#6b7280;line-height:1.6;">
+                Tiket Anda telah <strong>diselesaikan (Resolved)</strong> oleh tim IT Support.
+              </p>
+              <div style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px;
+                          padding:16px 20px;margin-bottom:24px;text-align:center;">
+                <p style="margin:0 0 4px;font-size:12px;color:#047857;
+                           text-transform:uppercase;letter-spacing:0.05em;">Kode Tiket</p>
+                <p style="margin:0;font-size:28px;font-weight:700;color:#047857;
+                           letter-spacing:0.1em;">{safe_code}</p>
+              </div>
+              <table width="100%" cellpadding="0" cellspacing="0"
+                     style="border-collapse:collapse;margin-bottom:24px;">
+                <tr>
+                  <td style="padding:10px 0;border-bottom:1px solid #f3f4f6;
+                              font-size:13px;color:#6b7280;width:35%;vertical-align:top;">Judul</td>
+                  <td style="padding:10px 0;border-bottom:1px solid #f3f4f6;
+                              font-size:13px;color:#111827;font-weight:500;">{safe_title}</td>
+                </tr>
+                <tr>
+                  <td style="padding:10px 0;border-bottom:1px solid #f3f4f6;font-size:13px;color:#6b7280;vertical-align:top;">Ringkasan Resolusi</td>
+                  <td style="padding:10px 0;border-bottom:1px solid #f3f4f6;font-size:13px;color:#111827;">{safe_summary}</td>
+                </tr>
+                <tr>
+                  <td style="padding:10px 0;font-size:13px;color:#6b7280;">Status</td>
+                  <td style="padding:10px 0;font-size:13px;color:#111827;font-weight:500;color:#10b981;">{safe_status}</td>
+                </tr>
+              </table>
+              
+              {image_html}
+              
+              {history_html}
+
+              <div style="text-align:center;margin-top:32px;margin-bottom:8px;">
+                <a href="{tracking_url}"
+                   style="display:inline-block;background:#10b981;color:#ffffff;
+                           text-decoration:none;padding:12px 28px;border-radius:6px;
+                           font-size:14px;font-weight:600;">
+                  Lihat Detail Penyelesaian &rarr;
+                </a>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td style="background:#f9fafb;padding:16px 32px;border-top:1px solid #e5e7eb;">
+              <p style="margin:0;font-size:12px;color:#9ca3af;text-align:center;">
+                Email ini dikirim otomatis oleh sistem IT Helpdesk &mdash; ANI.<br>
+                Harap tidak membalas email ini.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>"""
+
+            msg = MIMEMultipart('alternative')
+            msg['Subject'] = subject
+            msg['From']    = cfg['from']
+            msg['To']      = ticket.submitter_email
+
+            msg.attach(MIMEText(text_body, 'plain', 'utf-8'))
+            msg.attach(MIMEText(html_body, 'html', 'utf-8'))
+
+            if cfg['use_tls']:
+                server = smtplib.SMTP(cfg['server'], cfg['port'], timeout=10)
+                server.ehlo()
+                server.starttls()
+                server.ehlo()
+            else:
+                server = smtplib.SMTP_SSL(cfg['server'], cfg['port'], timeout=10)
+
+            if cfg['username'] and cfg['password']:
+                server.login(cfg['username'], cfg['password'])
+
+            server.sendmail(cfg['from'], ticket.submitter_email, msg.as_string())
+            server.quit()
+
+            logger.info(
+                f"[Email] Notifikasi resolved tiket {ticket.ticket_code} "
+                f"terkirim ke {ticket.submitter_email}"
+            )
+
+        except Exception as e:
+            logger.error(
+                f"[Email] Gagal kirim notifikasi resolved tiket {ticket.ticket_code}: {e}"
+            )

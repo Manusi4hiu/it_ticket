@@ -62,6 +62,7 @@ export async function action({ request }: Route.ActionArgs) {
     const category = (formData.get("category") as string || "Uncategorized").trim();
     const subject = (formData.get("subject") as string || "").trim();
     const description = (formData.get("description") as string || "").trim();
+    const receiveUpdates = formData.get("receiveUpdates") === "true" || formData.get("receiveUpdates") === "on";
 
     const image = formData.get("image") as File | null;
     const validImage = image && typeof image === 'object' && image.size > 0 && image.name ? image : undefined;
@@ -106,6 +107,7 @@ export async function action({ request }: Route.ActionArgs) {
             submitterEmail: email || "",
             submitterPhone: phone || undefined,
             submitterDepartment: department,
+            receiveUpdates: receiveUpdates,
         }, validImage, idempotencyKey);
 
         if (!newTicket) {
@@ -268,6 +270,18 @@ export default function SubmitTicket({ actionData, loaderData }: Route.Component
                                                 maxLength={120}
                                                 className={styles.input}
                                             />
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '12px' }}>
+                                                <input
+                                                    type="checkbox"
+                                                    id="receiveUpdates"
+                                                    name="receiveUpdates"
+                                                    defaultChecked={true}
+                                                    style={{ width: '16px', height: '16px', accentColor: '#1e40af', cursor: 'pointer' }}
+                                                />
+                                                <Label htmlFor="receiveUpdates" style={{ cursor: 'pointer', fontSize: '13px', color: '#4b5563', fontWeight: 'normal', margin: 0 }}>
+                                                    Receive updates and activities via email
+                                                </Label>
+                                            </div>
                                         </div>
 
                                         <div className={styles.formGroup}>

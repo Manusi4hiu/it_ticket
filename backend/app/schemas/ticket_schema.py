@@ -21,6 +21,7 @@ class TicketSchema(Schema):
     submitterEmail = fields.Str(attribute='submitter_email')
     submitterPhone = fields.Str(attribute='submitter_phone')
     submitterDepartment = fields.Str(attribute='submitter_department')
+    receiveUpdates = fields.Bool(attribute='receive_updates')
     imageUrl = fields.Str(attribute='image_url')
     assignedTo = fields.Function(lambda obj: obj.assigned_user.full_name if obj.assigned_user else None)
     assignedToId = fields.Str(attribute='assigned_to_id')

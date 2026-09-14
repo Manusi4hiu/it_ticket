@@ -170,6 +170,9 @@ export function ResolveDialog({
                   borderRadius: "var(--radius-sm)",
                   border: "1px solid var(--color-neutral-4)",
                   marginTop: "var(--space-1)",
+                  backgroundColor: "var(--color-neutral-1)",
+                  color: "var(--color-neutral-12)",
+                  colorScheme: "dark light"
                 }}
                 value={resolveDate}
                 max={toDatetimeLocalString(new Date())}
@@ -190,15 +193,17 @@ export function ResolveDialog({
                   borderRadius: "var(--radius-sm)",
                   border: resolveCategoryError ? "1px solid #ef4444" : "1px solid var(--color-neutral-4)",
                   marginTop: "var(--space-1)",
-                  backgroundColor: "transparent"
+                  backgroundColor: "var(--color-neutral-1)",
+                  color: "var(--color-neutral-12)",
+                  colorScheme: "dark light"
                 }}
                 value={resolveCategory}
                 onChange={(e) => onResolveCategoryChange(e.target.value)}
                 required
               >
-                <option value="" disabled hidden>Select Category</option>
+                <option value="" disabled hidden style={{ backgroundColor: "var(--color-neutral-1)", color: "var(--color-neutral-12)" }}>Select Category</option>
                 {categories.map((c: any) => (
-                  <option key={c.id || c.name} value={c.name}>
+                  <option key={c.id || c.name} value={c.name} style={{ backgroundColor: "var(--color-neutral-1)", color: "var(--color-neutral-12)" }}>
                     {c.name}
                   </option>
                 ))}

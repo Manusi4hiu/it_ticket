@@ -40,6 +40,7 @@ class Ticket(db.Model):
     submitter_email = db.Column(db.String(255), nullable=True)
     submitter_phone = db.Column(db.String(50), nullable=True)
     submitter_department = db.Column(db.String(100), nullable=True)
+    receive_updates = db.Column(db.Boolean, default=False)
     
     # Assignment
     assigned_to_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True, index=True)
@@ -83,6 +84,7 @@ class Ticket(db.Model):
             'submitterEmail': self.submitter_email,
             'submitterPhone': self.submitter_phone,
             'submitterDepartment': self.submitter_department,
+            'receiveUpdates': self.receive_updates,
             'imageUrl': self.image_url,
             'assignedTo': self.assigned_user.full_name if self.assigned_user else None,
             'assignedToId': self.assigned_to_id,

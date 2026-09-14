@@ -42,6 +42,7 @@ export interface Ticket {
     submitterEmail: string;
     submitterPhone?: string;
     submitterDepartment?: string;
+    receiveUpdates?: boolean;
     imageUrl?: string;
     assignedTo?: string;
     assignedToId?: number;
@@ -103,4 +104,5 @@ export interface CreateTicketPayload {
     submitterEmail: string;
     submitterPhone?: string;
     submitterDepartment?: string;
+    receiveUpdates?: boolean;
 }

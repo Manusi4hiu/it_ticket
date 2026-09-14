@@ -204,6 +204,7 @@ class TicketService:
                 submitter_email=sanitize_html(email_clean),
                 submitter_phone=sanitize_html(phone_clean),
                 submitter_department=sanitize_html(dept_name),
+                receive_updates=data.get('receiveUpdates') in [True, 'true', 'True', '1', 'on'],
                 image_url=image_url,
                 idempotency_key=idempotency_key,
                 sla_deadline=sla_deadline,
@@ -1010,6 +1011,14 @@ class TicketService:
         ticket.updated_at = datetime.now(timezone.utc)
         ticket.sla_status = TicketService.calculate_sla_status(ticket.sla_deadline, ticket.resolved_at, ticket.sla_paused_at)
         db.session.commit()
+
+        if status.lower() == 'resolved' and old_status_name_snap.lower() != 'resolved':
+            if ticket.receive_updates and ticket.submitter_email:
+                try:
+                    from app.services.email_service import EmailService
+                    EmailService.send_ticket_resolved(ticket)
+                except Exception as e:
+                    print(f"Failed to send resolved email: {e}")
 
         # ── Notifikasi Admin Override (via endpoint /status):
         # Admin mengubah status tiket milik staff -> alasan dikirim ke PEMILIK tiket.

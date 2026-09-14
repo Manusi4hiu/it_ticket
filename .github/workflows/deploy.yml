@@ -1,0 +1,83 @@
+name: Deploy to aaPanel
+
+on:
+  push:
+    branches:
+      - main # Change this if your main branch is named differently (e.g., master)
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ---------------------------------------------------
+      # 1. SETUP & BUILD FRONTEND
+      # ---------------------------------------------------
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22' # Match this with your local node version or 24.14.1 on aaPanel
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: Install Frontend Dependencies & Build
+        run: |
+          cd frontend
+          pnpm install
+          pnpm run build
+          
+      # ---------------------------------------------------
+      # 2. DEPLOY FILES VIA SCP
+      # ---------------------------------------------------
+      - name: Copy Files to Server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SERVER_USERNAME }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
+          source: "frontend/build/,frontend/package.json,frontend/package-lock.json,frontend/pnpm-lock.yaml,frontend/public/,backend/"
+          target: "/www/wwwroot/staging.ani.co.id/it_ticket"
+          strip_components: 0
+          
+      # ---------------------------------------------------
+      # 3. RUN SERVER COMMANDS VIA SSH
+      # ---------------------------------------------------
+      - name: Restart Services on aaPanel
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SERVER_USERNAME }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
+          script: |
+            # --- Frontend Restart ---
+            cd /www/wwwroot/staging.ani.co.id/it_ticket/frontend
+            pnpm install --prod
+            # aaPanel uses PM2 under the hood for Node.js projects.
+            # Restart the project. Assuming the project name in PM2 is 'frontend'.
+            pm2 restart frontend
+            
+            # --- Backend Restart ---
+            # Path to the Python backend project
+            cd /www/wwwroot/staging.ani.co.id/it_ticket/backend
+            
+            # Note: aaPanel manages the Python virtual environment for you.
+            # If you added new packages to requirements.txt, you may need to install them.
+            # You can find your venv path in aaPanel (usually in /www/wwwroot/.../venv or /www/server/panel/pyenv/...)
+            # source /path/to/your/venv/bin/activate
+            # pip install -r requirements.txt
+            
+            # Restart the Python project. 
+            # aaPanel usually registers the service as something like "backend" or "project_backend" in systemctl, 
+            # or it uses its own process manager.
+            # You can try restarting via systemctl if you know the service name:
+            # systemctl restart backend
+            # OR if it's managed by Supervisor:
+            # supervisorctl restart backend
