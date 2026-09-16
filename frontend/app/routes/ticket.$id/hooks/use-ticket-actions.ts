@@ -843,6 +843,8 @@ export function useTicketActions({
     resolutionImage, setResolutionImage,
     handleResolutionImageChange,
     handleClearResolutionImage,
+    resolveCategory, setResolveCategory,
+    resolveCategoryError, setResolveCategoryError,
     isEditingResolvedAt, setIsEditingResolvedAt,
     editResolvedAtValue, setEditResolvedAtValue,
     isStaffModalOpen, setIsStaffModalOpen,
