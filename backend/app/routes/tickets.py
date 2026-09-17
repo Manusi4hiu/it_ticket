@@ -31,6 +31,8 @@ def get_ticket_or_404(ticket_id):
 @jwt_required()
 def get_tickets():
     """Get all tickets with optional filters"""
+    # Segarkan status SLA dari jam berjalan (best-effort, tak pernah blokir read)
+    TicketService.refresh_sla_statuses()
     # Query parameters
     status = request.args.get('status')
     exclude_status = request.args.get('exclude_status')
@@ -446,6 +448,8 @@ def add_ticket_note(ticket_id):
 def get_ticket_stats():
     """Get ticket statistics for dashboard"""
     user_id = get_jwt_identity()
+    # Segarkan status SLA dari jam berjalan agar hitungan breached/warning akurat
+    TicketService.refresh_sla_statuses()
     # Check if we should filter by user (e.g. if not admin)
     # For now, let's allow a query param 'personal' to toggle
     personal = request.args.get('personal', type=lambda v: v.lower() == 'true')

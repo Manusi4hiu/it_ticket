@@ -43,6 +43,45 @@ class TicketService:
             return 'good'
 
     @staticmethod
+    def refresh_sla_statuses():
+        """Segarkan kolom sla_status dari deadline (bulk, tanpa scheduler).
+
+        Dipanggil best-effort di awal endpoint list & stats agar badge/hitungan
+        breached/warning selalu mencerminkan jam berjalan — termasuk tiket New
+        yang duduk diam tanpa pernah disentuh. Hanya menyentuh tiket aktif
+        (belum resolved, tak di-pause) yang berdeadline; perbandingan memakai
+        naive UTC menyesuaikan nilai tersimpan.
+        """
+        try:
+            now = datetime.now(timezone.utc).replace(tzinfo=None)
+            warn_at = now + timedelta(hours=2)
+            base = Ticket.query.filter(
+                Ticket.sla_deadline.isnot(None),
+                Ticket.resolved_at.is_(None),
+                Ticket.sla_paused_at.is_(None)
+            )
+            n_breach = base.filter(
+                Ticket.sla_deadline < now,
+                Ticket.sla_status != 'breached'
+            ).update({'sla_status': 'breached'}, synchronize_session=False)
+            n_warn = base.filter(
+                Ticket.sla_deadline >= now,
+                Ticket.sla_deadline < warn_at,
+                Ticket.sla_status != 'warning'
+            ).update({'sla_status': 'warning'}, synchronize_session=False)
+            n_good = base.filter(
+                Ticket.sla_deadline >= warn_at,
+                Ticket.sla_status != 'good'
+            ).update({'sla_status': 'good'}, synchronize_session=False)
+            if n_breach or n_warn or n_good:
+                db.session.commit()
+            return {'breached': n_breach, 'warning': n_warn, 'good': n_good}
+        except Exception as e:
+            db.session.rollback()
+            print(f"refresh_sla_statuses skipped: {e}")
+            return None
+
+    @staticmethod
     def _active_priority_names():
         """Nama priority aktif dari master (lowercase) — bukan hardcode 4 default.
 
@@ -174,14 +213,12 @@ class TicketService:
 
         # Transaction for Atomicity
         try:
-            # SLA only runs when the ticket is claimed/assigned
-            sla_deadline = None
-            if assigned_to_id:
-                hours = TicketService.get_sla_hours_for_ticket(priority, category)
-                sla_deadline = datetime.now(timezone.utc) + timedelta(hours=hours)
-                sla_taken_at = datetime.now(timezone.utc)
-            else:
-                sla_taken_at = None
+            # SLA countdown mulai SAAT TIKET DIBUAT (bukan saat di-take/assign):
+            # setiap tiket lahir dengan priority (wajib di form, default medium)
+            # dan tiap priority punya durasi SLA-nya sendiri.
+            hours = TicketService.get_sla_hours_for_ticket(priority, category)
+            sla_deadline = datetime.now(timezone.utc) + timedelta(hours=hours)
+            sla_taken_at = datetime.now(timezone.utc) if assigned_to_id else None
             
             # Fetch department info
             dept_code = "TKT"
@@ -228,7 +265,7 @@ class TicketService:
                 image_url=image_url,
                 idempotency_key=idempotency_key,
                 sla_deadline=sla_deadline,
-                sla_status='good',
+                sla_status=TicketService.calculate_sla_status(sla_deadline),
                 taken_at=sla_taken_at,
                 ticket_code=ticket_code,
                 code_counter=new_counter,
@@ -630,12 +667,16 @@ class TicketService:
                 if not prev_assigned_id and not ticket.taken_at:
                     ticket.taken_at = datetime.now(timezone.utc)
             else:
-                ticket.sla_deadline = None
+                # Unassign TIDAK menghentikan countdown: deadline yang mulai
+                # sejak pembuatan tetap berjalan selama tiket belum selesai.
                 ticket.taken_at = None
-        elif (priority_changed or category_changed) and ticket.assigned_to_id:
-            # Recalculate deadline from taken_at preserving elapsed time
+        elif priority_changed or category_changed:
+            # Deadline dijangkar ke created_at (awal countdown), bukan taken_at —
+            # berlaku juga untuk tiket yang belum di-assign.
             hours = TicketService.get_sla_hours_for_ticket(ticket.priority, ticket.category)
-            base_time = ticket.taken_at or ticket.created_at or datetime.now(timezone.utc)
+            base_time = ticket.created_at or datetime.now(timezone.utc)
+            if getattr(base_time, 'tzinfo', None) is None:
+                base_time = base_time.replace(tzinfo=timezone.utc)
             ticket.sla_deadline = base_time + timedelta(hours=hours)
             
         if 'collaboratorIds' in data:
@@ -781,7 +822,8 @@ class TicketService:
 
             ticket.assigned_to_id = user_id
 
-            # Postpone SLA deadline calculation until it is assigned (taken)
+            # Deadline sudah ada sejak pembuatan (countdown jalan sejak created)
+            # — take tidak me-reset jam, hanya mengisi bila kosong (tiket lama).
             if not ticket.sla_deadline:
                 hours = TicketService.get_sla_hours_for_ticket(ticket.priority, ticket.category)
                 ticket.sla_deadline = datetime.now(timezone.utc) + timedelta(hours=hours)
@@ -856,8 +898,9 @@ class TicketService:
             if ticket.status.lower() in ('resolved', 'closed', 'completed'):
                 return None, f"Ticket dengan status '{ticket.status}' tidak bisa diubah assigneenya. Ubah statusnya terlebih dahulu dari '{ticket.status}' ke status lain."
             ticket.assigned_to_id = None
-            ticket.sla_deadline = None
-            ticket.sla_status = 'good'
+            # Countdown TIDAK ikut terhapus saat dilepas: deadline dari sejak
+            # pembuatan tetap berlaku. Status dihitung ulang dari deadline itu.
+            ticket.sla_status = TicketService.calculate_sla_status(ticket.sla_deadline, ticket.resolved_at, ticket.sla_paused_at)
             ticket.taken_at = None
             # Revert to default status
             default_status = Status.query.filter_by(is_default=True).first()
