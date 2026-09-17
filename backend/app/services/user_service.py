@@ -265,19 +265,21 @@ class UserService:
 
     @staticmethod
     def get_all_performance(start=None, end=None):
-        """Performansi seluruh user aktif (Staff/Administrator/Management).
+        """Performansi user yang bisa mengerjakan tiket: Staff/Administrator saja.
+
+        Role Management view-only (tak bisa di-assign, tak ada di get_agents)
+        sehingga dikeluarkan dari halaman Performance & ranking Staff —
+        barisnya hanya akan nol dan mengotori peringkat.
 
         Definisi tiket yang dihitung disamakan dengan halaman Team (get_user_performance):
-        assigned + collaborator, exclude kategori Development. Sebelumnya hanya
-        assigned dan rolenya terbatas Staff+Administrator, sehingga angka di
-        Analytics tidak cocok dengan halaman Team.
+        assigned + collaborator, exclude kategori Development.
 
         Bila start/end (ISO YYYY-MM-DD) diberikan: involved = tiket DIBUAT dalam
         jendela, resolved = tiket SELESAI (resolved_at fallback updated_at) dalam
         jendela — untuk ranking periode Analytics. Tanpa jendela = all-time.
         """
         users = User.query.filter(
-            User.role.in_(['Staff', 'Administrator', 'Management']),
+            User.role.in_(['Staff', 'Administrator']),
             User.is_active == True
         ).all()
 
