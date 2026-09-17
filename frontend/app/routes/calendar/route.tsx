@@ -50,12 +50,13 @@ import styles from "./style.module.css";
 export async function loader({ request }: Route.LoaderArgs) {
   const session = await requireAuth(request);
 
-  // Fetch tickets, agents, and statuses
-  const [ticketsRes, agents, statusesRes, categoriesRes] = await Promise.all([
+  // Fetch tickets, agents, statuses, categories, priorities (semua master-driven)
+  const [ticketsRes, agents, statusesRes, categoriesRes, prioritiesRes] = await Promise.all([
     getTickets({ per_page: 250 }),
     getAgents(),
     settingsApi.getStatuses(),
-    settingsApi.getCategories()
+    settingsApi.getCategories(),
+    settingsApi.getPriorities()
   ]);
 
   return Response.json({
@@ -63,12 +64,13 @@ export async function loader({ request }: Route.LoaderArgs) {
     initialTickets: ticketsRes.tickets,
     agents,
     statuses: (statusesRes.data?.data || []).filter((s: any) => s.showOnItHelpdesk !== false),
-    categories: categoriesRes.data?.data || []
+    categories: categoriesRes.data?.data || [],
+    priorities: (prioritiesRes.data?.data || []).filter((p: any) => p.isActive !== false)
   });
 }
 
 export default function TicketCalendar() {
-  const { session, initialTickets, agents, statuses, categories } = useLoaderData() as typeof loader extends (...args: any[]) => Promise<infer T> ? T : any;
+  const { session, initialTickets, agents, statuses, categories, priorities } = useLoaderData() as typeof loader extends (...args: any[]) => Promise<infer T> ? T : any;
   const navigate = useNavigate();
 
   // Tickets state
@@ -111,6 +113,13 @@ export default function TicketCalendar() {
   const [addTaskCategory, setAddTaskCategory] = useState("Development");
   const [addTaskAssigneeId, setAddTaskAssigneeId] = useState("unassigned");
   const [isTaskSubmitting, setIsTaskSubmitting] = useState(false);
+
+  // Priority quick-add mengikuti master aktif ("medium" bila ada, else opsi aktif pertama)
+  const resolvedAddPriority = useMemo(() => {
+    const list = (priorities as any[]) || [];
+    if (list.some((p: any) => String(p.name).toLowerCase() === addTaskPriority.toLowerCase())) return addTaskPriority;
+    return list[0] ? String(list[0].name).toLowerCase() : "medium";
+  }, [priorities, addTaskPriority]);
 
   // Calendar calculations
   const year = currentDate.getFullYear();
@@ -222,9 +231,12 @@ export default function TicketCalendar() {
     );
   };
 
-  // Helper to color priorities
+  // Helper to color priorities — warna diambil dari master, fallback ke peta lama
+  // bila master tidak punya warna (data lama). Custom priority otomatis ikut.
   const getPriorityColor = (priority: string) => {
-    const p = priority.toLowerCase();
+    const p = (priority || "").toLowerCase();
+    const master = (priorities as any[]).find((m: any) => String(m.name).toLowerCase() === p);
+    if (master?.color) return master.color;
     if (p === "critical" || p === "urgent") return "#EF4444";
     if (p === "high") return "#F59E0B";
     if (p === "medium") return "#3B82F6";
@@ -386,7 +398,7 @@ export default function TicketCalendar() {
         title: addTaskTitle,
         description: addTaskDesc,
         category: addTaskCategory,
-        priority: addTaskPriority,
+        priority: resolvedAddPriority,
         submitterName: session.userName,
         submitterEmail: session.userEmail || "dev@company.com",
         submitterPhone: "",
@@ -482,10 +494,9 @@ export default function TicketCalendar() {
               </SelectTrigger>
               <SelectContent style={{ background: "#1e1b4b", border: "1px solid rgba(255,255,255,0.2)", color: "#fff" }}>
                 <SelectItem value="all">All Priorities</SelectItem>
-                <SelectItem value="low">Low</SelectItem>
-                <SelectItem value="medium">Medium</SelectItem>
-                <SelectItem value="high">High</SelectItem>
-                <SelectItem value="urgent">Urgent/Critical</SelectItem>
+                {(priorities as any[]).map((p: any) => (
+                  <SelectItem key={p.id} value={p.name}>{p.name}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
 
@@ -838,13 +849,14 @@ export default function TicketCalendar() {
                 <span className={styles.formLabel}>Priority</span>
                 <select
                   className={styles.prioritySelect}
-                  value={addTaskPriority}
+                  value={resolvedAddPriority}
                   onChange={(e) => setAddTaskPriority(e.target.value)}
                 >
-                  <option value="low" className={styles.selectOption}>Low</option>
-                  <option value="medium" className={styles.selectOption}>Medium</option>
-                  <option value="high" className={styles.selectOption}>High</option>
-                  <option value="critical" className={styles.selectOption}>Critical</option>
+                  {(priorities as any[]).map((p: any) => (
+                    <option key={p.id} value={p.name.toLowerCase()} className={styles.selectOption}>
+                      {p.name}
+                    </option>
+                  ))}
                 </select>
               </div>
 

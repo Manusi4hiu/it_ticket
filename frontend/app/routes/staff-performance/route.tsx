@@ -1,22 +1,18 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
-import { ArrowLeft, Trophy, Award, Target, Clock, Users } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import {
   BarChart,
   Bar,
+  LabelList,
   LineChart,
   Line,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
-  Cell,
 } from "recharts";
-import { Button } from "~/components/ui/button/button";
-import { Card } from "~/components/ui/card/card";
-import { Badge } from "~/components/ui/badge/badge";
 import { getAllAgentsPerformance, getTicketStats } from "~/services/ticket.service";
 import { requireAuth } from "~/services/session.service";
 import type { Route } from "./+types/route";
@@ -25,10 +21,10 @@ import styles from "./style.module.css";
 export async function loader({ request }: Route.LoaderArgs) {
   const session = await requireAuth(request);
 
-  // Fetch data from API
+  // Fetch data from API (trend 28 hari untuk agregasi mingguan Week 1–4)
   const [agentsPerformance, stats] = await Promise.all([
     getAllAgentsPerformance(),
-    getTicketStats()
+    getTicketStats(false, 28)
   ]);
 
   return Response.json({
@@ -37,6 +33,25 @@ export async function loader({ request }: Route.LoaderArgs) {
     stats,
   });
 }
+
+/** Tooltip gelap bersama untuk chart di halaman ini. */
+function ChartTip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null;
+  const stamp = payload[0]?.payload?.range ? `${label} · ${payload[0].payload.range}` : label;
+  return (
+    <div className={styles.tip}>
+      <p className={styles.tipTitle}>{stamp}</p>
+      {payload.map((p: any) => (
+        <div key={String(p.dataKey)} className={styles.tipRow}>
+          <span className={styles.tipDot} style={{ background: p.color ?? p.fill ?? p.stroke }} />
+          <span className={styles.tipName}>{p.name}</span>
+          <span className={styles.tipVal}>{p.value}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function StaffPerformance({ loaderData }: Route.ComponentProps) {
   const { session, agentsPerformance, stats } = loaderData;
   const navigate = useNavigate();
@@ -63,266 +78,255 @@ export default function StaffPerformance({ loaderData }: Route.ComponentProps) {
   // Get top performer
   const topPerformer = sortedStats[0];
 
-  // Chart data for staff comparison
+  // Chart data for staff comparison — nama penuh (YAxis horizontal),
+  // diurut sama dengan leaderboard (by resolved).
   const comparisonData = sortedStats.map((staff) => ({
-    name: staff.name.split(" ")[0], // First name only for chart
+    name: staff.name,
     resolved: staff.resolved,
     inProgress: staff.inProgress,
     pending: staff.pending,
+    total: staff.resolved + staff.inProgress + staff.pending,
   }));
 
-  // Trend data estimation (dynamically using actual names)
-  const weeklyTrendData = [
-    { week: "Week 1", ...sortedStats.reduce((acc, staff) => ({ ...acc, [staff.name]: Math.floor(Math.random() * 5) + 2 }), {}) },
-    { week: "Week 2", ...sortedStats.reduce((acc, staff) => ({ ...acc, [staff.name]: Math.floor(Math.random() * 8) + 3 }), {}) },
-    { week: "Week 3", ...sortedStats.reduce((acc, staff) => ({ ...acc, [staff.name]: Math.floor(Math.random() * 6) + 4 }), {}) },
-    { week: "Week 4", ...sortedStats.reduce((acc, staff) => ({ ...acc, [staff.name]: Math.floor(Math.random() * 7) + 5 }), {}) },
-  ];
+  // Trend bulanan: 28 hari dari API dikelompokkan jadi Week 1–4 (per 7 hari).
+  // Week 1 = 7 hari terlama, Week 4 = 7 hari terakhir.
+  const weeklyTrendData = useMemo(() => {
+    const daily = stats?.trend || [];
+    const fmt = (iso?: string) =>
+      iso ? new Date(`${iso}T00:00:00`).toLocaleDateString("id-ID", { day: "numeric", month: "short" }) : "";
+    const weeks = [];
+    for (let w = 0; w < 4; w++) {
+      const slice = daily.slice(w * 7, w * 7 + 7);
+      if (!slice.length) continue;
+      weeks.push({
+        week: `Week ${w + 1}`,
+        created: slice.reduce((s, d) => s + (d.created || 0), 0),
+        resolved: slice.reduce((s, d) => s + (d.resolved || 0), 0),
+        range: `${fmt(slice[0].date)} – ${fmt(slice[slice.length - 1].date)}`,
+      });
+    }
+    return weeks;
+  }, [stats?.trend]);
 
-  const chartColors = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#1d4ed8", "#ec4899", "#06b6d4"];
+  const teamAssists = sortedStats.reduce((sum, staff) => sum + (staff.totalAssists || 0), 0);
+  const sumResolved = comparisonData.reduce((s, d) => s + d.resolved, 0);
+  const sumInProg = comparisonData.reduce((s, d) => s + d.inProgress, 0);
+  const sumPend = comparisonData.reduce((s, d) => s + d.pending, 0);
+  // Tinggi chart mengikuti jumlah staff agar tiap bar tetap lega dibaca.
+  const workloadH = Math.max(300, comparisonData.length * 54 + 48);
+
+  const slaTone = (staff: { totalAssigned: number; slaCompliance: string }) => {
+    if (!staff.totalAssigned) return styles.toneIdle;
+    const v = parseFloat(staff.slaCompliance);
+    if (v >= 90) return styles.toneGood;
+    if (v >= 70) return styles.toneMid;
+    return styles.toneBad;
+  };
 
   return (
     <div className={styles.contentWrapper}>
-      <div className={styles.pageHeader}>
-        <div className={styles.titleSection}>
-          <h2 className={styles.pageTitle}>Performance Insights</h2>
-          <p className={styles.pageSubtitle}>Real-time tracking of team efficiency and resolution metrics</p>
+      <header className={styles.head}>
+        <div>
+          <p className={styles.kicker}>Team · All time</p>
+          <h1 className={styles.title}>Performance insights</h1>
+          <p className={styles.sub}>Who carries the load, how fast work closes, and where it stalls.</p>
         </div>
-        <div className={styles.tabsList}>
-          <button
-            className={`${styles.tabButton} ${activeTab === "overview" ? styles.activeTab : ""}`}
-            onClick={() => setActiveTab("overview")}
-          >
-            Overview
-          </button>
-          <button
-            className={`${styles.tabButton} ${activeTab === "analytics" ? styles.activeTab : ""}`}
-            onClick={() => setActiveTab("analytics")}
-          >
-            Analytics
-          </button>
-          <button
-            className={`${styles.tabButton} ${activeTab === "leaderboard" ? styles.activeTab : ""}`}
-            onClick={() => setActiveTab("leaderboard")}
-          >
-            Leaderboard
-          </button>
+        <div className={styles.seg} role="tablist" aria-label="Performance views">
+          {(["overview", "analytics", "leaderboard"] as const).map((t) => (
+            <button
+              key={t}
+              role="tab"
+              aria-selected={activeTab === t}
+              className={activeTab === t ? styles.segOn : styles.segBtn}
+              onClick={() => setActiveTab(t)}
+            >
+              {t === "overview" ? "Overview" : t === "analytics" ? "Analytics" : "Leaderboard"}
+            </button>
+          ))}
         </div>
-      </div>
+      </header>
 
       {activeTab === "overview" && (
-        <div className={styles.tabContent}>
-          {/* Top Performer Highlight */}
+        <div className={styles.fade}>
           {topPerformer && (
-            <Card className={styles.topPerformerCard}>
-              <div className={styles.topPerformerContent}>
-                <div className={styles.topPerformerBadge}>
-                  <Award className={styles.trophyIcon} />
-                  <span>Top Performer of the Month</span>
+            <section className={styles.hero} aria-label="Top performer">
+              <span className={styles.heroRank}>01</span>
+              <div className={styles.heroMain}>
+                <p className={styles.kicker}>Top performer · All time</p>
+                <h2 className={styles.heroName}>{topPerformer.name}</h2>
+                <p className={styles.heroMeta}>{topPerformer.email} · {topPerformer.totalAssists || 0} assists</p>
+              </div>
+              <div className={styles.heroStats}>
+                <div>
+                  <p className={styles.heroNum}>{topPerformer.resolved}</p>
+                  <p className={styles.heroLbl}>Resolved</p>
                 </div>
-                <div className={styles.topPerformerIdentity}>
-                  <div className={styles.topPerformerAvatar}>
-                    {topPerformer.name.charAt(0)}
-                  </div>
-                  <h3 className={styles.topPerformerName}>{topPerformer.name}</h3>
+                <div>
+                  <p className={styles.heroNum}>{topPerformer.resolutionRate}<span className={styles.heroUnit}>%</span></p>
+                  <p className={styles.heroLbl}>Rate</p>
                 </div>
-                <div className={styles.topPerformerStats}>
-                  <div className={styles.topStat}>
-                    <span className={styles.topStatValue}>{topPerformer.resolved}</span>
-                    <span className={styles.topStatLabel}>Resolved</span>
-                  </div>
-                  <div className={styles.topStat}>
-                    <span className={styles.topStatValue}>{topPerformer.resolutionRate}%</span>
-                    <span className={styles.topStatLabel}>Rate</span>
-                  </div>
-                  <div className={styles.topStat}>
-                    <span className={styles.topStatValue}>{topPerformer.avgResolutionTime}h</span>
-                    <span className={styles.topStatLabel}>Avg Time</span>
-                  </div>
+                <div>
+                  <p className={styles.heroNum}>{topPerformer.avgResolutionTime}<span className={styles.heroUnit}>h</span></p>
+                  <p className={styles.heroLbl}>Avg. time</p>
                 </div>
               </div>
-            </Card>
+            </section>
           )}
 
-          {/* Summary Statistics */}
-          <div className={styles.summaryGrid}>
-            <Card className={styles.summaryCard}>
-              <div className={styles.summaryIcon} style={{ background: "rgba(59, 130, 246, 0.1)", border: "1px solid rgba(59, 130, 246, 0.2)" }}>
-                <Target style={{ color: "#60a5fa", width: "24px", height: "24px" }} />
-              </div>
-              <div className={styles.summaryContent}>
-                <div className={styles.summaryLabel}>Total Worked</div>
-                <div className={styles.summaryValue}>{stats?.workedOn || 0}</div>
-              </div>
-            </Card>
-
-            <Card className={styles.summaryCard}>
-              <div className={styles.summaryIcon} style={{ background: "rgba(16, 185, 129, 0.1)", border: "1px solid rgba(16, 185, 129, 0.2)" }}>
-                <Trophy style={{ color: "#10b981", width: "24px", height: "24px" }} />
-              </div>
-              <div className={styles.summaryContent}>
-                <div className={styles.summaryLabel}>Total Resolved</div>
-                <div className={styles.summaryValue}>{stats?.resolved || 0}</div>
-              </div>
-            </Card>
-
-            <Card className={styles.summaryCard}>
-              <div className={styles.summaryIcon} style={{ background: "rgba(245, 158, 11, 0.1)", border: "1px solid rgba(245, 158, 11, 0.2)" }}>
-                <Clock style={{ color: "#f59e0b", width: "24px", height: "24px" }} />
-              </div>
-              <div className={styles.summaryContent}>
-                <div className={styles.summaryLabel}>Avg. Resolution</div>
-                <div className={styles.summaryValue}>
-                  {(
-                    sortedStats.reduce((sum, staff) => sum + parseFloat(staff.avgResolutionTime), 0) /
-                    sortedStats.length
-                  ).toFixed(1)}h
-                </div>
-              </div>
-            </Card>
-
-            <Card className={styles.summaryCard}>
-              <div className={styles.summaryIcon} style={{ background: "rgba(29, 78, 216, 0.1)", border: "1px solid rgba(29, 78, 216, 0.2)" }}>
-                <Users style={{ color: "#a78bfa", width: "24px", height: "24px" }} />
-              </div>
-              <div className={styles.summaryContent}>
-                <div className={styles.summaryLabel}>Total Assists</div>
-                <div className={styles.summaryValue}>
-                  {sortedStats.reduce((sum, staff) => sum + (staff.totalAssigned || 0), 0)}
-                </div>
-              </div>
-            </Card>
-          </div>
+          {/* Summary Statistics — stats TIM (seluruh staff), sesuai label Team
+              pada tiap kartu. Bukan milik Top Performer di atas. */}
+          <section className={styles.kpis} aria-label="Team metrics">
+            <div className={styles.kpi}>
+              <p className={styles.kpiLabel}>In progress</p>
+              <p className={styles.kpiNum}>{stats?.workedOn || 0}</p>
+              <p className={styles.kpiCtx}>team-wide open work</p>
+            </div>
+            <div className={styles.kpi}>
+              <p className={styles.kpiLabel}>Resolved</p>
+              <p className={styles.kpiNum}>{stats?.resolved || 0}</p>
+              <p className={styles.kpiCtx}>resolved all time</p>
+            </div>
+            <div className={styles.kpi}>
+              <p className={styles.kpiLabel}>Avg. resolution</p>
+              <p className={styles.kpiNum}>{(stats?.avgResolutionTime ?? 0).toFixed(1)}<span className={styles.kpiUnit}>h</span></p>
+              <p className={styles.kpiCtx}>per resolved ticket</p>
+            </div>
+            <div className={styles.kpi}>
+              <p className={styles.kpiLabel}>Assists</p>
+              <p className={styles.kpiNum}>{teamAssists}</p>
+              <p className={styles.kpiCtx}>collaborator contributions</p>
+            </div>
+          </section>
         </div>
       )}
 
       {activeTab === "analytics" && (
-        <div className={styles.tabContent}>
-          {/* Staff Comparison Chart */}
-          <div className={styles.chartsGrid}>
-            <div className={styles.chartCard}>
-              <div className={styles.chartHeader}>
-                <h3 className={styles.chartTitle}>Efficiency by Staff</h3>
-                <p className={styles.chartSubtitle}>Comparison of ticket status distribution</p>
+        <div className={styles.grid2 + " " + styles.fade}>
+          <section className={styles.panel}>
+            <div className={styles.panelHead}>
+              <div>
+                <h2 className={styles.panelTitle}>Workload by staff</h2>
+                <p className={styles.panelSub}>Open vs. closed work per person</p>
               </div>
-              <div className={styles.chartContent}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={comparisonData}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.1)" />
-                    <XAxis dataKey="name" stroke="#9ca3af" fontSize={12} tickLine={false} axisLine={false} />
-                    <YAxis stroke="#9ca3af" fontSize={12} tickLine={false} axisLine={false} />
-                    <Tooltip
-                      contentStyle={{ background: 'rgba(17, 24, 39, 0.95)', border: '1px solid rgba(129, 140, 248, 0.3)', borderRadius: '12px', backdropFilter: 'blur(10px)' }}
-                      itemStyle={{ color: '#fff' }}
-                    />
-                    <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px' }} />
-                    <Bar dataKey="resolved" fill="#10b981" name="Resolved" radius={[6, 6, 0, 0]} barSize={24} />
-                    <Bar dataKey="inProgress" fill="#3b82f6" name="In Progress" radius={[6, 6, 0, 0]} barSize={24} />
-                    <Bar dataKey="pending" fill="#9ca3af" name="Pending" radius={[6, 6, 0, 0]} barSize={24} />
-                  </BarChart>
-                </ResponsiveContainer>
+              <div className={styles.seriesKey}>
+                <span className={styles.keyItem}><span className={styles.keyDot} style={{ background: "#10b981" }} />Resolved · {sumResolved}</span>
+                <span className={styles.keyItem}><span className={styles.keyDot} style={{ background: "#3b82f6" }} />In progress · {sumInProg}</span>
+                <span className={styles.keyItem}><span className={styles.keyDot} style={{ background: "#64748b" }} />Pending · {sumPend}</span>
               </div>
             </div>
+            <div className={styles.chartScroll}>
+              <div className={styles.chartMid} style={{ height: workloadH }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={comparisonData} layout="vertical" margin={{ top: 8, right: 48, left: 8, bottom: 0 }} barCategoryGap="26%">
+                  <CartesianGrid strokeDasharray="2 4" horizontal={false} stroke="rgba(255,255,255,0.07)" />
+                  <XAxis type="number" tickLine={false} axisLine={false} tick={{ fill: "#7d8590", fontSize: 11 }} allowDecimals={false} />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    width={118}
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fill: "#d1d5db", fontSize: 12 }}
+                    tickFormatter={(v: string) => (v.length > 16 ? `${v.slice(0, 15)}…` : v)}
+                  />
+                  <Tooltip content={<ChartTip />} cursor={{ fill: "rgba(255, 255, 255, 0.03)" }} />
+                  <Bar dataKey="resolved" name="Resolved" fill="#10b981" radius={[4, 0, 0, 4]} barSize={18} stackId="w" />
+                  <Bar dataKey="inProgress" name="In Progress" fill="#3b82f6" barSize={18} stackId="w" />
+                  <Bar
+                    dataKey="pending"
+                    name="Pending"
+                    fill="#64748b"
+                    radius={[0, 4, 4, 0]}
+                    barSize={18}
+                    stackId="w"
+                    background={{ fill: "rgba(255,255,255,0.04)", radius: 4 } as any}
+                  >
+                    <LabelList dataKey="total" position="right" fill="#e5e7eb" fontSize={12} fontWeight={700} formatter={(v: any) => (v > 0 ? v : "")} />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+              </div>
+            </div>
+          </section>
 
-            <div className={styles.chartCard}>
-              <div className={styles.chartHeader}>
-                <h3 className={styles.chartTitle}>Resolution Trends</h3>
-                <p className={styles.chartSubtitle}>Weekly performance trajectory</p>
-              </div>
-              <div className={styles.chartContent}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={weeklyTrendData}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.1)" />
-                    <XAxis dataKey="week" stroke="#9ca3af" fontSize={12} tickLine={false} axisLine={false} />
-                    <YAxis stroke="#9ca3af" fontSize={12} tickLine={false} axisLine={false} />
-                    <Tooltip
-                      contentStyle={{ background: 'rgba(17, 24, 39, 0.95)', border: '1px solid rgba(129, 140, 248, 0.3)', borderRadius: '12px', backdropFilter: 'blur(10px)' }}
-                      itemStyle={{ color: '#fff' }}
-                    />
-                    <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px' }} />
-                    {sortedStats.map((staff, index) => (
-                      <Line
-                        key={staff.id}
-                        type="monotone"
-                        dataKey={staff.name}
-                        stroke={chartColors[index % chartColors.length]}
-                        strokeWidth={3}
-                        dot={{ r: 4, fill: chartColors[index % chartColors.length], strokeWidth: 2, stroke: '#fff' }}
-                        activeDot={{ r: 6, strokeWidth: 0 }}
-                        name={staff.name}
-                      />
-                    ))}
-                  </LineChart>
-                </ResponsiveContainer>
+          <section className={styles.panel}>
+            <div className={styles.panelHead}>
+              <div>
+                <h2 className={styles.panelTitle}>Resolution trends</h2>
+                <p className={styles.panelSub}>Created vs. resolved per week</p>
               </div>
             </div>
-          </div>
+            <div className={styles.chartMid}>
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={weeklyTrendData} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="2 4" vertical={false} stroke="rgba(255,255,255,0.07)" />
+                  <XAxis dataKey="week" tickLine={false} axisLine={false} tick={{ fill: "#7d8590", fontSize: 12 }} dy={6} />
+                  <YAxis tickLine={false} axisLine={false} tick={{ fill: "#7d8590", fontSize: 12 }} allowDecimals={false} />
+                  <Tooltip content={<ChartTip />} />
+                  <Line type="monotone" dataKey="created" name="Created" stroke="#3b82f6" strokeWidth={2} dot={false} activeDot={{ r: 4, strokeWidth: 0 }} />
+                  <Line type="monotone" dataKey="resolved" name="Resolved" stroke="#10b981" strokeWidth={2} dot={false} activeDot={{ r: 4, strokeWidth: 0 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </section>
         </div>
       )}
 
       {activeTab === "leaderboard" && (
-        <div className={styles.tabContent}>
-          <div className={styles.leaderboardContainer}>
-            <div className={styles.leaderboardHeader}>
-              <div className={styles.rankCol}>Rank</div>
-              <div className={styles.staffCol}>Staff Member</div>
-              <div className={styles.metricCol}>Resolved</div>
-              <div className={styles.metricCol}>Efficiency</div>
-              <div className={styles.metricCol}>SLA</div>
-              <div className={styles.actionCol}></div>
-            </div>
-            <div className={styles.leaderboardList}>
-              {sortedStats.map((staff, index) => {
-                const isOwnProfile = session.userId === staff.id;
-                const canViewProfile = isOwnProfile || session.userRole === 'Administrator' || session.userRole === 'Management';
-                return (
-                  <div
-                    key={staff.id}
-                    className={styles.leaderboardRow}
-                    onClick={() => canViewProfile ? navigate(`/profile/${staff.id}`) : null}
-                  >
-                    <div className={styles.rankCol}>
-                      <div className={`${styles.rankBadge} ${index < 3 ? styles[`rank${index + 1}`] : ""}`}>
-                        {index + 1}
-                      </div>
-                    </div>
-                    <div className={styles.staffCol}>
-                      <div className={styles.leaderboardStaffInfo}>
-                        <div className={styles.miniAvatar}>{staff.name.charAt(0)}</div>
-                        <div>
-                          <div className={styles.rowStaffName}>{staff.name}</div>
-                          <div className={styles.rowStaffEmail}>{staff.email}</div>
-                        </div>
-                      </div>
-                    </div>
-                    <div className={styles.metricCol}>
-                      <span className={styles.rowMetricValue}>{staff.resolved}</span>
-                    </div>
-                    <div className={styles.metricCol}>
-                      <div className={styles.rowEfficiency}>
-                        <span>{staff.resolutionRate}%</span>
-                        <div className={styles.miniProgressBar}>
-                          <div className={styles.miniProgressFill} style={{ width: `${staff.resolutionRate}%` }}></div>
-                        </div>
-                      </div>
-                    </div>
-                    <div className={styles.metricCol}>
-                      <Badge
-                        variant={parseFloat(staff.slaCompliance) >= 90 ? "default" : (parseFloat(staff.slaCompliance) >= 70 ? "secondary" : "destructive")}
-                        className={styles.rowBadge}
-                      >
-                        {staff.slaCompliance}%
-                      </Badge>
-                    </div>
-                    <div className={styles.actionCol}>
-                      <ArrowLeft className={styles.rowArrow} />
-                    </div>
-                  </div>
-                );
-              })}
+        <section className={styles.panel + " " + styles.fade}>
+          <div className={styles.panelHead}>
+            <div>
+              <h2 className={styles.panelTitle}>Leaderboard</h2>
+              <p className={styles.panelSub}>Ranked by resolved tickets</p>
             </div>
           </div>
-        </div>
+          <div className={styles.tableHead}>
+            <span className={styles.rankH}>#</span>
+            <span>Staff</span>
+            <span className={styles.num}>Resolved</span>
+            <span>Efficiency</span>
+            <span className={styles.num}>SLA</span>
+            <span />
+          </div>
+          <div>
+            {sortedStats.map((staff, index) => {
+              const isOwnProfile = session.userId === staff.id;
+              const canViewProfile = isOwnProfile || session.userRole === 'Administrator' || session.userRole === 'Management';
+              return (
+                <div
+                  key={staff.id}
+                  className={canViewProfile ? styles.rowLink : styles.tableRow}
+                  onClick={() => canViewProfile ? navigate(`/profile/${staff.id}`) : undefined}
+                >
+                  <span className={styles.rank}>{String(index + 1).padStart(2, "0")}</span>
+                  <span className={styles.staffCell}>
+                    <span className={styles.avatar}>{staff.name.charAt(0)}</span>
+                    <span className={styles.staffMeta}>
+                      <span className={styles.staffName}>{staff.name}</span>
+                      <span className={styles.staffEmail}>{staff.email}</span>
+                    </span>
+                  </span>
+                  <span className={styles.num + " " + styles.big}>{staff.resolved}</span>
+                  <span className={styles.effCell}>
+                    <span className={styles.num}>{staff.resolutionRate}%</span>
+                    <span className={styles.hairline}>
+                      <span className={styles.hairlineFill} style={{ width: `${staff.resolutionRate}%` }} />
+                    </span>
+                  </span>
+                  <span className={styles.num}>
+                    <span className={`${styles.pill} ${slaTone(staff)}`}>
+                      <span className={styles.pillDot} />
+                      {staff.totalAssigned > 0 ? `${staff.slaCompliance}%` : "—"}
+                    </span>
+                  </span>
+                  <span className={styles.go}>
+                    {canViewProfile && <ChevronRight size={16} />}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </section>
       )}
     </div>
   );
