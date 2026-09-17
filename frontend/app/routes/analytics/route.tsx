@@ -62,18 +62,19 @@ export async function loader({ request }: Route.LoaderArgs) {
   const raw = new URL(request.url).searchParams.get("range") || "7d";
   const range: TrendRange = (RANGES as readonly string[]).includes(raw) ? (raw as TrendRange) : "7d";
 
-  // Jendela eksplisit per periode — dipakai tren SEKALIGUS breakdown
-  // kategori/departemen/priority dan ranking staff, agar semua sub-page
-  // sinkron pada periode yang sama. 7d = 7 hari terakhir (harian).
+  // Jendela eksplisit per periode — HANYA untuk sub-page Overview (KPI kohort
+  // + tren). Distribution & Staff ranking selalu all-time (semua data, tanpa
+  // filter waktu), jadi diambil dari panggilan terpisah tanpa window.
   const now = new Date();
   const window =
     range === "7d" ? lastDaysBounds(7, now)
     : range === "30d" ? lastDaysBounds(30, now)
     : quarterBounds(Number(range.slice(1)), now);
 
-  const [stats, agentsPerformance, categoriesRes, prioritiesRes, statusesRes, departmentsRes] = await Promise.all([
+  const [stats, statsAll, agentsPerformance, categoriesRes, prioritiesRes, statusesRes, departmentsRes] = await Promise.all([
     getTicketStats(false, undefined, window),
-    getAllAgentsPerformance(window),
+    getTicketStats(),
+    getAllAgentsPerformance(),
     settingsApi.getCategories(),
     settingsApi.getPriorities(),
     settingsApi.getStatuses(),
@@ -91,6 +92,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     session,
     range,
     stats,
+    statsAll,
     agentsPerformance,
     categories,
     priorities,
@@ -146,7 +148,7 @@ function Ledger({ rows, total }: { rows: { name: string; value: number; color: s
 }
 
 export default function Analytics({ loaderData }: Route.ComponentProps) {
-  const { stats, agentsPerformance, categories, priorities, statuses, departments, range } = loaderData;
+  const { stats, statsAll, agentsPerformance, categories, priorities, statuses, departments, range } = loaderData;
   const [activeTab, setActiveTab] = useState<"overview" | "distribution" | "staff">("overview");
   const [, setParams] = useSearchParams();
 
@@ -155,6 +157,7 @@ export default function Analytics({ loaderData }: Route.ComponentProps) {
   return (
     <AnalyticsBody
       stats={stats}
+      statsAll={statsAll || stats}
       agentsPerformance={agentsPerformance}
       categories={categories}
       priorities={priorities}
@@ -169,9 +172,10 @@ export default function Analytics({ loaderData }: Route.ComponentProps) {
 }
 
 function AnalyticsBody({
-  stats, agentsPerformance, categories, priorities, statuses, departments, activeTab, setActiveTab, range, onRangeChange,
+  stats, statsAll, agentsPerformance, categories, priorities, statuses, departments, activeTab, setActiveTab, range, onRangeChange,
 }: {
   stats: any;
+  statsAll: any;
   agentsPerformance: any[];
   categories: Category[];
   priorities: Priority[];
@@ -193,6 +197,8 @@ function AnalyticsBody({
   // Distribusi status: 4 grup kerja backend (New/In Progress/Pending/Resolved).
   // Warna diambil dari master Status (case-insensitive); fallback ke netral bila
   // master tidak punya warna — tidak ada lagi warna status hardcode.
+  // Distribusi status: snapshot terkini (all-time, tak ikut periode) —
+  // new/workedOn/pending live, resolved dari snapshot all-time.
   const statusData = useMemo(() => {
     const colorOf = (name: string, fallback: string) => {
       const hit = statuses.find((s) => s.name.toLowerCase() === name.toLowerCase());
@@ -202,16 +208,18 @@ function AnalyticsBody({
       { name: "New", value: stats.new, color: colorOf("New", "#3b82f6") },
       { name: "In Progress", value: stats.workedOn, color: colorOf("In Progress", "#f59e0b") },
       { name: "Pending", value: stats.pending, color: colorOf("Pending", "#9ca3af") },
-      { name: "Resolved", value: stats.resolved, color: colorOf("Resolved", "#10b981") },
+      { name: "Resolved", value: statsAll.resolved, color: colorOf("Resolved", "#10b981") },
     ];
-  }, [stats.new, stats.workedOn, stats.pending, stats.resolved, statuses]);
+  }, [stats.new, stats.workedOn, stats.pending, statsAll.resolved, statuses]);
 
   // Priority: nama & warna dari master (bukan COLOR_MAP hardcode), urut level
   // master (1=Critical ... 4=Low). Nilai lama di luar master tetap tampil
   // sebagai cadangan agar angka tiket tidak hilang — tidak ada warna acak.
+  // Priority/categories/departments: all-time (tak ikut periode) — dibaca
+  // dari snapshot statsAll.
   const priorityData = useMemo(() => {
     const masterByName = new Map(priorities.map((p) => [p.name.toLowerCase(), p]));
-    return Object.entries(stats.byPriority)
+    return Object.entries(statsAll.byPriority)
       .map(([key, count]) => {
         const master = masterByName.get(key.toLowerCase());
         return {
@@ -222,7 +230,7 @@ function AnalyticsBody({
         };
       })
       .sort((a, b) => a.level - b.level);
-  }, [stats.byPriority, priorities]);
+  }, [statsAll.byPriority, priorities]);
 
   // Category: hanya category master yang aktif. Nilai lama di tiket
   // (mis. "Maintenance System") atau di luar master tidak digambar — itu
@@ -231,7 +239,7 @@ function AnalyticsBody({
   // terhitung ke master-nya tanpa memunculkan label duplikat.
   const categoryData = useMemo(() => {
     const countByLower = new Map(
-      Object.entries(stats.byCategory).map(([k, v]) => [k.toLowerCase(), v])
+      Object.entries(statsAll.byCategory).map(([k, v]) => [k.toLowerCase(), v])
     );
     return categories
       .map((c, index) => ({
@@ -240,16 +248,16 @@ function AnalyticsBody({
         color: autoColor(index),
       }))
       .filter((c) => c.value > 0);
-  }, [stats.byCategory, categories]);
+  }, [statsAll.byCategory, categories]);
 
   // Ticket dengan category di luar master (data lama / tidak sinkron) —
   // ditampilkan sebagai catatan terpisah agar tidak jadi potongan pai palsu.
   const unlistedCategories = useMemo(() => {
     const activeNames = new Set(categories.map((c) => c.name.toLowerCase()));
-    return Object.entries(stats.byCategory)
+    return Object.entries(statsAll.byCategory)
       .filter(([name]) => !activeNames.has(name.toLowerCase()))
       .sort((a, b) => b[1] - a[1]);
-  }, [stats.byCategory, categories]);
+  }, [statsAll.byCategory, categories]);
 
   // Department: sinkron master seperti Category — iterasi master departments
   // yang aktif (urutan stabil untuk warna), lookup hitungan case-insensitive.
@@ -257,7 +265,7 @@ function AnalyticsBody({
   // tanpa edit kode. Nilai di luar master jadi catatan, bukan batang palsu.
   const departmentData = useMemo(() => {
     const countByLower = new Map(
-      Object.entries(stats.byDepartment).map(([k, v]) => [k.toLowerCase(), v])
+      Object.entries(statsAll.byDepartment).map(([k, v]) => [k.toLowerCase(), v])
     );
     return departments
       .map((d, index) => ({
@@ -266,16 +274,16 @@ function AnalyticsBody({
         color: autoColor(index),
       }))
       .filter((d) => d.count > 0);
-  }, [stats.byDepartment, departments]);
+  }, [statsAll.byDepartment, departments]);
 
   // Ticket dengan department di luar master — catatan terpisah (simetris
   // dengan kategori), agar batang asing tidak muncul diam-diam.
   const unlistedDepartments = useMemo(() => {
     const activeNames = new Set(departments.map((d) => d.name.toLowerCase()));
-    return Object.entries(stats.byDepartment)
+    return Object.entries(statsAll.byDepartment)
       .filter(([name]) => !activeNames.has(name.toLowerCase()))
       .sort((a, b) => b[1] - a[1]);
-  }, [stats.byDepartment, departments]);
+  }, [statsAll.byDepartment, departments]);
 
   // Staff dinilai hanya jika punya tiket. Angka rata-rata hanya muncul bila
   // ada tiket selesai — tidak ada lagi "0.0h" atau badge "good" bagi staff
@@ -369,7 +377,7 @@ function AnalyticsBody({
     <div className={styles.contentWrapper}>
       <header className={styles.head}>
         <div>
-          <p className={styles.kicker}>{rangeKicker}</p>
+          <p className={styles.kicker}>{activeTab === "overview" ? rangeKicker : "Helpdesk · All time"}</p>
           <h1 className={styles.title}>System analytics</h1>
           <p className={styles.sub}>Throughput, backlog shape and SLA health across IT support.</p>
         </div>
@@ -547,7 +555,7 @@ function AnalyticsBody({
             <div className={styles.panelHead}>
               <div>
                 <h2 className={styles.panelTitle}>Priority load</h2>
-                <p className={styles.panelSub}>Open tickets created in {periodNoun}, by urgency</p>
+                <p className={styles.panelSub}>Open tickets by priority, ordered by urgency</p>
               </div>
             </div>
             {/* Jika priority banyak: layout horizontal + tinggi dinamis agar semua label terbaca;
@@ -623,16 +631,13 @@ function AnalyticsBody({
               </ResponsiveContainer>
               </div>
             </div>
-            {priorityData.length === 0 && (
-              <p className={styles.note}>No open tickets created in {periodNoun}.</p>
-            )}
           </section>
 
           <section className={styles.panel}>
             <div className={styles.panelHead}>
               <div>
                 <h2 className={styles.panelTitle}>Categories</h2>
-                <p className={styles.panelSub}>Created in {periodNoun}, by master category</p>
+                <p className={styles.panelSub}>Share of active master categories</p>
               </div>
             </div>
             <div className={styles.donutWrap}>
@@ -665,9 +670,6 @@ function AnalyticsBody({
               </div>
               <Ledger rows={categoryData} total={categoryTotal} />
             </div>
-            {categoryData.length === 0 && (
-              <p className={styles.note}>No tickets created in {periodNoun}.</p>
-            )}
             {unlistedCategories.length > 0 && (
               <p className={styles.note}>
                 {unlistedCategories.reduce((sum, [, count]) => sum + (count as number), 0)} ticket(s) use categories outside master data: {unlistedCategories.map(([name, count]) => `${name} (${count})`).join(", ")}
@@ -679,7 +681,7 @@ function AnalyticsBody({
             <div className={styles.panelHead}>
               <div>
                 <h2 className={styles.panelTitle}>Department demand</h2>
-                <p className={styles.panelSub}>Created in {periodNoun} by reporting unit</p>
+                <p className={styles.panelSub}>Ticket volume by reporting unit</p>
               </div>
             </div>
             {/* Tinggi chart mengikuti jumlah departemen agar bar & label tetap lega terbaca;
@@ -716,9 +718,6 @@ function AnalyticsBody({
               </ResponsiveContainer>
               </div>
             </div>
-            {departmentData.length === 0 && (
-              <p className={styles.note}>No tickets created in {periodNoun}.</p>
-            )}
             {unlistedDepartments.length > 0 && (
               <p className={styles.note}>
                 {unlistedDepartments.reduce((sum, [, count]) => sum + (count as number), 0)} ticket(s) use departments outside master data: {unlistedDepartments.map(([name, count]) => `${name} (${count})`).join(", ")}
@@ -733,7 +732,7 @@ function AnalyticsBody({
           <div className={styles.panelHead}>
             <div>
                 <h2 className={styles.panelTitle}>Staff ranking</h2>
-                <p className={styles.panelSub}>Activity in {periodNoun} · sorted by resolved, then assigned</p>
+                <p className={styles.panelSub}>Sorted by resolved, then assigned</p>
             </div>
           </div>
           <div className={styles.tableHead}>
@@ -764,12 +763,9 @@ function AnalyticsBody({
           </div>
           {unassignedAgents > 0 && (
             <p className={styles.note}>
-              {unassignedAgents} staff member(s) hold no tickets in {periodNoun} and are excluded from this ranking.
+              {unassignedAgents} staff member(s) hold no tickets and are excluded from this ranking.
             </p>
           )}
-          <p className={styles.note}>
-            Assigned counts tickets created in {periodNoun}; resolved counts tickets closed in {periodNoun}.
-          </p>
         </section>
       )}
     </div>
