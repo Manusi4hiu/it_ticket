@@ -143,7 +143,7 @@ export function TicketInfoCard({
                       ticket.priority.charAt(0).toUpperCase() +
                       ticket.priority.slice(1)
                     }`
-                  ]
+                  ] || ""
                 }`}
               >
                 {ticket.priority === "critical" && (

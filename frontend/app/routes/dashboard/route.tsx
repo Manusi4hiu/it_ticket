@@ -53,12 +53,13 @@ export async function loader({ request }: Route.LoaderArgs) {
   const session = await requireAuth(request);
 
   // Fetch data personal secara paralel
-  const [activeResponse, completedResponse, agents, statusResponse, stats] =
+  const [activeResponse, completedResponse, agents, statusResponse, prioritiesResponse, stats] =
     await Promise.all([
       getTickets({ assignedTo: session.userId, is_resolved: false, page: 1, per_page: 5 }),
       getTickets({ assignedTo: session.userId, is_resolved: true, page: 1, per_page: 5 }),
       getAgents(),
       settingsApi.getStatuses(),
+      settingsApi.getPriorities(),
       getTicketStats(true), // Personal stats
     ]);
 
@@ -70,6 +71,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     completedTotal: completedResponse.total,
     agents,
     statuses: (statusResponse.data?.data || []).filter((s: any) => s.showOnItHelpdesk !== false),
+    priorities: (prioritiesResponse.data?.data || []).filter((p: any) => p.isActive !== false),
     stats,
   });
 }
@@ -103,6 +105,7 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
     completedTotal,
     agents,
     statuses,
+    priorities,
     stats,
   } = loaderData;
 
@@ -380,6 +383,7 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
                     ticket={ticket}
                     agents={agents}
                     statuses={statuses}
+                    priorities={priorities}
                     isAdministrator={isAdministrator}
                     session={session}
                     onTicketUpdate={updateTicketsState}

@@ -127,6 +127,14 @@ export default function TicketDetail({ loaderData }: Route.ComponentProps) {
     ? { id: session.userId, name: session.userName, role: session.userRole }
     : null;
 
+  // ── Back: kembali ke posisi sebelumnya (filter list ikut pulih via history).
+  // Fallback /tickets (bukan /dashboard) bila dibuka langsung (deep link/new tab).
+  const handleBack = () => {
+    const idx = (window.history.state as { idx?: number } | null)?.idx;
+    if (typeof idx === "number" && idx > 0) navigate(-1);
+    else navigate(isPublic ? "/" : "/tickets");
+  };
+
   // ── Actions & State ──
   const actions = useTicketActions({
     initialTicket: initialTicket!,
@@ -143,11 +151,11 @@ export default function TicketDetail({ loaderData }: Route.ComponentProps) {
           <div className={styles.headerContent}>
             <Button
               variant="outline"
-              onClick={() => navigate(isPublic ? "/" : "/dashboard")}
+              onClick={handleBack}
               className={styles.backButton}
             >
               <ArrowLeft className={styles.backIcon} />
-              {isPublic ? "Back to Home" : "Back to Dashboard"}
+              {isPublic ? "Back to Home" : "Back"}
             </Button>
           </div>
         </div>
@@ -181,7 +189,7 @@ export default function TicketDetail({ loaderData }: Route.ComponentProps) {
       <div className={styles.headerActions}>
         <Button
           variant="outline"
-          onClick={() => navigate(isPublic ? "/" : "/dashboard")}
+          onClick={handleBack}
           className={styles.backButton}
         >
           {isPublic ? (
@@ -189,7 +197,7 @@ export default function TicketDetail({ loaderData }: Route.ComponentProps) {
           ) : (
             <ArrowLeft className={styles.backIcon} />
           )}
-          {isPublic ? "Back to Home" : "Back to Dashboard"}
+          {isPublic ? "Back to Home" : "Back"}
         </Button>
         {isPublic && (
           <div className={styles.publicBadge}>Public Tracking View</div>

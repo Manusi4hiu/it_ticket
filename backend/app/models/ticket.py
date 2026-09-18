@@ -30,7 +30,7 @@ class Ticket(db.Model):
     title = db.Column(db.String(255), nullable=False)
     description = db.Column(db.Text, nullable=False)
     status = db.Column(db.String(50), nullable=False, default='New', index=True)
-    priority = db.Column(db.String(20), nullable=False, default='medium', index=True)  # low, medium, high, critical
+    priority = db.Column(db.String(20), nullable=False, default='medium', index=True)  # free string, divalidasi ke master priorities aktif
     category = db.Column(db.String(50), nullable=False, index=True)  # Hardware, Software, Network, Other
     image_url = db.Column(db.Text, nullable=True)
     idempotency_key = db.Column(db.String(36), unique=True, nullable=True)

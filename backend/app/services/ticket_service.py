@@ -43,32 +43,51 @@ class TicketService:
             return 'good'
 
     @staticmethod
+    def _active_priority_names():
+        """Nama priority aktif dari master (lowercase) — bukan hardcode 4 default.
+
+        Fallback ke 4 default bila tabel master kosong/error agar alur tiket
+        tidak pernah mati total.
+        """
+        try:
+            names = {
+                str(p.name).strip().lower()
+                for p in Priority.query.all()
+                if p.name and str(p.name).strip() and p.is_active is not False
+            }
+            if names:
+                return names
+        except Exception as e:
+            print(f"Error loading active priorities: {e}")
+        return {'critical', 'high', 'medium', 'low'}
+
+    @staticmethod
     def get_sla_hours_for_ticket(priority_name, category_name=None):
         """Get SLA hours dynamically from Priority or SLAPolicy, falling back to defaults"""
         try:
             p_obj = Priority.query.filter(Priority.name.ilike(priority_name)).first() if priority_name else None
             c_obj = Category.query.filter(Category.name.ilike(category_name)).first() if category_name else None
-            
+
             if p_obj and c_obj:
                 policy = SLAPolicy.query.filter_by(priority_id=p_obj.id, category_id=c_obj.id).first()
                 if policy:
                     return policy.resolution_time_hours
-            
+
             if p_obj:
                 policy = SLAPolicy.query.filter_by(priority_id=p_obj.id, category_id=None).first()
                 if policy:
                     return policy.resolution_time_hours
-            
+
             if c_obj:
                 policy = SLAPolicy.query.filter_by(priority_id=None, category_id=c_obj.id).first()
                 if policy:
                     return policy.resolution_time_hours
-            
+
             if p_obj and p_obj.sla_hours:
                 return p_obj.sla_hours
         except Exception as e:
             print(f"Error resolving dynamic SLA hours: {e}")
-            
+
         # Hardcoded defaults fallback
         sla_hours_map = {'critical': 4, 'high': 8, 'medium': 24, 'low': 48}
         return sla_hours_map.get(priority_name.lower() if priority_name else 'medium', 24)
@@ -127,11 +146,12 @@ class TicketService:
             if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email_clean):
                 raise ValueError("Format email tidak valid")
 
-        # 6. Priority & Category
+        # 6. Priority & Category — priority divalidasi ke master aktif
+        # (custom priority dari Settings ikut diterima, bukan cuma 4 default)
         priority = (data.get('priority') or 'medium').strip().lower()
-        if priority not in ('critical', 'high', 'medium', 'low'):
+        if priority not in TicketService._active_priority_names():
             priority = 'medium'
-        category = (data.get('category') or 'Uncategorized').strip()
+        category = (data.get('category') or 'Other').strip()
 
         # 7. Mass Assignment Protection for unauthenticated creations
         if not is_authenticated:
@@ -338,7 +358,7 @@ class TicketService:
         # Perubahan ke-2+: alasan WAJIB dari SEMUA role (admin & staff pemilik).
         priority_really_changed = (
             'priority' in data
-            and str(data['priority']).strip().lower() in ('critical', 'high', 'medium', 'low')
+            and str(data['priority']).strip().lower() in TicketService._active_priority_names()
             and str(data['priority']).strip().lower() != str(old_priority_name).strip().lower()
         )
         priority_change_count = TicketNote.query.filter(
@@ -505,7 +525,7 @@ class TicketService:
 
         if 'priority' in data:
             priority_val = str(data['priority']).strip().lower()
-            if priority_val in ('critical', 'high', 'medium', 'low'):
+            if priority_val in TicketService._active_priority_names():
                 if priority_val != str(ticket.priority).strip().lower():
                     # System note untuk Ticket History: "Prioritas diganti dari X menjadi Y — Reason: ..."
                     if user_id:
@@ -987,6 +1007,17 @@ class TicketService:
 
         ticket.status = status
 
+        # Tandai selesai untuk SEMUA status grup done (Resolved/Closed/Completed/
+        # custom) — dulu hanya 'resolved' yang set resolved_at sehingga tiket Closed/
+        # Completed hilang dari avg resolution & garis resolved di trend.
+        from app.services.master_data_service import _infer_filter_group as _infer_group
+        _master = Status.query.filter(db.func.lower(Status.name) == status.lower()).first()
+        if _master is not None:
+            _entering_group = _master.filter_group or _infer_group(_master.name, _master.is_default)
+        else:
+            _entering_group = _infer_group(status, False)
+        _is_done_status = _entering_group == 'done'
+
         # Check if status is resolved (case-insensitive)
         if status.lower() == 'resolved':
             if resolved_at_str:
@@ -1007,6 +1038,10 @@ class TicketService:
                 ticket.resolution_summary = resolution_summary
             if resolution_image_url:
                 ticket.resolution_image_url = resolution_image_url
+        elif _is_done_status and not ticket.resolved_at:
+            # Masuk grup done via status selain 'resolved' (Closed/done custom):
+            # tetap catat waktu selesai agar statistik sinkron.
+            ticket.resolved_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
         ticket.updated_at = datetime.now(timezone.utc)
         ticket.sla_status = TicketService.calculate_sla_status(ticket.sla_deadline, ticket.resolved_at, ticket.sla_paused_at)
@@ -1061,7 +1096,7 @@ class TicketService:
         return note
 
     @staticmethod
-    def get_stats(user_id=None):
+    def get_stats(user_id=None, days=7, start=None, end=None):
         """Get ticket statistics for dashboard, optionally filtered by user"""
         base_query = Ticket.query.filter(Ticket.category != DEV_CATEGORY)
         if user_id:
@@ -1094,45 +1129,108 @@ class TicketService:
         worked_on = base_query.filter(db.func.lower(Ticket.status).in_(progress_status_names)).count() if progress_status_names else 0
         # Pending badge = tiket dengan status grup pending
         pending = base_query.filter(db.func.lower(Ticket.status).in_(pending_status_names)).count() if pending_status_names else 0
+        # Open = semua tiket yang belum selesai (total - done). Dinamis mengikuti
+        # master — dulu hardcode ['new','assign',...] (typo, hilang Triaged/Pending).
+        open_count = total - resolved
         assigned = total - new - resolved
+
+        # Jendela eksplisit start/end (ISO YYYY-MM-DD, maks 366 hari) untuk mode
+        # 1 bulan/quarter. Batas hari WIB agar selaras dengan tren. Bila parsing
+        # berhasil (window_ok, walau rentang kosong seperti quarter future),
+        # breakdown kategori/departemen/priority, tren, DAN kartu KPI dibatasi
+        # jendela; snapshot status donut (new/workedOn/pending/assigned) tetap
+        # kondisi terkini. Format salah -> jendela diabaikan (perilaku lama).
+        WIB = timezone(timedelta(hours=7))
+        now_wib = datetime.now(timezone.utc).astimezone(WIB)
+        today_wib = now_wib.date()
+        start_d = end_d = None
+        window_start_utc = window_end_utc = None
+        window_given = bool(start or end)
+        window_ok = False
+        if window_given:
+            try:
+                start_d = datetime.strptime(start, '%Y-%m-%d').date() if start else today_wib - timedelta(days=max(1, days) - 1)
+                end_d = datetime.strptime(end, '%Y-%m-%d').date() if end else today_wib
+                window_ok = True
+            except (TypeError, ValueError):
+                start_d = end_d = None
+            if window_ok:
+                window_start_utc = datetime.combine(start_d, datetime.min.time()).replace(tzinfo=WIB).astimezone(timezone.utc)
+                window_end_utc = datetime.combine(end_d, datetime.max.time()).replace(tzinfo=WIB).astimezone(timezone.utc)
+
+        def _in_window(query):
+            if window_ok:
+                # Rentang kosong (start > end) otomatis nol baris — jujur
+                # untuk periode future, bukan fallback all-time.
+                query = query.filter(Ticket.created_at >= window_start_utc, Ticket.created_at <= window_end_utc)
+            return query
+
+        # Kohort KPI: kartu Total/Open/Resolved/Avg/SLA dihitung dari tiket yang
+        # DIBUAT dalam jendela (open/resolved = status terkini kohort tersebut,
+        # sehingga open + resolved = total dan persen selalu konsisten).
+        if window_ok:
+            cohort_q = _in_window(base_query)
+            total = cohort_q.count()
+            resolved = cohort_q.filter(db.func.lower(Ticket.status).in_(done_status_names)).count() if done_status_names else 0
+            open_count = total - resolved
         
-        open_status_names = ['new', 'assign', 'assigned', 'inprogress', 'in progress']
-        open_count = base_query.filter(db.func.lower(Ticket.status).in_(open_status_names)).count()
+        # SLA stats (kohort jendela bila window_ok)
+        sla_base = cohort_q if window_ok else base_query
+        breached = sla_base.filter_by(sla_status='breached').count()
+        warning = sla_base.filter_by(sla_status='warning').count()
         
-        # SLA stats
-        breached = base_query.filter_by(sla_status='breached').count()
-        warning = base_query.filter_by(sla_status='warning').count()
-        
-        # Priority breakdown
-        by_priority = {
-            'critical': base_query.filter(db.func.lower(Ticket.priority) == 'critical').filter(db.func.lower(Ticket.status).notin_(done_status_names)).count(),
-            'high': base_query.filter(db.func.lower(Ticket.priority) == 'high').filter(db.func.lower(Ticket.status).notin_(done_status_names)).count(),
-            'medium': base_query.filter(db.func.lower(Ticket.priority) == 'medium').filter(db.func.lower(Ticket.status).notin_(done_status_names)).count(),
-            'low': base_query.filter(db.func.lower(Ticket.priority) == 'low').filter(db.func.lower(Ticket.status).notin_(done_status_names)).count(),
-        }
-        
-        # Category breakdown
+        # Priority breakdown (tiket BELUM selesai, DIBUAT dalam jendela bila ada)
+        # — dinamis GROUP BY agar priority custom dari master ikut terhitung.
+        prio_query = db.session.query(
+            db.func.lower(Ticket.priority), db.func.count(Ticket.id)
+        ).filter(Ticket.category != DEV_CATEGORY)
+        if user_id:
+            prio_query = prio_query.filter(Ticket.assigned_to_id == user_id)
+        if done_status_names:
+            prio_query = prio_query.filter(db.func.lower(Ticket.status).notin_(done_status_names))
+        prio_query = _in_window(prio_query)
+        by_priority = {name: count for name, count in prio_query.group_by(db.func.lower(Ticket.priority)).all() if name}
+
+        # Category breakdown (tiket DIBUAT dalam jendela bila ada)
         cats_query = db.session.query(Ticket.category, db.func.count(Ticket.id)).filter(Ticket.category != DEV_CATEGORY)
         if user_id:
             cats_query = cats_query.filter(Ticket.assigned_to_id == user_id)
+        cats_query = _in_window(cats_query)
         cats = cats_query.group_by(Ticket.category).all()
         by_category = {cat: count for cat, count in cats if cat}
-        
-        # Department breakdown
+
+        # Department breakdown (tiket DIBUAT dalam jendela bila ada)
         depts_query = db.session.query(Ticket.submitter_department, db.func.count(Ticket.id)).filter(Ticket.category != DEV_CATEGORY)
         if user_id:
             depts_query = depts_query.filter(Ticket.assigned_to_id == user_id)
         depts = depts_query.group_by(Ticket.submitter_department).all()
         by_department = {dept: count for dept, count in depts if dept}
         
-        # Trend data (last 7 days)
+        if user_id:
+            depts_query = depts_query.filter(Ticket.assigned_to_id == user_id)
+        depts_query = _in_window(depts_query)
+        depts = depts_query.group_by(Ticket.submitter_department).all()
+        by_department = {dept: count for dept, count in depts if dept}
+
+        # Trend data harian — batas hari WIB (UTC+7, offset tetap, tanpa DST)
+        # agar sesuai hari yang dilihat user. Tiap titik bawa 'date' ISO untuk tooltip.
+        # `days` dari query param (default 7, maks 90). Tanpa jendela valid ->
+        # loop N hari terakhir (legacy). Jendela kosong (start > end, mis.
+        # quarter future) -> tren kosong, bukan fallback.
+        if not window_ok:
+            trend_days = [(now_wib - timedelta(days=i)).date() for i in range(max(1, days) - 1, -1, -1)]
+        elif end_d >= start_d:
+            span = min((end_d - start_d).days + 1, 366)
+            trend_days = [start_d + timedelta(days=i) for i in range(span) if start_d + timedelta(days=i) <= today_wib]
+        else:
+            trend_days = []
         trend = []
-        for i in range(6, -1, -1):
-            date = (datetime.now(timezone.utc) - timedelta(days=i)).date()
-            date_str = date.strftime('%a')
+        for day_wib in trend_days:
+            date_str = day_wib.strftime('%a')
+            iso_date = day_wib.isoformat()
             
-            start_of_day = datetime.combine(date, datetime.min.time()).replace(tzinfo=timezone.utc)
-            end_of_day = datetime.combine(date, datetime.max.time()).replace(tzinfo=timezone.utc)
+            start_of_day = datetime.combine(day_wib, datetime.min.time()).replace(tzinfo=WIB).astimezone(timezone.utc)
+            end_of_day = datetime.combine(day_wib, datetime.max.time()).replace(tzinfo=WIB).astimezone(timezone.utc)
             
             created_q = Ticket.query.filter(Ticket.category != DEV_CATEGORY).filter(
                 Ticket.created_at >= start_of_day, Ticket.created_at <= end_of_day
@@ -1150,25 +1248,34 @@ class TicketService:
             
             trend.append({
                 'day': date_str,
+                'date': iso_date,
                 'created': created,
                 'resolved': resolved_on_day
             })
         
-        # All resolved tickets (for compliance)
-        resolved_all_q = Ticket.query.filter(Ticket.category != DEV_CATEGORY).filter(db.func.lower(Ticket.status).in_(done_status_names))
-        if user_id:
-            resolved_all_q = resolved_all_q.filter(Ticket.assigned_to_id == user_id)
-        
-        resolved_all = resolved_all_q.all()
+        # Avg dihitung dari tiket selesai dalam kohort jendela bila window_ok
+        # (basis taken_at fallback created_at, sama seperti legacy).
+        if window_ok:
+            resolved_all = _in_window(base_query).filter(db.func.lower(Ticket.status).in_(done_status_names)).all() if done_status_names else []
+        else:
+            resolved_all_q = Ticket.query.filter(Ticket.category != DEV_CATEGORY).filter(db.func.lower(Ticket.status).in_(done_status_names))
+            if user_id:
+                resolved_all_q = resolved_all_q.filter(Ticket.assigned_to_id == user_id)
+            resolved_all = resolved_all_q.all()
         res_times = []
         for t in resolved_all:
-            if t.resolved_at:
-                # Use taken_at (when ticket was first assigned) as start; fallback to created_at
-                start_time = t.taken_at or t.created_at
-                res_naive = t.resolved_at.replace(tzinfo=None)
-                start_naive = start_time.replace(tzinfo=None)
-                diff = (res_naive - start_naive).total_seconds() / 3600
-                res_times.append(diff)
+            # Akhir: resolved_at, fallback updated_at (Closed/Completed lama tak set
+            # resolved_at). Awal: taken_at, fallback created_at. Samakan ke naive UTC.
+            end_time = t.resolved_at or t.updated_at
+            start_time = t.taken_at or t.created_at
+            if getattr(end_time, 'tzinfo', None) is not None:
+                end_time = end_time.astimezone(timezone.utc).replace(tzinfo=None)
+            if start_time and getattr(start_time, 'tzinfo', None) is not None:
+                start_time = start_time.astimezone(timezone.utc).replace(tzinfo=None)
+            if end_time and start_time:
+                diff = (end_time - start_time).total_seconds() / 3600
+                if diff >= 0:
+                    res_times.append(diff)
         
         avg_res_time = sum(res_times) / len(res_times) if res_times else 0
         
