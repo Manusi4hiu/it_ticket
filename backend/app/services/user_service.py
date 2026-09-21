@@ -189,7 +189,8 @@ class UserService:
         Mengembalikan (mulai, akhir) atau (None, None) bila tak valid —
         pemanggil memperlakukan itu sebagai tanpa jendela (all-time).
         """
-        from datetime import datetime, timedelta, timezone
+        from datetime import datetime, timezone
+        from app.services.ticket_service import _report_tz
         if not start and not end:
             return None, None
         try:
@@ -200,9 +201,9 @@ class UserService:
             return None, None
         if end_d < start_d:
             return None, None
-        WIB = timezone(timedelta(hours=7))
-        lo = datetime.combine(start_d, datetime.min.time()).replace(tzinfo=WIB).astimezone(timezone.utc).replace(tzinfo=None)
-        hi = datetime.combine(end_d, datetime.max.time()).replace(tzinfo=WIB).astimezone(timezone.utc).replace(tzinfo=None)
+        report_tz = _report_tz()
+        lo = datetime.combine(start_d, datetime.min.time()).replace(tzinfo=report_tz).astimezone(timezone.utc).replace(tzinfo=None)
+        hi = datetime.combine(end_d, datetime.max.time()).replace(tzinfo=report_tz).astimezone(timezone.utc).replace(tzinfo=None)
         return lo, hi
 
     @staticmethod

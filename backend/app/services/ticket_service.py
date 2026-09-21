@@ -5,7 +5,104 @@ from app.models.master_data import Department, Status, Priority, Category, SLAPo
 from app.utils.logging import log_activity
 from app.utils.security import sanitize_html, NOTE_ALLOWED_TAGS
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
+from flask import current_app, has_app_context
 from app.constants import DEV_CATEGORY
+
+def _report_tz():
+    """Zona waktu pelaporan (batas hari grafik/analytics).
+
+    Diambil dari config REPORT_TIMEZONE (default 'Asia/Jakarta', override via
+    env yang sama) — tidak lagi hardcode offset di tiap fungsi. Fallback ke
+    UTC+7 bila nama zona invalid atau di luar app context.
+    """
+    name = 'Asia/Jakarta'
+    try:
+        if has_app_context():
+            name = current_app.config.get('REPORT_TIMEZONE', name) or name
+    except Exception:
+        pass
+    try:
+        return ZoneInfo(str(name))
+    except Exception:
+        return timezone(timedelta(hours=7))
+
+
+def _parse_window_bounds(start, end, days, tz):
+    """Parse jendela eksplisit start/end (ISO YYYY-MM-DD, maks 366 hari).
+
+    Returns (window_start_utc, window_end_utc, window_ok, start_d, end_d, today).
+    Format salah -> window_ok False, jendela diabaikan (perilaku lama).
+    """
+    now_tz = datetime.now(timezone.utc).astimezone(tz)
+    today = now_tz.date()
+    window_start_utc = window_end_utc = None
+    start_d = end_d = None
+    window_ok = False
+    if start or end:
+        try:
+            start_d = datetime.strptime(start, '%Y-%m-%d').date() if start else today - timedelta(days=max(1, days) - 1)
+            end_d = datetime.strptime(end, '%Y-%m-%d').date() if end else today
+            window_ok = True
+        except (TypeError, ValueError):
+            start_d = end_d = None
+        if window_ok:
+            window_start_utc = datetime.combine(start_d, datetime.min.time()).replace(tzinfo=tz).astimezone(timezone.utc)
+            window_end_utc = datetime.combine(end_d, datetime.max.time()).replace(tzinfo=tz).astimezone(timezone.utc)
+    return window_start_utc, window_end_utc, window_ok, start_d, end_d, today
+
+
+def _apply_window(query, window_ok, window_start_utc, window_end_utc):
+    """Batasi query ke kohort jendela bila window_ok.
+
+    Rentang kosong (start > end) otomatis nol baris — jujur untuk periode
+    future, bukan fallback all-time.
+    """
+    if window_ok:
+        query = query.filter(Ticket.created_at >= window_start_utc, Ticket.created_at <= window_end_utc)
+    return query
+
+
+def _calculate_cohort_kpi(base_query, window_ok, window_start_utc, window_end_utc, done_status_names):
+    """Kartu Total/Open/Resolved dari tiket yang DIBUAT dalam jendela.
+
+    Returns (total, resolved, open_count, cohort_q) — cohort_q None bila tanpa
+    jendela sehingga pemanggil fallback ke base_query. open + resolved = total
+    selalu konsisten.
+    """
+    if not window_ok:
+        total = base_query.count()
+        resolved = base_query.filter(db.func.lower(Ticket.status).in_(done_status_names)).count() if done_status_names else 0
+        return total, resolved, total - resolved, None
+    cohort_q = _apply_window(base_query, window_ok, window_start_utc, window_end_utc)
+    total = cohort_q.count()
+    resolved = cohort_q.filter(db.func.lower(Ticket.status).in_(done_status_names)).count() if done_status_names else 0
+    return total, resolved, total - resolved, cohort_q
+
+
+def _build_trend(base_query, trend_days, tz):
+    """Tren harian created vs resolved — batas hari mengikuti zona pelaporan.
+
+    base_query sudah membawa filter kategori + user sehingga tren konsisten
+    dengan breakdown lain. Tiap titik bawa 'date' ISO untuk tooltip.
+    """
+    trend = []
+    for day in trend_days:
+        start_of_day = datetime.combine(day, datetime.min.time()).replace(tzinfo=tz).astimezone(timezone.utc)
+        end_of_day = datetime.combine(day, datetime.max.time()).replace(tzinfo=tz).astimezone(timezone.utc)
+        created = base_query.filter(
+            Ticket.created_at >= start_of_day, Ticket.created_at <= end_of_day
+        ).count()
+        resolved_on_day = base_query.filter(
+            Ticket.resolved_at >= start_of_day, Ticket.resolved_at <= end_of_day
+        ).count()
+        trend.append({
+            'day': day.strftime('%a'),
+            'date': day.isoformat(),
+            'created': created,
+            'resolved': resolved_on_day,
+        })
+    return trend
 
 class TicketService:
     # Removed get_next_ticket_id as IDs are now auto-incrementing integers
@@ -1135,46 +1232,25 @@ class TicketService:
         assigned = total - new - resolved
 
         # Jendela eksplisit start/end (ISO YYYY-MM-DD, maks 366 hari) untuk mode
-        # 1 bulan/quarter. Batas hari WIB agar selaras dengan tren. Bila parsing
-        # berhasil (window_ok, walau rentang kosong seperti quarter future),
-        # breakdown kategori/departemen/priority, tren, DAN kartu KPI dibatasi
-        # jendela; snapshot status donut (new/workedOn/pending/assigned) tetap
-        # kondisi terkini. Format salah -> jendela diabaikan (perilaku lama).
-        WIB = timezone(timedelta(hours=7))
-        now_wib = datetime.now(timezone.utc).astimezone(WIB)
-        today_wib = now_wib.date()
-        start_d = end_d = None
-        window_start_utc = window_end_utc = None
-        window_given = bool(start or end)
-        window_ok = False
-        if window_given:
-            try:
-                start_d = datetime.strptime(start, '%Y-%m-%d').date() if start else today_wib - timedelta(days=max(1, days) - 1)
-                end_d = datetime.strptime(end, '%Y-%m-%d').date() if end else today_wib
-                window_ok = True
-            except (TypeError, ValueError):
-                start_d = end_d = None
-            if window_ok:
-                window_start_utc = datetime.combine(start_d, datetime.min.time()).replace(tzinfo=WIB).astimezone(timezone.utc)
-                window_end_utc = datetime.combine(end_d, datetime.max.time()).replace(tzinfo=WIB).astimezone(timezone.utc)
+        # 1 bulan/quarter. Batas hari zona pelaporan (REPORT_TIMEZONE, default
+        # Asia/Jakarta) agar selaras dengan tren. Parsing berhasil (window_ok,
+        # walau rentang kosong seperti quarter future) -> breakdown kategori/
+        # departemen/priority, tren, DAN kartu KPI dibatasi jendela; snapshot
+        # status donut (new/workedOn/pending/assigned) tetap kondisi terkini.
+        # Format salah -> jendela diabaikan (perilaku lama).
+        report_tz = _report_tz()
+        (window_start_utc, window_end_utc, window_ok, start_d, end_d,
+         today) = _parse_window_bounds(start, end, days, report_tz)
 
         def _in_window(query):
-            if window_ok:
-                # Rentang kosong (start > end) otomatis nol baris — jujur
-                # untuk periode future, bukan fallback all-time.
-                query = query.filter(Ticket.created_at >= window_start_utc, Ticket.created_at <= window_end_utc)
-            return query
+            return _apply_window(query, window_ok, window_start_utc, window_end_utc)
 
         # Kohort KPI: kartu Total/Open/Resolved/Avg/SLA dihitung dari tiket yang
         # DIBUAT dalam jendela (open/resolved = status terkini kohort tersebut,
         # sehingga open + resolved = total dan persen selalu konsisten).
-        if window_ok:
-            cohort_q = _in_window(base_query)
-            total = cohort_q.count()
-            resolved = cohort_q.filter(db.func.lower(Ticket.status).in_(done_status_names)).count() if done_status_names else 0
-            open_count = total - resolved
-        else:
-            cohort_q = None
+        total, resolved, open_count, cohort_q = _calculate_cohort_kpi(
+            base_query, window_ok, window_start_utc, window_end_utc, done_status_names
+        )
         
         # SLA stats (kohort jendela bila window_ok)
         sla_base = cohort_q if cohort_q is not None else base_query
@@ -1209,46 +1285,18 @@ class TicketService:
         depts = depts_query.group_by(Ticket.submitter_department).all()
         by_department = {dept: count for dept, count in depts if dept}
 
-        # Trend data harian — batas hari WIB (UTC+7, offset tetap, tanpa DST)
-        # agar sesuai hari yang dilihat user. Tiap titik bawa 'date' ISO untuk tooltip.
-        # `days` dari query param (default 7, maks 90). Tanpa jendela valid ->
-        # loop N hari terakhir (legacy). Jendela kosong (start > end, mis.
-        # quarter future) -> tren kosong, bukan fallback.
+        # Trend data harian — batas hari zona pelaporan agar sesuai hari yang
+        # dilihat user. `days` dari query param (default 7, maks 90). Tanpa
+        # jendela valid -> loop N hari terakhir (legacy). Jendela kosong
+        # (start > end, mis. quarter future) -> tren kosong, bukan fallback.
         if not window_ok:
-            trend_days = [(now_wib - timedelta(days=i)).date() for i in range(max(1, days) - 1, -1, -1)]
+            trend_days = [today - timedelta(days=i) for i in range(max(1, days) - 1, -1, -1)]
         elif end_d >= start_d:
             span = min((end_d - start_d).days + 1, 366)
-            trend_days = [start_d + timedelta(days=i) for i in range(span) if start_d + timedelta(days=i) <= today_wib]
+            trend_days = [start_d + timedelta(days=i) for i in range(span) if start_d + timedelta(days=i) <= today]
         else:
             trend_days = []
-        trend = []
-        for day_wib in trend_days:
-            date_str = day_wib.strftime('%a')
-            iso_date = day_wib.isoformat()
-            
-            start_of_day = datetime.combine(day_wib, datetime.min.time()).replace(tzinfo=WIB).astimezone(timezone.utc)
-            end_of_day = datetime.combine(day_wib, datetime.max.time()).replace(tzinfo=WIB).astimezone(timezone.utc)
-            
-            created_q = Ticket.query.filter(Ticket.category != DEV_CATEGORY).filter(
-                Ticket.created_at >= start_of_day, Ticket.created_at <= end_of_day
-            )
-            resolved_q = Ticket.query.filter(Ticket.category != DEV_CATEGORY).filter(
-                Ticket.resolved_at >= start_of_day, Ticket.resolved_at <= end_of_day
-            )
-            
-            if user_id:
-                created_q = created_q.filter(Ticket.assigned_to_id == user_id)
-                resolved_q = resolved_q.filter(Ticket.assigned_to_id == user_id)
-                
-            created = created_q.count()
-            resolved_on_day = resolved_q.count()
-            
-            trend.append({
-                'day': date_str,
-                'date': iso_date,
-                'created': created,
-                'resolved': resolved_on_day
-            })
+        trend = _build_trend(base_query, trend_days, report_tz)
         
         # Avg dihitung dari tiket selesai dalam kohort jendela bila window_ok
         # (basis taken_at fallback created_at, sama seperti legacy).
