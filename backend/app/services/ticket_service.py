@@ -1173,9 +1173,11 @@ class TicketService:
             total = cohort_q.count()
             resolved = cohort_q.filter(db.func.lower(Ticket.status).in_(done_status_names)).count() if done_status_names else 0
             open_count = total - resolved
+        else:
+            cohort_q = None
         
         # SLA stats (kohort jendela bila window_ok)
-        sla_base = cohort_q if window_ok else base_query
+        sla_base = cohort_q if cohort_q is not None else base_query
         breached = sla_base.filter_by(sla_status='breached').count()
         warning = sla_base.filter_by(sla_status='warning').count()
         
@@ -1201,11 +1203,6 @@ class TicketService:
 
         # Department breakdown (tiket DIBUAT dalam jendela bila ada)
         depts_query = db.session.query(Ticket.submitter_department, db.func.count(Ticket.id)).filter(Ticket.category != DEV_CATEGORY)
-        if user_id:
-            depts_query = depts_query.filter(Ticket.assigned_to_id == user_id)
-        depts = depts_query.group_by(Ticket.submitter_department).all()
-        by_department = {dept: count for dept, count in depts if dept}
-        
         if user_id:
             depts_query = depts_query.filter(Ticket.assigned_to_id == user_id)
         depts_query = _in_window(depts_query)
