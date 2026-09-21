@@ -6,7 +6,7 @@
     "build": "react-router build",
     "dev": "react-router dev",
     "start": "react-router-serve ./build/server/index.js",
-    "typecheck": "react-router typegen && tsc"
+    "typecheck": "npx --no-install react-router typegen && tsc"
   },
   "dependencies": {
     "@dazl/color-scheme": "^1.2.1",

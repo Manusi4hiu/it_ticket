@@ -214,7 +214,7 @@ export function TicketActionsPanel({
                         ticket.priority.charAt(0).toUpperCase() +
                         ticket.priority.slice(1)
                       }`
-                    ]
+                    ] || ""
                   }`}
                 >
                   {ticket.priority === "critical" && (
@@ -235,7 +235,6 @@ export function TicketActionsPanel({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Uncategorized">Uncategorized</SelectItem>
                   {categories.map((c) => (
                     <SelectItem key={c.id} value={c.name}>
                       {c.name}

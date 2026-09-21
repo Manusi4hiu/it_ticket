@@ -59,7 +59,7 @@ export async function action({ request }: Route.ActionArgs) {
     const phone = (formData.get("phone") as string || "").trim();
     const department = (formData.get("department") as string || "").trim();
     const priority = (formData.get("priority") as string || 'medium').trim();
-    const category = (formData.get("category") as string || "Uncategorized").trim();
+    const category = (formData.get("category") as string || "Other").trim();
     const subject = (formData.get("subject") as string || "").trim();
     const description = (formData.get("description") as string || "").trim();
     const receiveUpdates = formData.get("receiveUpdates") === "true" || formData.get("receiveUpdates") === "on";

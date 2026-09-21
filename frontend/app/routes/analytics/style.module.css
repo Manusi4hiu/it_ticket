@@ -1,270 +1,600 @@
-/* Analytics Page - Precisely aligned with Performance Page */
+/* System Analytics — mengikuti dialek halaman lain: banner kaca,
+   segmented tickets-spec, card glass biru, tabel spek dashboard/tickets. */
 
 .contentWrapper {
-  padding: 3rem 2rem;
+  padding: 2.5rem 2rem 3rem;
   max-width: 1200px;
   margin: 0 auto;
-  animation: fadeIn 0.6s ease-out;
 }
 
-.pageHeader {
+/* ── Banner header (calendar/dev-dashboard-spec) ── */
+.head {
   display: flex;
   justify-content: space-between;
-  align-items: flex-end;
-  margin-bottom: 3rem;
-  gap: 2rem;
-}
-
-.titleSection {
-  flex: 1;
-}
-
-.pageTitle {
-  font-size: 2.5rem;
-  font-weight: 800;
-  letter-spacing: -0.04em;
-  margin-bottom: 0.5rem;
-  color: #fff;
-}
-
-.pageSubtitle {
-  color: #94a3b8;
-  font-size: 1.1rem;
-}
-
-/* Tabs Navigation - Matching Performance Page */
-.tabsList {
-  display: flex;
-  background: rgba(255, 255, 255, 0.03);
-  padding: 4px;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(10px);
-}
-
-.tabButton {
-  padding: 0.6rem 1.5rem;
-  border-radius: 8px;
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: #94a3b8;
-  transition: all 0.2s ease;
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.tabButton:hover {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.activeTab {
-  color: #fff;
-  background: rgba(59, 130, 246, 0.2);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  border: 1px solid rgba(59, 130, 246, 0.2);
-}
-
-.tabIcon {
-  width: 16px;
-  height: 16px;
-}
-
-/* Metrics Row - Matching summaryGrid from Performance Page */
-.summaryGrid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 1.5rem;
-  margin-bottom: 2.5rem;
-}
-
-.summaryCard {
-  background: rgba(30, 41, 59, 0.4);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  padding: 1.5rem;
-  border-radius: 20px;
-  display: flex;
   align-items: center;
   gap: 1.25rem;
-  transition: all 0.2s ease;
-  backdrop-filter: blur(10px);
+  flex-wrap: wrap;
+  background: rgba(10, 25, 47, 0.4);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(59, 130, 246, 0.15);
+  border-radius: 16px;
+  padding: 1rem 1.5rem;
+  margin-bottom: 1.5rem;
 }
 
-.summaryCard:hover {
-  transform: translateY(-4px);
-  background: rgba(30, 41, 59, 0.6);
-  border-color: rgba(59, 130, 246, 0.3);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+.kicker {
+  margin: 0 0 0.25rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.45);
 }
 
-.summaryIcon {
-  width: 48px;
-  height: 48px;
-  border-radius: 14px;
-  display: flex;
+.title {
+  margin: 0;
+  font-size: 1.45rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  color: #fff;
+  text-wrap: balance;
+}
+
+.sub {
+  margin: 0.2rem 0 0;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* Segmented view switch (tickets-spec) */
+.seg {
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  min-height: 42px;
+  padding: 3px;
+  gap: 2px;
+  background: rgba(17, 24, 39, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
 }
 
-.summaryContent {
+.segBtn,
+.segOn {
+  cursor: pointer;
+  padding: 0.45rem 1rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  border-radius: 8px;
+  border: 1.5px solid transparent;
+  background: transparent;
+  color: #9ca3af;
+}
+
+.segBtn:hover {
+  color: #e5e7eb;
+}
+
+.segOn {
+  background: rgba(59, 130, 246, 0.16);
+  border-color: rgba(59, 130, 246, 0.6);
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.35);
+  color: #fff;
+}
+
+/* ── KPI strip ──────────────────────────── */
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  background: rgba(17, 24, 39, 0.6);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  border-radius: 16px;
+  overflow: hidden;
+  margin-bottom: 1.25rem;
+}
+
+.kpi {
+  padding: 1.1rem 1.25rem 1rem;
+  border-left: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.kpi:first-child {
+  border-left: 0;
+}
+
+.kpiLabel {
+  margin: 0 0 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #9ca3af;
+}
+
+.kpiNum {
+  margin: 0;
+  font-size: 2rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+
+.kpiUnit {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #9ca3af;
+  margin-left: 0.1rem;
+}
+
+.kpiCtx {
+  margin: 0.45rem 0 0;
+  padding-top: 0.45rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  font-size: 0.76rem;
+  color: #9ca3af;
+}
+
+/* ── Panels (dashboard-card-spec) ───────── */
+.panel {
+  background: rgba(17, 24, 39, 0.6);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  border-radius: 16px;
+  padding: 1.25rem 1.5rem 1.5rem;
+}
+
+.panelHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.panelTitle {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #f3f4f6;
+}
+
+.panelSub {
+  margin: 0.2rem 0 0;
+  font-size: 0.8rem;
+  color: #9ca3af;
+}
+
+.seriesKey {
+  display: flex;
+  gap: 1.1rem;
+  padding-top: 0.25rem;
+}
+
+.keyItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.78rem;
+  color: #9ca3af;
+  font-variant-numeric: tabular-nums;
+}
+
+.keyDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: stretch;
+  gap: 1.25rem;
+}
+
+/* Panel grid mengisi tinggi barisnya; konten dalamnya diatur agar tidak
+   menyisakan ruang mati ketika salah satu kartu jauh lebih tinggi. */
+.grid2 > .panel {
   display: flex;
   flex-direction: column;
 }
 
-.summaryLabel {
-  font-size: 0.8125rem;
-  color: #94a3b8;
+.grid2 > .panel > .chartScroll {
+  margin-top: auto;
+  margin-bottom: auto;
+}
+
+.chartTall {
+  height: 300px;
+}
+
+.chartMid {
+  height: 264px;
+}
+
+/* Tinggi chart dinamis dibatasi agar kartu tetap nyaman dipandang;
+   kelebihannya bisa di-scroll di dalam area chart. */
+.chartScroll {
+  max-height: 420px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.chartScroll::-webkit-scrollbar,
+.ledger::-webkit-scrollbar {
+  width: 8px;
+}
+
+.chartScroll::-webkit-scrollbar-thumb,
+.ledger::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: 8px;
+}
+
+.chartScroll::-webkit-scrollbar-track,
+.ledger::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ── Donut + ledger ─────────────────────── */
+.donutWrap {
+  display: grid;
+  grid-template-columns: 210px 1fr;
+  gap: 1rem;
+  align-items: center;
+  align-content: center;
+  flex: 1;
+}
+
+.donut {
+  position: relative;
+  height: 210px;
+}
+
+.donutCenter {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.donutNum {
+  font-size: 1.7rem;
+  font-weight: 800;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.donutLbl {
+  margin-top: 0.25rem;
+  font-size: 0.7rem;
   font-weight: 600;
-}
-
-.summaryValue {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: #fff;
-}
-
-/* Charts Styles - Matching Performance Page */
-.chartsGrid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 1.5rem;
-  margin-bottom: 2.5rem;
-}
-
-.chartCard {
-  background: rgba(15, 23, 42, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  padding: 2rem;
-  border-radius: 24px;
-  backdrop-filter: blur(10px);
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-}
-
-.chartHeader {
-  margin-bottom: 2rem;
-}
-
-.chartTitle {
-  font-size: 1.25rem;
-  font-weight: 700;
-  margin-bottom: 0.25rem;
-  color: #fff;
-}
-
-.chartSubtitle {
-  font-size: 0.875rem;
-  color: #94a3b8;
-}
-
-.chartContent {
-  height: 350px;
-}
-
-.fullWidthChart {
-  grid-column: 1 / -1;
-}
-
-/* Agent Table - Matching Leaderboard style */
-.leaderboardContainer {
-  background: rgba(15, 23, 42, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 24px;
-  overflow: hidden;
-  backdrop-filter: blur(10px);
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-}
-
-.tableHeader {
-  display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1.5fr 1fr;
-  padding: 1.25rem 2rem;
-  background: rgba(255, 255, 255, 0.02);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  font-size: 0.75rem;
-  font-weight: 700;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #94a3b8;
-  letter-spacing: 0.05em;
+  color: #9ca3af;
+}
+
+.ledger {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  max-height: 420px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.ledgerRow {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  font-size: 0.85rem;
+}
+
+.ledgerRow:last-child {
+  border-bottom: 0;
+}
+
+.ledgerDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.ledgerName {
+  color: #d1d5db;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ledgerVal {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+  font-weight: 700;
+}
+
+.ledgerPct {
+  width: 3rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: #9ca3af;
+}
+
+/* ── Chart tooltip ──────────────────────── */
+.tip {
+  background: rgba(15, 23, 42, 0.95);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 0.6rem 0.75rem;
+  min-width: 150px;
+}
+
+.tipTitle {
+  margin: 0 0 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #9ca3af;
+}
+
+.tipRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  padding: 0.12rem 0;
+}
+
+.tipDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.tipName {
+  color: #d1d5db;
+}
+
+.tipVal {
+  margin-left: auto;
+  padding-left: 1rem;
+  font-weight: 700;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Staff table (dashboard/tickets-spec) ─ */
+.tableHead,
+.tableRow {
+  display: grid;
+  grid-template-columns: 1.6fr 0.7fr 0.7fr 0.7fr 0.9fr;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.tableHead {
+  padding: 0.8rem 1rem;
+  background: #111c30;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #9ca3af;
+  border-bottom: 2px solid rgba(59, 130, 246, 0.4);
+  border-radius: 8px 8px 0 0;
 }
 
 .tableRow {
-  display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1.5fr 1fr;
-  padding: 1.25rem 2rem;
-  align-items: center;
-  transition: all 0.2s ease;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+  padding: 0.8rem 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  font-size: 0.88rem;
+  color: #e5e7eb;
 }
 
 .tableRow:last-child {
-  border-bottom: none;
+  border-bottom: 0;
 }
 
 .tableRow:hover {
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(59, 130, 246, 0.09);
 }
 
-.staffInfo {
+.num {
+  font-variant-numeric: tabular-nums;
+  color: #e5e7eb;
+}
+
+.staffCell {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 0.65rem;
+  min-width: 0;
 }
 
-.miniAvatar {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  background: rgba(59, 130, 246, 0.2);
-  color: #60a5fa;
-  display: flex;
+.avatar {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
+  border-radius: 50%;
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  font-size: 0.75rem;
   font-weight: 700;
-  font-size: 0.875rem;
+  color: #93c5fd;
 }
 
 .staffName {
+  color: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.74rem;
   font-weight: 600;
-  color: #fff;
+  text-transform: capitalize;
+  border: 1px solid transparent;
 }
 
-.metricValue {
-  font-size: 1.125rem;
-  font-weight: 700;
-  color: #fff;
+.pillDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
 }
 
-.performanceBadge {
-  padding: 4px 10px;
-  border-radius: 8px;
-  font-size: 0.75rem;
-  font-weight: 700;
+.excellent {
+  color: #6ee7b7;
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.good {
+  color: #93c5fd;
+  background: rgba(59, 130, 246, 0.15);
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+.average {
+  color: #9ca3af;
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+/* ── Footnote ───────────────────────────── */
+.note {
+  margin: 1rem 0 0;
+  padding-left: 0.7rem;
+  border-left: 2px solid rgba(59, 130, 246, 0.4);
+  font-size: 0.76rem;
+  line-height: 1.5;
+  color: #9ca3af;
+}
+
+/* ── Baris pemilih periode tren (pakai ulang gaya .seg) ── */
+.rangeRow {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin: 0 0 1rem;
+}
+
+.rangeLbl {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.45);
 }
 
-.excellent { background: rgba(16, 185, 129, 0.1); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.2); }
-.good { background: rgba(59, 130, 246, 0.1); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.2); }
-.average { background: rgba(148, 163, 184, 0.1); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.2); }
-
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+/* ── Motion (single, restrained) ────────── */
+.fade {
+  animation: rise 0.35s ease-out;
 }
 
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ── Responsive ─────────────────────────── */
 @media (max-width: 1024px) {
-  .pageHeader { flex-direction: column; align-items: flex-start; gap: 1.5rem; }
-  .summaryGrid { grid-template-columns: repeat(2, 1fr); }
-  .chartsGrid { grid-template-columns: 1fr; }
-  .tableHeader, .tableRow { grid-template-columns: 1.5fr 1fr 1fr; }
-  .metricCol:nth-child(4), .metricCol:nth-child(5) { display: none; }
+  .kpis {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .kpi:nth-child(odd) {
+    border-left: 0;
+  }
+
+  .kpi {
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+  }
+
+  .kpi:nth-child(-n + 2) {
+    border-top: 0;
+  }
+
+  .grid2 {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 768px) {
-  .contentWrapper { padding: 2rem 1rem; }
-  .summaryGrid { grid-template-columns: 1fr; }
+  .contentWrapper {
+    padding: 1.5rem 1rem 2.5rem;
+  }
+
+  .head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .kpis {
+    grid-template-columns: 1fr;
+  }
+
+  .kpi {
+    border-left: 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+  }
+
+  .kpi:first-child {
+    border-top: 0;
+  }
+
+  .donutWrap {
+    grid-template-columns: 1fr;
+  }
+
+  .donut {
+    height: 190px;
+  }
+
+  .tableHead,
+  .tableRow {
+    grid-template-columns: 1.4fr 0.6fr 0.6fr 0.8fr;
+  }
+
+  .tableHead > *:nth-child(4),
+  .tableRow > *:nth-child(4) {
+    display: none;
+  }
 }

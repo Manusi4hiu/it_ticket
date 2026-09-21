@@ -200,7 +200,7 @@ export async function addTicketNote(
     };
 }
 
-export async function getTicketStats(personal: boolean = false): Promise<{
+export async function getTicketStats(personal: boolean = false, days?: number, opts?: { start?: string; end?: string }): Promise<{
     total: number;
     open: number;
     new: number;
@@ -218,12 +218,13 @@ export async function getTicketStats(personal: boolean = false): Promise<{
     byDepartment: Record<string, number>;
     trend: Array<{
         day: string;
+        date?: string;
         created: number;
         resolved: number;
     }>;
     avgResolutionTime: number;
 } | null> {
-    const response = await ticketsApi.getStats(personal);
+    const response = await ticketsApi.getStats(personal, days, opts);
 
     if (!response.success || !response.data) {
         console.error('Failed to fetch stats:', response.error);
@@ -248,6 +249,7 @@ export async function getTicketStats(personal: boolean = false): Promise<{
         byDepartment: Record<string, number>;
         trend: Array<{
             day: string;
+            date?: string;
             created: number;
             resolved: number;
         }>;
@@ -266,8 +268,8 @@ export async function getAgents(): Promise<Agent[]> {
     return response.data.agents;
 }
 
-export async function getAllAgentsPerformance() {
-    const response = await usersApi.getAllPerformance();
+export async function getAllAgentsPerformance(opts?: { start?: string; end?: string }) {
+    const response = await usersApi.getAllPerformance(opts);
 
     if (!response.success || !response.data) {
         console.error('Failed to fetch agent performance:', response.error);
@@ -276,3 +278,4 @@ export async function getAllAgentsPerformance() {
 
     return response.data.performance;
 }
+

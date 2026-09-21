@@ -73,16 +73,19 @@ export interface TicketSLA {
 
 export interface TicketTrend {
     day: string;
+    date?: string;
     created: number;
     resolved: number;
 }
 
 export interface TicketStats {
     total: number;
+    open: number;
     new: number;
     assigned: number;
     resolved: number;
     workedOn: number;
+    pending: number;
     sla: TicketSLA;
     byPriority: Record<string, number>;
     byCategory: Record<string, number>;

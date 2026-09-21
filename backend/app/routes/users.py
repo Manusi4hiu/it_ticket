@@ -138,7 +138,10 @@ def get_user_performance(user_id):
 @role_required('Administrator', 'Management', 'Staff')
 def get_all_performance():
     """Get performance statistics for all staff members (reports/analytics: Admin/Management/Staff)"""
-    results = UserService.get_all_performance()
+    from flask import request
+    # Jendela opsional (ISO YYYY-MM-DD) untuk ranking periode Analytics.
+    results = UserService.get_all_performance(
+        start=request.args.get('start'), end=request.args.get('end'))
 
     return jsonify({
         'success': True,
