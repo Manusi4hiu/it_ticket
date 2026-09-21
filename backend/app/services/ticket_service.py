@@ -11,21 +11,11 @@ from app.constants import DEV_CATEGORY
 
 def _report_tz():
     """Zona waktu pelaporan (batas hari grafik/analytics).
-
-    Diambil dari config REPORT_TIMEZONE (default 'Asia/Jakarta', override via
-    env yang sama) — tidak lagi hardcode offset di tiap fungsi. Fallback ke
-    UTC+7 bila nama zona invalid atau di luar app context.
+    
+    Hardcode WIB (UTC+7) karena time server berbeda dengan timezone user.
+    Consistency lebih penting daripada flexibility untuk multi-timezone.
     """
-    name = 'Asia/Jakarta'
-    try:
-        if has_app_context():
-            name = current_app.config.get('REPORT_TIMEZONE', name) or name
-    except Exception:
-        pass
-    try:
-        return ZoneInfo(str(name))
-    except Exception:
-        return timezone(timedelta(hours=7))
+    return timezone(timedelta(hours=7))
 
 
 def _parse_window_bounds(start, end, days, tz):
