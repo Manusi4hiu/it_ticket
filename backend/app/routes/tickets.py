@@ -60,11 +60,18 @@ def get_tickets():
             query = query.filter(db.func.lower(Ticket.status) != exclude_status.strip().lower())
 
     if is_resolved is not None:
-        resolved_statuses = ['resolved', 'completed']
+        # Grup done dinamis dari master Status (dulu hardcode resolved/completed,
+        # tiket Closed hilang dari tab resolved dashboard).
+        from app.models.master_data import Status
+        from app.services.master_data_service import _infer_filter_group
+        _done_statuses = [
+            s.name.lower() for s in Status.query.all()
+            if (s.filter_group or _infer_filter_group(s.name, s.is_default)) == 'done'
+        ] or ['resolved', 'closed', 'completed']
         if is_resolved:
-            query = query.filter(db.func.lower(Ticket.status).in_(resolved_statuses))
+            query = query.filter(db.func.lower(Ticket.status).in_(_done_statuses))
         else:
-            query = query.filter(db.func.lower(Ticket.status).notin_(resolved_statuses))
+            query = query.filter(db.func.lower(Ticket.status).notin_(_done_statuses))
 
     if priority:
         priority_list = [p.strip().lower() for p in priority.split(',') if p.strip()]
@@ -442,11 +449,19 @@ def get_ticket_stats():
     # Check if we should filter by user (e.g. if not admin)
     # For now, let's allow a query param 'personal' to toggle
     personal = request.args.get('personal', type=lambda v: v.lower() == 'true')
-    
+    # Jumlah hari untuk trend (default 7). Dibatasi 1..90 agar query tetap ringan.
+    # Atau jendela eksplisit start/end (ISO YYYY-MM-DD) untuk mode 1 bulan/quarter.
+    try:
+        days = max(1, min(90, int(request.args.get('days', 7))))
+    except (TypeError, ValueError):
+        days = 7
+    start = request.args.get('start')
+    end = request.args.get('end')
+
     if personal:
-        stats = TicketService.get_stats(user_id=user_id)
+        stats = TicketService.get_stats(user_id=user_id, days=days, start=start, end=end)
     else:
-        stats = TicketService.get_stats()
+        stats = TicketService.get_stats(days=days, start=start, end=end)
     
     return jsonify({
         'success': True,

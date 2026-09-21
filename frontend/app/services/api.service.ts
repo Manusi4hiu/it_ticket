@@ -292,10 +292,17 @@ export const ticketsApi = {
         });
     },
 
-    getStats: async (personal: boolean = false) =>
-        apiRequest<{ success: boolean; stats: TicketStats }>(
-            `/tickets/stats${personal ? '?personal=true' : ''}`
-        ),
+    getStats: async (personal: boolean = false, days?: number, opts?: { start?: string; end?: string }) => {
+        const params = new URLSearchParams();
+        if (personal) params.set("personal", "true");
+        if (days) params.set("days", String(days));
+        if (opts?.start) params.set("start", opts.start);
+        if (opts?.end) params.set("end", opts.end);
+        const qs = params.toString();
+        return apiRequest<{ success: boolean; stats: TicketStats }>(
+            `/tickets/stats${qs ? `?${qs}` : ''}`
+        );
+    },
 };
 
 // ---------------------------------------------------------------------------
@@ -323,8 +330,15 @@ export const usersApi = {
     delete: async (id: string) =>
         apiRequest(`/users/${id}`, { method: 'DELETE' }),
 
-    getAllPerformance: async () =>
-        apiRequest<{ success: boolean; performance: UserPerformanceSummary[] }>('/users/performance'),
+    getAllPerformance: async (opts?: { start?: string; end?: string }) => {
+        const params = new URLSearchParams();
+        if (opts?.start) params.set("start", opts.start);
+        if (opts?.end) params.set("end", opts.end);
+        const qs = params.toString();
+        return apiRequest<{ success: boolean; performance: UserPerformanceSummary[] }>(
+            `/users/performance${qs ? `?${qs}` : ''}`
+        );
+    },
 
     toggleActive: async (id: string) =>
         apiRequest<{ success: boolean; user: User; message: string }>(`/users/${id}/toggle-active`, { method: 'PATCH' }),

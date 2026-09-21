@@ -23,6 +23,10 @@ class Config:
     MAIL_USE_TLS  = os.getenv('MAIL_USE_TLS', 'true').lower() == 'true'
     FRONTEND_URL  = os.getenv('FRONTEND_URL', 'http://localhost:5173')
 
+    # Zona waktu pelaporan (batas hari grafik/analytics), default WIB.
+    # Override via env REPORT_TIMEZONE, mis. 'UTC' atau 'Asia/Makassar'.
+    REPORT_TIMEZONE = os.getenv('REPORT_TIMEZONE', 'Asia/Jakarta')
+
 
 class DevelopmentConfig(Config):
     """Development configuration"""

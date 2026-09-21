@@ -77,11 +77,12 @@ export async function loader({ request }: Route.LoaderArgs) {
   // Management boleh akses Dev Board (view-only); Admin & Staff full access
   const session = await requireRole(request, ["Administrator", "Staff", "Management"]);
 
-  const [ticketsRes, agents, statusesRes, categoriesRes] = await Promise.all([
+  const [ticketsRes, agents, statusesRes, categoriesRes, prioritiesRes] = await Promise.all([
     getTickets({ category: "Development", per_page: 150 }), // Only show Development-scoped tracking tasks
     getAgents(),
     settingsApi.getStatuses(),
-    settingsApi.getCategories()
+    settingsApi.getCategories(),
+    settingsApi.getPriorities()
   ]);
 
   return Response.json({
@@ -90,12 +91,13 @@ export async function loader({ request }: Route.LoaderArgs) {
     agents,
     statuses: (statusesRes.data?.data || []).filter((s: any) => s.showOnDevboard)
       .sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0)),
-    categories: categoriesRes.data?.data || []
+    categories: categoriesRes.data?.data || [],
+    priorities: (prioritiesRes.data?.data || []).filter((p: any) => p.isActive !== false)
   });
 }
 
 export default function DevDashboard() {
-  const { session, initialTickets, agents, statuses: loaderStatuses, categories } = useLoaderData() as typeof loader extends (...args: any[]) => Promise<infer T> ? T : any;
+  const { session, initialTickets, agents, statuses: loaderStatuses, categories, priorities } = useLoaderData() as typeof loader extends (...args: any[]) => Promise<infer T> ? T : any;
   const navigate = useNavigate();
   const [statuses, setStatuses] = useState<any[]>(loaderStatuses);
 
@@ -125,6 +127,12 @@ export default function DevDashboard() {
   const [addTaskAssigneeId, setAddTaskAssigneeId] = useState("unassigned");
   const [isTaskSubmitting, setIsTaskSubmitting] = useState(false);
   const [addTaskErrors, setAddTaskErrors] = useState<Record<string, string>>({});
+
+  // Priority add-task mengikuti master aktif ("medium" bila ada, else opsi aktif pertama)
+  const activePriorities = ((priorities as any[]) || []).filter((p: any) => p.isActive !== false);
+  const resolvedAddPriority = activePriorities.some((p: any) => String(p.name).toLowerCase() === addTaskPriority.toLowerCase())
+    ? addTaskPriority
+    : (activePriorities[0] ? String(activePriorities[0].name).toLowerCase() : "medium");
 
   // Edit Dev Task Modal State
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -242,7 +250,7 @@ export default function DevDashboard() {
         title: addTaskTitle,
         description: addTaskDesc,
         category: "Development",
-        priority: addTaskPriority,
+        priority: resolvedAddPriority,
         submitterName: session.userName,
         submitterEmail: session.userEmail || "dev@company.com",
         submitterPhone: "",
@@ -1043,15 +1051,14 @@ export default function DevDashboard() {
             <div className={styles.formGridRow}>
               <div className={styles.formGroup}>
                 <label className={styles.formLabel}>Priority</label>
-                <Select value={addTaskPriority} onValueChange={setAddTaskPriority}>
+                <Select value={resolvedAddPriority} onValueChange={setAddTaskPriority}>
                   <SelectTrigger style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="low">Low</SelectItem>
-                    <SelectItem value="medium">Medium</SelectItem>
-                    <SelectItem value="high">High</SelectItem>
-                    <SelectItem value="critical">Critical</SelectItem>
+                    {(priorities as any[]).map((p: any) => (
+                      <SelectItem key={p.id} value={p.name.toLowerCase()}>{p.name}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -1139,10 +1146,9 @@ export default function DevDashboard() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="low">Low</SelectItem>
-                    <SelectItem value="medium">Medium</SelectItem>
-                    <SelectItem value="high">High</SelectItem>
-                    <SelectItem value="critical">Critical</SelectItem>
+                    {(priorities as any[]).map((p: any) => (
+                      <SelectItem key={p.id} value={p.name.toLowerCase()}>{p.name}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

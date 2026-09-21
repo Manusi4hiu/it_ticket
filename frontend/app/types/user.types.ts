@@ -32,6 +32,7 @@ export interface UserPerformanceSummary {
     username: string;
     email: string;
     totalAssigned: number;
+    totalAssists: number;
     resolved: number;
     inProgress: number;
     pending: number;

@@ -29,7 +29,7 @@ import {
 } from "~/services/ticket.service";
 import { formatDate } from "~/utils/date";
 import { getStatusColor, getPriorityClass, formatStatus, canTakeTicket } from "~/utils/ticket-ui";
-import type { Status } from "~/services/settings.service";
+import type { Status, Priority } from "~/services/settings.service";
 import styles from "../style.module.css";
 
 // ─────────────────────────────────────────────
@@ -40,6 +40,7 @@ interface TicketRowProps {
   ticket: Ticket;
   agents: Agent[];
   statuses: Status[];
+  priorities: Priority[];
   isAdministrator: boolean;
   /** Role dan userId dari session aktif */
   session: { userRole: string; userId: string };
@@ -77,6 +78,7 @@ export function TicketRow({
   ticket,
   agents,
   statuses,
+  priorities,
   isAdministrator,
   session,
   onTicketUpdate,
@@ -147,10 +149,9 @@ export function TicketRow({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="low">Low</SelectItem>
-                <SelectItem value="medium">Medium</SelectItem>
-                <SelectItem value="high">High</SelectItem>
-                <SelectItem value="critical">Critical</SelectItem>
+                {priorities.filter((p) => p.isActive !== false).map((p) => (
+                  <SelectItem key={p.id} value={p.name.toLowerCase()}>{p.name}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
