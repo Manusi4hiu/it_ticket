@@ -1,5 +1,5 @@
 import os
-from flask import Flask
+from flask import Flask, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_cors import CORS
@@ -87,6 +87,12 @@ def create_app(config_name=None):
     app.register_blueprint(settings_bp, url_prefix='/api/settings')
     app.register_blueprint(notifications_bp, url_prefix='/api/notifications')
     
+    # Serve uploaded static files (needed in production where DEBUG=False)
+    @app.route('/static/uploads/<path:filename>')
+    def serve_upload(filename):
+        upload_dir = os.path.join(app.root_path, 'static', 'uploads')
+        return send_from_directory(upload_dir, filename)
+
     # Health check endpoint
     @app.route('/api/health')
     def health_check():
