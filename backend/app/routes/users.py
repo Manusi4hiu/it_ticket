@@ -3,6 +3,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.services.user_service import UserService
 from app.models.user import User
 from app.utils.permissions import admin_required, role_required, get_current_user
+from datetime import datetime, timezone
 
 users_bp = Blueprint('users', __name__)
 
@@ -29,7 +30,14 @@ def get_agents():
     
     return jsonify({
         'success': True,
-        'agents': [{'id': u.id, 'name': u.full_name, 'username': u.username, 'email': u.email, 'phone': u.phone} for u in users]
+        'agents': [{
+            'id': u.id,
+            'name': u.full_name,
+            'username': u.username,
+            'email': u.email,
+            'phone': u.phone,
+            'isOnBreak': u.is_on_break or False,
+        } for u in users]
     }), 200
 
 
@@ -149,7 +157,7 @@ def get_all_performance():
     }), 200
 
 
-@users_bp.route('/<user_id>/toggle-active', methods=['PATCH'])
+@users_bp.route('/<int:user_id>/toggle-active', methods=['PATCH'])
 @jwt_required()
 def toggle_active(user_id):
     """Toggle active/inactive status of a user (admin only)"""
@@ -166,3 +174,52 @@ def toggle_active(user_id):
         'user': user.to_dict(),
         'message': message
     }), 200
+
+
+@users_bp.route('/<int:user_id>/break', methods=['POST'])
+@jwt_required()
+def toggle_break(user_id):
+    """Toggle break status untuk staff IT"""
+    from app import db
+    from app.models.ticket import Ticket
+    from app.services.email_service import EmailService
+
+    current_user = get_current_user()
+
+    # Guard: hanya bisa toggle break sendiri atau admin
+    if current_user.id != user_id and current_user.role != 'Administrator':
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    user = User.query.get_or_404(user_id)
+
+    if user.is_on_break:
+        # END break: akumulasi durasi
+        if user.break_started_at:
+            break_start = user.break_started_at
+            if break_start.tzinfo is None:
+                break_start = break_start.replace(tzinfo=timezone.utc)
+            duration = (datetime.now(timezone.utc) - break_start).total_seconds()
+            user.total_break_seconds_today = (user.total_break_seconds_today or 0) + int(duration)
+        user.is_on_break = False
+        user.break_started_at = None
+    else:
+        # START break: catat waktu mulai + notifikasi tiket assigned
+        user.is_on_break = True
+        user.break_started_at = datetime.now(timezone.utc)
+
+        # Kirim email ke submitter tiket yang sedang assigned ke staff ini
+        assigned_tickets = Ticket.query.filter(
+            Ticket.assigned_to_id == user.id,
+            Ticket.status.notin_(['resolved', 'closed', 'completed']),
+            Ticket.receive_updates == True,
+            Ticket.submitter_email.isnot(None)
+        ).all()
+
+        for ticket in assigned_tickets:
+            try:
+                EmailService.send_staff_break_notification(ticket, user)
+            except Exception as e:
+                print(f"Email break notification failed: {e}")
+
+    db.session.commit()
+    return jsonify(user.to_dict()), 200

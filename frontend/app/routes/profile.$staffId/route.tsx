@@ -22,6 +22,7 @@ import {
   ArrowRight,
   Shield,
   Users,
+  Coffee,
 } from "lucide-react";
 import { Button } from "~/components/ui/button/button";
 import { getTickets, getAgents, type Ticket } from "~/services/ticket.service";
@@ -29,6 +30,7 @@ import { usersApi } from "~/services/api.service";
 import { requireAuth } from "~/services/session.service";
 import type { Route } from "./+types/route";
 import styles from "./style.module.css";
+
 
 export interface ProfileStaff {
   id: string | number;
@@ -101,6 +103,11 @@ export async function loader({ request, params }: Route.LoaderArgs) {
       avatarUrl: u.avatar_url,
       isActive: (u as any).is_active ?? true,
       updatedAt: (u as any).updated_at,
+      ...(((u as any).isOnBreak !== undefined) ? {
+        isOnBreak: (u as any).isOnBreak,
+        breakStartedAt: (u as any).breakStartedAt,
+        totalBreakSecondsToday: (u as any).totalBreakSecondsToday ?? 0,
+      } : {}),
     };
   } else {
     const a = agents.find((ag) => String(ag.id) === String(staffId));
@@ -292,6 +299,39 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
   const { session, staffId, staff, isAgent, tickets, performance } = loaderData as ProfileLoaderData;
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<"all" | "in-progress" | "assigned" | "pending" | "resolved" | "breached">("all");
+
+  // Break state — seeded from server data, updated optimistically on toggle
+  const [isOnBreak, setIsOnBreak] = useState<boolean>((staff as any)?.isOnBreak || false);
+  const [totalBreakSeconds, setTotalBreakSeconds] = useState<number>((staff as any)?.totalBreakSecondsToday || 0);
+  const [breakLoading, setBreakLoading] = useState(false);
+
+  // Only show break button for own profile and non-Management roles
+  const isSelf = String(session.userId) === String(staffId);
+  const canToggleBreak = isSelf && staff?.role !== 'Management';
+
+  const handleToggleBreak = async () => {
+    if (breakLoading) return;
+    setBreakLoading(true);
+    try {
+      const res = await usersApi.toggleBreak(String(staffId));
+      if (res.success && res.data) {
+        const updated = res.data as any;
+        setIsOnBreak(updated.isOnBreak ?? false);
+        setTotalBreakSeconds(updated.totalBreakSecondsToday ?? 0);
+      }
+    } catch (e) {
+      console.error('Toggle break failed:', e);
+    } finally {
+      setBreakLoading(false);
+    }
+  };
+
+  const formatBreakDuration = (seconds: number) => {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    return `${h}h ${m}m`;
+  };
+
 
   if (!staff) {
     return (
@@ -723,6 +763,56 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
             {quote.line2}&rdquo;
           </p>
         </div>
+
+        {/* Break Toggle — hanya tampil untuk profil sendiri (non-Management) */}
+        {canToggleBreak && (
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'flex-end',
+            gap: '8px',
+            marginTop: '16px',
+          }}>
+            <button
+              id="break-toggle-btn"
+              onClick={handleToggleBreak}
+              disabled={breakLoading}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '10px 20px',
+                borderRadius: '8px',
+                border: 'none',
+                cursor: breakLoading ? 'not-allowed' : 'pointer',
+                fontWeight: 600,
+                fontSize: '14px',
+                transition: 'all 0.2s ease',
+                background: isOnBreak
+                  ? 'linear-gradient(135deg, #10b981, #059669)'
+                  : 'linear-gradient(135deg, #f59e0b, #d97706)',
+                color: '#fff',
+                opacity: breakLoading ? 0.7 : 1,
+                boxShadow: isOnBreak
+                  ? '0 4px 12px rgba(16,185,129,0.35)'
+                  : '0 4px 12px rgba(245,158,11,0.35)',
+              }}
+            >
+              <Coffee style={{ width: 16, height: 16 }} />
+              {breakLoading ? 'Memproses...' : isOnBreak ? 'Selesai Break' : 'Mulai Break'}
+            </button>
+            <div style={{
+              fontSize: '12px',
+              color: 'rgba(255,255,255,0.65)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+            }}>
+              <Clock style={{ width: 12, height: 12 }} />
+              Total Break Hari Ini: <strong style={{ color: 'rgba(255,255,255,0.9)' }}>{formatBreakDuration(totalBreakSeconds)}</strong>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ─────────────────────────────────────────────

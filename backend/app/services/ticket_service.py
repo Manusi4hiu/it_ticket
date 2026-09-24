@@ -98,8 +98,11 @@ class TicketService:
     # Removed get_next_ticket_id as IDs are now auto-incrementing integers
 
     @staticmethod
-    def calculate_sla_status(sla_deadline, resolved_at=None, sla_paused_at=None):
-        """Calculate SLA status based on deadline and resolution time"""
+    def calculate_sla_status(sla_deadline, resolved_at=None, sla_paused_at=None, assigned_user=None):
+        """Calculate SLA status based on deadline and resolution time.
+        
+        SLA is frozen (paused) while the assigned staff is on break.
+        """
         if not sla_deadline:
             return 'good'
             
@@ -107,9 +110,10 @@ class TicketService:
         if sla_deadline.tzinfo is None:
             sla_deadline = sla_deadline.replace(tzinfo=timezone.utc)
         
-        # If resolved, compare deadline with resolution time instead of current time
-        # If paused, compare deadline with pause time
-        if resolved_at:
+        # Pause SLA bila staff break — gunakan break_started_at sebagai comparison time
+        if assigned_user and assigned_user.is_on_break and assigned_user.break_started_at:
+            comparison_time = assigned_user.break_started_at
+        elif resolved_at:
             comparison_time = resolved_at
         elif sla_paused_at:
             comparison_time = sla_paused_at
@@ -734,7 +738,7 @@ class TicketService:
                     ticket.collaborators.append(user)
 
         ticket.updated_at = datetime.now(timezone.utc)
-        ticket.sla_status = TicketService.calculate_sla_status(ticket.sla_deadline, ticket.resolved_at, ticket.sla_paused_at)
+        ticket.sla_status = TicketService.calculate_sla_status(ticket.sla_deadline, ticket.resolved_at, ticket.sla_paused_at, ticket.assigned_user)
         db.session.commit()
 
         # ── Notifikasi Admin Override (best-effort, tidak memblokir update):
@@ -1131,7 +1135,7 @@ class TicketService:
             ticket.resolved_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
         ticket.updated_at = datetime.now(timezone.utc)
-        ticket.sla_status = TicketService.calculate_sla_status(ticket.sla_deadline, ticket.resolved_at, ticket.sla_paused_at)
+        ticket.sla_status = TicketService.calculate_sla_status(ticket.sla_deadline, ticket.resolved_at, ticket.sla_paused_at, ticket.assigned_user)
         db.session.commit()
 
         if status.lower() == 'resolved' and old_status_name_snap.lower() != 'resolved':

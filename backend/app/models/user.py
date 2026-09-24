@@ -20,6 +20,11 @@ class User(db.Model):
     is_active = db.Column(db.Boolean, nullable=True, default=True)
     created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    # Break management
+    is_on_break = db.Column(db.Boolean, default=False)
+    break_started_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    total_break_seconds_today = db.Column(db.Integer, default=0)
     
     # Relationships
     assigned_tickets = db.relationship('Ticket', back_populates='assigned_user', foreign_keys='Ticket.assigned_to_id')
@@ -48,6 +53,9 @@ class User(db.Model):
             'is_active': self.is_active if self.is_active is not None else True,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            'isOnBreak': self.is_on_break or False,
+            'breakStartedAt': self.break_started_at.isoformat() if self.break_started_at else None,
+            'totalBreakSecondsToday': self.total_break_seconds_today or 0,
         }
     
     def __repr__(self):

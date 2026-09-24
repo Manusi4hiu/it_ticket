@@ -277,8 +277,14 @@ export function TicketActionsPanel({
               <SelectContent>
                 <SelectItem value="unassigned">Unassigned</SelectItem>
                 {agents.map((agent) => (
-                  <SelectItem key={agent.id} value={agent.name}>
-                    {agent.name}
+                  <SelectItem
+                    key={agent.id}
+                    value={agent.name}
+                    disabled={agent.isOnBreak === true}
+                  >
+                    {agent.isOnBreak
+                      ? `${agent.name} (Sedang Break)`
+                      : agent.name}
                   </SelectItem>
                 ))}
               </SelectContent>

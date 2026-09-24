@@ -342,4 +342,7 @@ export const usersApi = {
 
     toggleActive: async (id: string) =>
         apiRequest<{ success: boolean; user: User; message: string }>(`/users/${id}/toggle-active`, { method: 'PATCH' }),
+
+    toggleBreak: async (id: string) =>
+        apiRequest<User>(`/users/${id}/break`, { method: 'POST' }),
 };
