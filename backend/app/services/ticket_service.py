@@ -54,20 +54,46 @@ def _apply_window(query, window_ok, window_start_utc, window_end_utc):
 
 
 def _calculate_cohort_kpi(base_query, window_ok, window_start_utc, window_end_utc, done_status_names):
-    """Kartu Total/Open/Resolved dari tiket yang DIBUAT dalam jendela.
+    """Kartu Total/Open/Resolved untuk jendela periode.
+
+    - Total/Open: kohort tiket yang DIBUAT dalam jendela (Open = kohort yang
+      statusnya masih belum done).
+    - Resolved: tiket yang DISELESAIKAN (resolved_at) dalam jendela, TANPA
+      memandang tanggal dibuatnya — selaras dengan garis 'resolved' grafik
+      tren (_build_trend memakai resolved_at). Tiket lama yang diselesaikan
+      dalam periode ikut terhitung.
+    - Total = Open + Resolved: tiap tiket dibuat-dalam-jendela terhitung tepat
+      sekali (masih open -> Open; sudah done -> resolved-nya pasti di dalam
+      jendela karena resolve >= create), plus tiket lama yang selesai dalam
+      jendela. Selaras dengan grafik (created + resolved per hari).
+
+    Konsekuensi: Open + Resolved = Total selalu konsisten; Total mencakup
+    tiket di luar kohort yang diselesaikan dalam periode.
 
     Returns (total, resolved, open_count, cohort_q) — cohort_q None bila tanpa
-    jendela sehingga pemanggil fallback ke base_query. open + resolved = total
-    selalu konsisten.
+    jendela sehingga pemanggil fallback ke base_query.
     """
     if not window_ok:
         total = base_query.count()
         resolved = base_query.filter(db.func.lower(Ticket.status).in_(done_status_names)).count() if done_status_names else 0
         return total, resolved, total - resolved, None
     cohort_q = _apply_window(base_query, window_ok, window_start_utc, window_end_utc)
-    total = cohort_q.count()
-    resolved = cohort_q.filter(db.func.lower(Ticket.status).in_(done_status_names)).count() if done_status_names else 0
-    return total, resolved, total - resolved, cohort_q
+    if done_status_names:
+        open_count = cohort_q.filter(db.func.lower(Ticket.status).notin_(done_status_names)).count()
+        resolved = base_query.filter(
+            db.func.lower(Ticket.status).in_(done_status_names),
+            Ticket.resolved_at >= window_start_utc,
+            Ticket.resolved_at <= window_end_utc,
+        ).count()
+        # Total = Open + Resolved (union: tiap tiket terhitung tepat sekali —
+        # dibuat-dalam-jendela yang sudah done pasti resolved di dalam jendela
+        # karena resolve >= create; plus tiket lama selesai dalam jendela).
+        total = open_count + resolved
+    else:
+        total = cohort_q.count()
+        open_count = total
+        resolved = 0
+    return total, resolved, open_count, cohort_q
 
 
 def _build_trend(base_query, trend_days, tz):
@@ -93,6 +119,25 @@ def _build_trend(base_query, trend_days, tz):
             'resolved': resolved_on_day,
         })
     return trend
+
+def _auto_assign_resolver(ticket, actor):
+    """Auto-assign saat status berubah: tiap perubahan status ke non-New berarti
+    aktor mengambil alih/mengerjakan tiket -> tiket unassigned diisi assignee
+    = aktor. Tak ada tiket non-New yang unassigned (status hanya bisa berubah
+    lewat campur tangan user). Status New = pool, boleh unassigned.
+
+    Sengaja TIDAK menyentuh taken_at (awal pengerjaan tak diketahui;
+    avg resolution fallback ke created_at) dan sla_deadline. Management
+    dikecualikan (view-only, tak boleh jadi assignee).
+
+    Returns True bila assignment dilakukan.
+    """
+    if (ticket.assigned_to_id is None and actor is not None
+            and getattr(actor, 'role', None) != 'Management'):
+        ticket.assigned_to_id = actor.id
+        return True
+    return False
+
 
 class TicketService:
     # Removed get_next_ticket_id as IDs are now auto-incrementing integers
@@ -613,6 +658,19 @@ class TicketService:
             ticket.status = status
             if status.lower() in ['resolved', 'closed']:
                 ticket.resolved_at = datetime.now(timezone.utc)
+            # Auto-assign: tiap perubahan status ke non-New berarti aktor
+            # mengambil alih tiket — unassigned -> assignee = aktor.
+            # (Status New = pool, boleh unassigned.)
+            if (status_really_changed and str(status).strip().lower() != 'new'
+                    and _auto_assign_resolver(ticket, actor) and user_id):
+                ticket.notes.append(TicketNote(
+                    ticket_id=ticket.id,
+                    content=sanitize_html(
+                        f"<p><strong>Otomatis di-assign ke '{actor.full_name}' saat mengubah status ke '{status}'</strong></p>"
+                    ),
+                    author_id=user_id,
+                    is_internal=True
+                ))
 
         if 'priority' in data:
             priority_val = str(data['priority']).strip().lower()
@@ -691,7 +749,39 @@ class TicketService:
                         "Role Management tidak bisa menerima tiket (assignee) — Management bersifat view-only."
                     )
 
+            # Guard: lepas ke unassigned hanya bila status New (pool). Non-New
+            # berarti sedang dikerjakan — melepasnya diam-diam menghilangkan
+            # jejak pemegang tiket (silent unassign) sehingga dilarang.
+            if not new_assigned_id and ticket.status.lower() != 'new':
+                raise ValueError(
+                    f"Tiket dengan status '{ticket.status}' tidak bisa dilepas ke unassigned — "
+                    "hanya tiket New yang boleh unassigned."
+                )
+
             ticket.assigned_to_id = new_assigned_id
+
+            # Audit: tiap perubahan assignee via PUT dicatat agar Ticket History
+            # selalu menjelaskan siapa pemegang tiket (format dikenal parser
+            # history: transferred/taken/Assignee diganti).
+            if str(prev_assigned_id) != str(new_assigned_id) and user_id:
+                prev_user = User.query.get(prev_assigned_id) if prev_assigned_id else None
+                new_user = User.query.get(new_assigned_id) if new_assigned_id else None
+                prev_name = prev_user.full_name if prev_user else 'Unassigned'
+                if prev_user and new_user:
+                    assignee_note = f"<p><strong>Ticket transferred from {prev_name} to {new_user.full_name}</strong></p>"
+                elif new_user:
+                    assignee_note = f"<p><strong>Ticket taken by {new_user.full_name}</strong></p>"
+                else:
+                    assignee_note = f"<p><strong>Assignee diganti dari '{prev_name}' menjadi 'Unassigned'</strong></p>"
+                raw_reason = data.get('reason') or data.get('adminReason')
+                if raw_reason and str(raw_reason).strip():
+                    assignee_note += f"<p><em>Reason:</em> {sanitize_html(str(raw_reason).strip())}</p>"
+                ticket.notes.append(TicketNote(
+                    ticket_id=ticket.id,
+                    content=sanitize_html(assignee_note, allowed_tags=NOTE_ALLOWED_TAGS),
+                    author_id=user_id,
+                    is_internal=True
+                ))
             
             # If assigned, change status from 'new' to master-data 'Assigned'
             # (exact case — dropdown Select cocok string persis; lowercase bikin
@@ -944,6 +1034,8 @@ class TicketService:
             # bukan dilepas kembali ke pool New.
             if ticket.taken_at:
                 return None, "Tiket ini sudah pernah diambil dan tidak bisa dilepas kembali ke pool unassigned. Gunakan fitur oper (assign ke staff lain dengan alasan)."
+            if ticket.status.lower() != 'new':
+                return None, f"Tiket dengan status '{ticket.status}' tidak bisa dilepas ke unassigned — hanya tiket New yang boleh unassigned. Kembalikan statusnya ke New dulu bila memang belum dikerjakan."
             if ticket.status.lower() in ('resolved', 'closed', 'completed'):
                 return None, f"Ticket dengan status '{ticket.status}' tidak bisa diubah assigneenya. Ubah statusnya terlebih dahulu dari '{ticket.status}' ke status lain."
             ticket.assigned_to_id = None
@@ -1134,6 +1226,19 @@ class TicketService:
             # tetap catat waktu selesai agar statistik sinkron.
             ticket.resolved_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
+        # Auto-assign: tiap perubahan status ke non-New berarti aktor mengambil
+        # alih tiket — unassigned -> assignee = aktor. (Status New = pool.)
+        _status_moved = old_status_name_snap.lower() != str(status).strip().lower()
+        if (_status_moved and str(status).strip().lower() != 'new'
+                and _auto_assign_resolver(ticket, actor)):
+            TicketService.add_note(
+                ticket_id=ticket.id,
+                content=f"<p><strong>Otomatis di-assign ke '{actor.full_name}' saat mengubah status ke '{status}'</strong></p>",
+                author_id=user_id,
+                is_internal=True,
+                is_system_note=True
+            )
+
         ticket.updated_at = datetime.now(timezone.utc)
         ticket.sla_status = TicketService.calculate_sla_status(ticket.sla_deadline, ticket.resolved_at, ticket.sla_paused_at, ticket.assigned_user)
         db.session.commit()
@@ -1239,9 +1344,10 @@ class TicketService:
         def _in_window(query):
             return _apply_window(query, window_ok, window_start_utc, window_end_utc)
 
-        # Kohort KPI: kartu Total/Open/Resolved/Avg/SLA dihitung dari tiket yang
-        # DIBUAT dalam jendela (open/resolved = status terkini kohort tersebut,
-        # sehingga open + resolved = total dan persen selalu konsisten).
+        # Kohort KPI: kartu Total/Open dihitung dari tiket yang DIBUAT dalam
+        # jendela (open = kohort yang statusnya masih belum done). Kartu
+        # Resolved dihitung dari tiket yang DISELESAIKAN (resolved_at) dalam
+        # jendela tanpa memandang tanggal dibuatnya — selaras garis tren.
         total, resolved, open_count, cohort_q = _calculate_cohort_kpi(
             base_query, window_ok, window_start_utc, window_end_utc, done_status_names
         )
@@ -1292,10 +1398,16 @@ class TicketService:
             trend_days = []
         trend = _build_trend(base_query, trend_days, report_tz)
         
-        # Avg dihitung dari tiket selesai dalam kohort jendela bila window_ok
+        # Avg dihitung dari tiket yang DISELESAIKAN dalam jendela (resolved_at,
+        # selaras definisi kartu Resolved) — termasuk tiket lama yang selesai
+        # dalam periode. Tanpa jendela: seluruh tiket done (legacy).
         # (basis taken_at fallback created_at, sama seperti legacy).
         if window_ok:
-            resolved_all = _in_window(base_query).filter(db.func.lower(Ticket.status).in_(done_status_names)).all() if done_status_names else []
+            resolved_all = base_query.filter(
+                db.func.lower(Ticket.status).in_(done_status_names),
+                Ticket.resolved_at >= window_start_utc,
+                Ticket.resolved_at <= window_end_utc,
+            ).all() if done_status_names else []
         else:
             resolved_all_q = Ticket.query.filter(Ticket.category != DEV_CATEGORY).filter(db.func.lower(Ticket.status).in_(done_status_names))
             if user_id:

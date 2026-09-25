@@ -558,6 +558,116 @@
   color: #93c5fd;
 }
 
+/* ── Break log (kolom sendiri — Sisa + Status butuh ruang, anti-overflow) ─ */
+.breakScroll {
+  overflow-x: auto;
+}
+
+.breakHead,
+.breakRow {
+  display: grid;
+  grid-template-columns: 2.5rem minmax(0, 1.6fr) 3rem 4.8rem minmax(7rem, 8rem) 5.2rem;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.breakHead {
+  padding: 0.8rem 1rem;
+  background: #111c30;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #9ca3af;
+  border-bottom: 2px solid rgba(59, 130, 246, 0.4);
+  border-radius: 8px 8px 0 0;
+  white-space: nowrap;
+}
+
+.breakHeadNum {
+  text-align: right;
+  justify-self: end;
+}
+
+.breakNum {
+  text-align: right;
+  justify-self: end;
+}
+
+.breakHeadStatus {
+  text-align: right;
+  justify-self: end;
+}
+
+.breakRow {
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  font-size: 0.92rem;
+  color: #e5e7eb;
+}
+
+.breakRow:last-child {
+  border-bottom: 0;
+}
+
+.breakSisa {
+  white-space: nowrap;
+  text-align: right;
+  justify-self: end;
+  font-size: 0.85rem;
+}
+
+.breakStatus {
+  justify-self: end;
+}
+
+.breakPill {
+  white-space: nowrap;
+}
+
+.breakLogRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 6rem;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  font-size: 0.92rem;
+  color: #e5e7eb;
+}
+
+.breakLogRow:last-child {
+  border-bottom: 0;
+}
+
+/* Daftar sesi log di-scroll di dalam container sendiri (halaman tidak ikut
+   memanjang walau log-nya ratusan baris). */
+.breakLogScroll {
+  max-height: 420px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 0.25rem;
+}
+
+.breakLogScroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.breakLogScroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: 8px;
+}
+
+.breakLogScroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.breakLogDur {
+  white-space: nowrap;
+  text-align: right;
+  justify-self: end;
+}
+
 /* ── Motion (single, restrained) ────────── */
 .fade {
   animation: rise 0.35s ease-out;
@@ -660,5 +770,10 @@
 
   .staffEmail {
     display: none;
+  }
+
+  .breakHead,
+  .breakRow {
+    min-width: 660px;
   }
 }

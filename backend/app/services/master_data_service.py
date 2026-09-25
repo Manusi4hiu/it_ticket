@@ -1,5 +1,5 @@
 from app import db
-from app.models.master_data import Category, Priority, SLAPolicy, Department, Status
+from app.models.master_data import Category, Priority, SLAPolicy, Department, Status, BreakSetting
 from app.models.ticket import Ticket
 
 # Valid groups untuk mapping tombol segmented filter Tickets
@@ -342,3 +342,67 @@ class MasterDataService:
 
         db.session.commit()
         return True, None
+
+    # --- Break Setting (satu baris 'Default', dibuat otomatis) ---
+    @staticmethod
+    def get_break_setting():
+        setting = BreakSetting.query.filter_by(name='Default').first()
+        if not setting:
+            setting = BreakSetting(
+                name='Default', max_break_minutes=60,
+                daily_max_minutes=60, weekly_max_minutes=300,
+                monthly_max_minutes=1200,
+            )
+            db.session.add(setting)
+            db.session.commit()
+        # Backfill kolom periode bila DB lama belum punya nilai (migrasi belum jalan).
+        changed = False
+        for attr, default in (
+            ('daily_max_minutes', 60), ('weekly_max_minutes', 300),
+            ('monthly_max_minutes', 1200),
+        ):
+            if getattr(setting, attr, None) is None:
+                setattr(setting, attr, default)
+                changed = True
+        if getattr(setting, 'max_break_minutes', None) is None:
+            setting.max_break_minutes = 60
+            changed = True
+        if changed:
+            db.session.commit()
+        return setting
+
+    @staticmethod
+    def _parse_break_minutes(data, *keys):
+        for k in keys:
+            if k in data and data[k] is not None:
+                try:
+                    return int(data[k]), None
+                except (TypeError, ValueError):
+                    return None, f'{k} must be a number'
+        return None, None
+
+    @staticmethod
+    def update_break_setting(data):
+        setting = MasterDataService.get_break_setting()
+        field_map = (
+            ('max_break_minutes', 'maxBreakMinutes', 1, 1440),
+            ('daily_max_minutes', 'dailyMaxMinutes', 1, 1440),
+            ('weekly_max_minutes', 'weeklyMaxMinutes', 1, 10080),
+            ('monthly_max_minutes', 'monthlyMaxMinutes', 1, 43200),
+        )
+        for column, camel, minimum, maximum in field_map:
+            snake = column
+            minutes, err = MasterDataService._parse_break_minutes(data, camel, snake)
+            if err:
+                return None, err
+            if minutes is None:
+                continue
+            if minutes < minimum:
+                return None, f'{camel} must be >= {minimum}'
+            if minutes > maximum:
+                return None, f'{camel} maksimal {maximum}'
+            setattr(setting, column, minutes)
+        if 'description' in data:
+            setting.description = data['description']
+        db.session.commit()
+        return setting, None

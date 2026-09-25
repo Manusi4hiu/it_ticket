@@ -267,6 +267,26 @@ def reorder_statuses():
         db.session.rollback()
         return jsonify({'success': False, 'error': 'Failed to reorder statuses'}), 500
 
+# --- BREAK SETTING (satu baris, diubah admin) ---
+
+@settings_bp.route('/break', methods=['GET'])
+def get_break_setting():
+    setting = MasterDataService.get_break_setting()
+    return jsonify({'success': True, 'data': setting.to_dict()})
+
+@settings_bp.route('/break', methods=['PUT'])
+@admin_required
+def update_break_setting():
+    data = request.get_json()
+    if not data:
+         return jsonify({'success': False, 'error': 'No data provided'}), 400
+
+    setting, error = MasterDataService.update_break_setting(data)
+    if error:
+        return jsonify({'success': False, 'error': error}), 400
+
+    return jsonify({'success': True, 'data': setting.to_dict()})
+
 # --- SYSTEM LOGS ---
 
 @settings_bp.route('/logs', methods=['GET'])

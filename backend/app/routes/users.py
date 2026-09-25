@@ -3,7 +3,8 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.services.user_service import UserService
 from app.models.user import User
 from app.utils.permissions import admin_required, role_required, get_current_user
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta, date
+import calendar
 
 users_bp = Blueprint('users', __name__)
 
@@ -192,14 +193,64 @@ def toggle_break(user_id):
 
     user = User.query.get_or_404(user_id)
 
+    # Reset harian: total milik hari lama -> nolkan dulu (WIB = UTC+7, sama
+    # seperti _report_tz; tanpa zoneinfo agar jalan di Windows tanpa tzdata).
+    # NULL (data lama) dianggap milik hari ini agar riwayat tak terhapus.
+    today_wib = datetime.now(timezone(timedelta(hours=7))).date()
+    if user.break_total_date is None:
+        user.break_total_date = today_wib
+    elif user.break_total_date != today_wib:
+        user.total_break_seconds_today = 0
+        user.break_total_date = today_wib
+
+    from app.services.master_data_service import MasterDataService
+    max_minutes = MasterDataService.get_break_setting().max_break_minutes or 60
+
     if user.is_on_break:
-        # END break: akumulasi durasi
+        # END break: akumulasi durasi AKTUAL (tanpa cap) agar user tahu
+        # total waktu sebenarnya. Batas hanya dipakai untuk hitung sisa
+        # + notifikasi overtime, bukan untuk memotong total.
         if user.break_started_at:
             break_start = user.break_started_at
             if break_start.tzinfo is None:
                 break_start = break_start.replace(tzinfo=timezone.utc)
             duration = (datetime.now(timezone.utc) - break_start).total_seconds()
-            user.total_break_seconds_today = (user.total_break_seconds_today or 0) + int(duration)
+            actual = int(duration)
+            user.total_break_seconds_today = (user.total_break_seconds_today or 0) + actual
+            # Catat riwayat sesi (sumber agregasi harian/mingguan/bulanan).
+            try:
+                from app import db as _db
+                from app.models.master_data import BreakLog
+                try:
+                    BreakLog.__table__.create(_db.engine, checkfirst=True)
+                except Exception:
+                    pass
+                _db.session.add(BreakLog(
+                    user_id=user.id,
+                    started_at=break_start,
+                    ended_at=datetime.now(timezone.utc),
+                    duration_seconds=actual,
+                    log_date=today_wib,
+                ))
+            except Exception as log_err:
+                print(f"Break log insert failed: {log_err}")
+            # Notifikasi ke admin bila break melebihi batas (best-effort).
+            if actual > max_minutes * 60:
+                try:
+                    from app.services.notification_service import NotificationService
+                    admins = User.query.filter(
+                        User.role == 'Administrator', User.id != user.id
+                    ).all()
+                    over_min = int(duration) // 60
+                    for admin in admins:
+                        NotificationService.push(
+                            admin.id, None, 'break_overtime',
+                            'Break Melebihi Batas',
+                            f"{user.full_name} break {over_min} mnt (batas {max_minutes} mnt). "
+                            f"Total hari ini {((user.total_break_seconds_today or 0) // 60)} mnt.",
+                        )
+                except Exception as notif_err:
+                    print(f"Break overtime notification failed: {notif_err}")
         user.is_on_break = False
         user.break_started_at = None
     else:
@@ -222,4 +273,200 @@ def toggle_break(user_id):
                 print(f"Email break notification failed: {e}")
 
     db.session.commit()
-    return jsonify(user.to_dict()), 200
+    payload = user.to_dict()
+    payload['maxBreakMinutes'] = max_minutes
+    return jsonify(payload), 200
+
+
+def _break_period_range(period):
+    """Rentang tanggal WIB untuk agregasi break (Senin–Minggu, tgl 1–akhir)."""
+    today = datetime.now(timezone(timedelta(hours=7))).date()
+    p = (period or 'daily').lower()
+    if p == 'weekly':
+        start = today - timedelta(days=today.weekday())
+        end = start + timedelta(days=6)
+        return 'weekly', start, end
+    if p == 'monthly':
+        start = today.replace(day=1)
+        end = today.replace(day=calendar.monthrange(today.year, today.month)[1])
+        return 'monthly', start, end
+    return 'daily', today, today
+
+
+@users_bp.route('/break-summary', methods=['GET'])
+@role_required('Administrator', 'Management', 'Staff')
+def break_summary():
+    """Ringkasan pemakaian vs sisa break per staff per periode.
+
+    Query: ?period=daily|weekly|monthly (default daily).
+    - Admin/Management: semua user. Staff: hanya dirinya sendiri.
+    - used = SUM(break_logs.duration dalam rentang) + sesi berjalan (live).
+    - Fallback data lama: porsi hari ini dari total_break_seconds_today
+      ditambahkan bila belum (penuh/sebagian) tercatat di break_logs
+      (sesi sebelum tabel break_logs ada). Berlaku untuk SEMUA periode
+      yang memuat hari ini — bukan cuma daily.
+    """
+    from app import db
+    from app.models.master_data import BreakLog
+    from app.services.master_data_service import MasterDataService
+    try:
+        BreakLog.__table__.create(db.engine, checkfirst=True)
+    except Exception:
+        pass
+
+    current_user = get_current_user()
+    period, start_d, end_d = _break_period_range(request.args.get('period', 'daily'))
+
+    setting = MasterDataService.get_break_setting()
+    limits = {
+        'perSession': setting.max_break_minutes or 60,
+        'daily': setting.daily_max_minutes or 60,
+        'weekly': setting.weekly_max_minutes or 300,
+        'monthly': setting.monthly_max_minutes or 1200,
+    }
+    limit_minutes = limits.get(period, limits['daily'])
+
+    if current_user.role == 'Staff':
+        users = [current_user]
+    else:
+        users = User.query.order_by(User.full_name).all()
+
+    user_ids = [u.id for u in users]
+    sums = {}
+    counts = {}
+    if user_ids:
+        try:
+            rows = db.session.query(
+                BreakLog.user_id,
+                db.func.coalesce(db.func.sum(BreakLog.duration_seconds), 0),
+                db.func.count(BreakLog.id),
+            ).filter(
+                BreakLog.user_id.in_(user_ids),
+                BreakLog.log_date >= start_d,
+                BreakLog.log_date <= end_d,
+            ).group_by(BreakLog.user_id).all()
+            for uid, total, cnt in rows:
+                sums[uid] = int(total or 0)
+                counts[uid] = int(cnt or 0)
+        except Exception as agg_err:
+            print(f"Break summary aggregate failed: {agg_err}")
+
+    # Total tercatat hari ini per user (untuk fallback data lama).
+    # Untuk weekly/monthly perlu query tambahan karena `sums` di atas
+    # mencakup sepekan/sebulan, bukan khusus hari ini.
+    today = datetime.now(timezone(timedelta(hours=7))).date()
+    if period == 'daily':
+        today_sums = sums
+    else:
+        today_sums = {}
+        if user_ids:
+            try:
+                trows = db.session.query(
+                    BreakLog.user_id,
+                    db.func.coalesce(db.func.sum(BreakLog.duration_seconds), 0),
+                ).filter(
+                    BreakLog.user_id.in_(user_ids),
+                    BreakLog.log_date == today,
+                ).group_by(BreakLog.user_id).all()
+                for uid, total in trows:
+                    today_sums[uid] = int(total or 0)
+            except Exception as agg_err:
+                print(f"Break summary today-aggregate failed: {agg_err}")
+
+    now_utc = datetime.now(timezone.utc)
+    summary = []
+    for u in users:
+        used = sums.get(u.id, 0)
+        # Fallback data lama: total hari ini (kolom users) memuat sesi-sesi
+        # yang terjadi sebelum tabel break_logs ada. Tambahkan selisih yang
+        # belum tercatat agar weekly/monthly tidak "reset" dan sinkron
+        # dengan daily. (Bila log hari ini kosong → seluruh total; bila
+        # hari campuran → hanya selisihnya, anti double-count.)
+        legacy_today = 0
+        if (u.total_break_seconds_today or 0) > 0:
+            if u.break_total_date is None or u.break_total_date == today:
+                legacy_today = u.total_break_seconds_today or 0
+        if legacy_today:
+            today_logged = today_sums.get(u.id, 0)
+            if today_logged == 0:
+                used += legacy_today
+            elif legacy_today > today_logged:
+                used += legacy_today - today_logged
+        # Tambah sesi berjalan agar sisa live (khusus bila start masih dalam rentang).
+        live = 0
+        if u.is_on_break and u.break_started_at:
+            bs = u.break_started_at
+            if bs.tzinfo is None:
+                bs = bs.replace(tzinfo=timezone.utc)
+            live = max(0, int((now_utc - bs).total_seconds()))
+            bs_wib = (bs + timedelta(hours=7)).date()
+            if start_d <= bs_wib <= end_d:
+                used += live
+        summary.append({
+            'userId': u.id,
+            'userName': u.full_name,
+            'username': u.username,
+            'role': u.role,
+            'isOnBreak': bool(u.is_on_break),
+            'liveSeconds': live,
+            'usedSeconds': used,
+            'sessionsCount': counts.get(u.id, 0),
+            'limitMinutes': limit_minutes,
+            'remainingSeconds': limit_minutes * 60 - used,
+        })
+
+    summary.sort(key=lambda r: r['usedSeconds'], reverse=True)
+    return jsonify({
+        'success': True,
+        'period': period,
+        'range': {'start': start_d.isoformat(), 'end': end_d.isoformat()},
+        'limits': limits,
+        'limitMinutes': limit_minutes,
+        'summary': summary,
+    }), 200
+
+
+@users_bp.route('/break-logs', methods=['GET'])
+@role_required('Administrator', 'Management', 'Staff')
+def break_logs():
+    """Daftar sesi break (terbaru dulu). Query: ?period=daily|weekly|monthly&user_id=&limit=50."""
+    from app import db
+    from app.models.master_data import BreakLog
+    try:
+        BreakLog.__table__.create(db.engine, checkfirst=True)
+    except Exception:
+        pass
+
+    current_user = get_current_user()
+    period, start_d, end_d = _break_period_range(request.args.get('period', 'daily'))
+    try:
+        limit = max(1, min(200, int(request.args.get('limit', 50))))
+    except (TypeError, ValueError):
+        limit = 50
+
+    q = BreakLog.query.filter(BreakLog.log_date >= start_d, BreakLog.log_date <= end_d)
+    user_id = request.args.get('user_id')
+    if user_id:
+        try:
+            uid = int(user_id)
+        except (TypeError, ValueError):
+            return jsonify({'success': False, 'error': 'user_id tidak valid'}), 400
+        if current_user.role == 'Staff' and uid != current_user.id:
+            return jsonify({'success': False, 'error': 'Unauthorized'}), 403
+        q = q.filter(BreakLog.user_id == uid)
+    elif current_user.role == 'Staff':
+        q = q.filter(BreakLog.user_id == current_user.id)
+
+    try:
+        total = q.count()
+        logs = q.order_by(BreakLog.ended_at.desc()).limit(limit).all()
+        return jsonify({
+            'success': True,
+            'period': period,
+            'range': {'start': start_d.isoformat(), 'end': end_d.isoformat()},
+            'total': total,
+            'logs': [l.to_dict() for l in logs],
+        }), 200
+    except Exception as e:
+        print(f"Break logs query failed: {e}")
+        return jsonify({'success': True, 'period': period, 'total': 0, 'logs': []}), 200

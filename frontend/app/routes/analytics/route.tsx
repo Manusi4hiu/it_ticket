@@ -28,7 +28,8 @@ import styles from "./style.module.css";
 const autoColor = (index: number) =>
   `hsl(${Math.round((index * 137.508) % 360)}, 65%, 55%)`;
 
-// Periode tren: "7d" default (dipertahankan), "30d", atau quarter tahun berjalan.
+// Periode tren (jangkar kalender): "7d" = minggu berjalan Senin–Minggu,
+// "30d" = bulan berjalan tgl 1–akhir, atau quarter tahun berjalan.
 const RANGES = ["7d", "30d", "q1", "q2", "q3", "q4"] as const;
 type TrendRange = (typeof RANGES)[number];
 
@@ -46,14 +47,27 @@ function quarterBounds(q: number, now: Date) {
   return { start, end };
 }
 
-/** Batas N hari terakhir (termasuk hari ini) sebagai ISO YYYY-MM-DD. */
-function lastDaysBounds(n: number, now: Date) {
-  const pad = (n2: number) => String(n2).padStart(2, "0");
+/** Minggu berjalan Senin–Minggu (ISO YYYY-MM-DD). Stabil kapan pun dibuka:
+    besok tetap minggu yang sama sampai Senin berikutnya. Hari masa depan
+    dijepit backend (tren) / tak ada data (KPI) sehingga aman. */
+function weekBounds(now: Date) {
+  const pad = (n: number) => String(n).padStart(2, "0");
   const iso = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-  const endD = new Date(now);
-  const startD = new Date(now);
-  startD.setDate(startD.getDate() - (n - 1));
-  return { start: iso(startD), end: iso(endD) };
+  const monday = new Date(now);
+  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+  const sunday = new Date(monday);
+  sunday.setDate(sunday.getDate() + 6);
+  return { start: iso(monday), end: iso(sunday) };
+}
+
+/** Bulan berjalan tanggal 1–akhir (ISO YYYY-MM-DD). Sama seperti quarter:
+    jangkar kalender, bukan rolling tanggal. */
+function monthBounds(now: Date) {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const y = now.getFullYear();
+  const m = now.getMonth() + 1;
+  const lastDay = new Date(y, m, 0).getDate();
+  return { start: `${y}-${pad(m)}-01`, end: `${y}-${pad(m)}-${pad(lastDay)}` };
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
@@ -63,12 +77,14 @@ export async function loader({ request }: Route.LoaderArgs) {
   const range: TrendRange = (RANGES as readonly string[]).includes(raw) ? (raw as TrendRange) : "7d";
 
   // Jendela eksplisit per periode — HANYA untuk sub-page Overview (KPI kohort
-  // + tren). Distribution & Staff ranking selalu all-time (semua data, tanpa
+  // + tren). Jangkar kalender (bukan rolling): 7d = minggu berjalan
+  // Senin–Minggu, 30d = bulan berjalan tgl 1–akhir, q* = quarter kalender.
+  // Distribution & Staff ranking selalu all-time (semua data, tanpa
   // filter waktu), jadi diambil dari panggilan terpisah tanpa window.
   const now = new Date();
   const window =
-    range === "7d" ? lastDaysBounds(7, now)
-    : range === "30d" ? lastDaysBounds(30, now)
+    range === "7d" ? weekBounds(now)
+    : range === "30d" ? monthBounds(now)
     : quarterBounds(Number(range.slice(1)), now);
 
   const [stats, statsAll, agentsPerformance, categoriesRes, prioritiesRes, statusesRes, departmentsRes] = await Promise.all([
@@ -316,9 +332,9 @@ function AnalyticsBody({
     [agentsPerformance]
   );
 
-  // Kicker mengikuti periode aktif (default 7 hari dipertahankan).
+  // Kicker mengikuti periode aktif (jangkar kalender).
   const rangeKicker = useMemo(() => {
-    if (range === "30d") return "Helpdesk · Last 30 days";
+    if (range === "30d") return "Helpdesk · This month";
     if (range.startsWith("q")) {
       const q = Number(range.slice(1));
       const year = new Date().getFullYear();
@@ -327,7 +343,7 @@ function AnalyticsBody({
         new Date(year, mi, 1).toLocaleDateString("en-US", { month: "short" });
       return `Helpdesk · Q${q} ${year} · ${mon(sm)}–${mon(sm + 2)}`;
     }
-    return "Helpdesk · Last 7 days";
+    return "Helpdesk · This week";
   }, [range]);
 
   // Tren harian backend diagregasi per minggu (7 hari) untuk 30d/quarter agar
@@ -357,11 +373,11 @@ function AnalyticsBody({
     return out;
   }, [stats.trend, range]);
 
-  // Frasa periode untuk sub-judul panel ("in the last 30 days", "in Q3 2026").
+  // Frasa periode untuk sub-judul panel ("in this month", "in Q3 2026").
   const periodNoun = useMemo(() => {
-    if (range === "30d") return "the last 30 days";
+    if (range === "30d") return "this month";
     if (range.startsWith("q")) return `Q${range.slice(1)} ${new Date().getFullYear()}`;
-    return "the last 7 days";
+    return "this week";
   }, [range]);
   const trendTotals = useMemo(() => trendData.reduce(
     (s: { created: number; resolved: number }, d: any) => ({
@@ -430,10 +446,10 @@ function AnalyticsBody({
             <span className={styles.rangeLbl}>Period</span>
             <div className={styles.seg} role="tablist" aria-label="Trend period">
               {(RANGES as readonly TrendRange[]).map((r) => {
-                const label = r === "7d" ? "7D" : r === "30d" ? "30D" : r.toUpperCase();
-                const hint =
-                  r === "7d" ? "Last 7 days"
-                  : r === "30d" ? "Last 30 days"
+                const label = r === "7d" ? "7D" : r === "30d" ? "1M" : r.toUpperCase();
+                  const hint =
+                    r === "7d" ? "Minggu ini (Senin–Minggu)"
+                    : r === "30d" ? "Bulan ini (tanggal 1–akhir)"
                   : `Quarter ${r.slice(1)}, this year`;
                 return (
                   <button

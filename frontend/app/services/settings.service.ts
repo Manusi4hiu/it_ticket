@@ -41,6 +41,16 @@ export interface SLAPolicy {
     resolutionTimeHours: number;
 }
 
+export interface BreakSetting {
+    id: string;
+    name: string;
+    maxBreakMinutes: number;
+    dailyMaxMinutes: number;
+    weeklyMaxMinutes: number;
+    monthlyMaxMinutes: number;
+    description?: string;
+}
+
 export const settingsApi = {
     // Categories
     getCategories: async () => {
@@ -147,6 +157,16 @@ export const settingsApi = {
         return apiRequest<{ success: boolean; data: Status[] }>('/settings/statuses/reorder', {
             method: 'PUT',
             body: JSON.stringify({ order })
+        });
+    },
+    // Break Setting (satu baris)
+    getBreakSetting: async () => {
+        return apiRequest<{ success: boolean; data: BreakSetting }>('/settings/break');
+    },
+    updateBreakSetting: async (data: Partial<BreakSetting>) => {
+        return apiRequest<{ success: boolean; data: BreakSetting }>('/settings/break', {
+            method: 'PUT',
+            body: JSON.stringify(data)
         });
     },
     // System Logs

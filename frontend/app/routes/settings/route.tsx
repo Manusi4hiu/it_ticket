@@ -6,7 +6,8 @@ import {
     Flag,
     ArrowLeft,
     Building2,
-    ClipboardList
+    ClipboardList,
+    Coffee
 } from "lucide-react";
 import type { Route } from "./+types/route";
 import { requireRole } from "~/services/session.service";
@@ -72,6 +73,14 @@ export default function SettingsLayout() {
                     >
                         <ClipboardList size={18} />
                         Ticket Statuses
+                    </NavLink>
+
+                    <NavLink
+                        to="/settings/break"
+                        className={({ isActive }) => `${styles.navItem} ${isActive ? styles.navItemActive : ''}`}
+                    >
+                        <Coffee size={18} />
+                        Break Time Limit
                     </NavLink>
                 </nav>
             </aside>
