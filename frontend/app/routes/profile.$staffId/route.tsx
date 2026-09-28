@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router";
 import {
   Mail,
@@ -25,8 +25,17 @@ import {
   Coffee,
 } from "lucide-react";
 import { Button } from "~/components/ui/button/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "~/components/ui/dialog/dialog";
 import { getTickets, getAgents, type Ticket } from "~/services/ticket.service";
 import { usersApi } from "~/services/api.service";
+import { settingsApi } from "~/services/settings.service";
 import { requireAuth } from "~/services/session.service";
 import type { Route } from "./+types/route";
 import styles from "./style.module.css";
@@ -303,13 +312,55 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
   // Break state — seeded from server data, updated optimistically on toggle
   const [isOnBreak, setIsOnBreak] = useState<boolean>((staff as any)?.isOnBreak || false);
   const [totalBreakSeconds, setTotalBreakSeconds] = useState<number>((staff as any)?.totalBreakSecondsToday || 0);
+  const [breakStartedAt, setBreakStartedAt] = useState<string | null>((staff as any)?.breakStartedAt || null);
   const [breakLoading, setBreakLoading] = useState(false);
+  const [showEndBreakDialog, setShowEndBreakDialog] = useState(false);
+  const [maxBreakMinutes, setMaxBreakMinutes] = useState<number | null>(null);
+  // Detik berjalan untuk live elapsed timer (hanya saat on-break)
+  const [nowTick, setNowTick] = useState<number>(Date.now());
+
+  useEffect(() => {
+    if (!isOnBreak) return;
+    const t = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [isOnBreak]);
+
+  // Ambil batas break agar bisa hitung sisa waktu (best-effort, default 60)
+  // NOTE: apiRequest membungkus body backend satu level:
+  // res = { success, data: { success, data: setting } }
+  // jadi batas ada di res.data.data.maxBreakMinutes (lihat settings/break/route.tsx).
+  useEffect(() => {
+    let cancelled = false;
+    settingsApi.getBreakSetting()
+      .then((res: any) => {
+        const m = res?.data?.data?.maxBreakMinutes ?? res?.data?.maxBreakMinutes ?? res?.maxBreakMinutes ?? null;
+        if (!cancelled && typeof m === "number") setMaxBreakMinutes(m);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   // Only show break button for own profile and non-Management roles
   const isSelf = String(session.userId) === String(staffId);
   const canToggleBreak = isSelf && staff?.role !== 'Management';
 
-  const handleToggleBreak = async () => {
+  const handleToggleBreak = () => {
+    if (breakLoading) return;
+    // Berhenti wajib konfirmasi dulu via dialog (tidak langsung berhenti);
+    // mulai break tetap langsung jalan.
+    if (isOnBreak) {
+      setShowEndBreakDialog(true);
+      return;
+    }
+    void doToggleBreak();
+  };
+
+  const handleConfirmEndBreak = async () => {
+    setShowEndBreakDialog(false);
+    await doToggleBreak();
+  };
+
+  const doToggleBreak = async () => {
     if (breakLoading) return;
     setBreakLoading(true);
     try {
@@ -318,6 +369,9 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
         const updated = res.data as any;
         setIsOnBreak(updated.isOnBreak ?? false);
         setTotalBreakSeconds(updated.totalBreakSecondsToday ?? 0);
+        setBreakStartedAt(updated.breakStartedAt ?? null);
+        if (typeof updated.maxBreakMinutes === "number") setMaxBreakMinutes(updated.maxBreakMinutes);
+        setNowTick(Date.now());
       }
     } catch (e) {
       console.error('Toggle break failed:', e);
@@ -331,6 +385,29 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
     const m = Math.floor((seconds % 3600) / 60);
     return `${h}h ${m}m`;
   };
+
+  // Live elapsed: detik berjalan sejak breakStartedAt (server), tampil saat on-break
+  const liveElapsedSeconds = useMemo(() => {
+    if (!isOnBreak || !breakStartedAt) return 0;
+    const start = new Date(breakStartedAt).getTime();
+    if (!Number.isFinite(start)) return 0;
+    return Math.max(0, Math.floor((nowTick - start) / 1000));
+  }, [isOnBreak, breakStartedAt, nowTick]);
+
+  const formatLiveElapsed = (seconds: number) => {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
+  };
+
+  // Total live = akumulasi tersimpan + sesi berjalan (tampilkan waktu SEBENARNYA,
+  // tanpa cap). Sisa = batas - total live (bisa minus = kelebihan).
+  const liveTotalSeconds = totalBreakSeconds + liveElapsedSeconds;
+  const limitSeconds = (maxBreakMinutes ?? 60) * 60;
+  const remainingSeconds = limitSeconds - liveTotalSeconds;
+  const overtimeSeconds = Math.max(0, -remainingSeconds);
 
 
   if (!staff) {
@@ -809,10 +886,69 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
               gap: '4px',
             }}>
               <Clock style={{ width: 12, height: 12 }} />
-              Total Break Hari Ini: <strong style={{ color: 'rgba(255,255,255,0.9)' }}>{formatBreakDuration(totalBreakSeconds)}</strong>
+              Total Break Hari Ini: <strong style={{ color: 'rgba(255,255,255,0.9)' }}>{formatBreakDuration(liveTotalSeconds)}</strong>
             </div>
+            <div style={{
+              fontSize: '12px',
+              color: overtimeSeconds > 0 ? '#fca5a5' : 'rgba(255,255,255,0.65)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+            }}>
+              <Hourglass style={{ width: 12, height: 12 }} />
+              {overtimeSeconds > 0 ? (
+                <>Sisa: <strong>Habis</strong><span>• Lebih {formatBreakDuration(overtimeSeconds)} (batas {maxBreakMinutes ?? 60} mnt)</span></>
+              ) : (
+                <>Sisa Waktu Break: <strong style={{ color: 'rgba(255,255,255,0.9)' }}>{formatBreakDuration(remainingSeconds)}</strong><span>(batas {maxBreakMinutes ?? 60} mnt)</span></>
+              )}
+            </div>
+            {isOnBreak && breakStartedAt && (
+              <div style={{
+                fontSize: '12px',
+                color: '#6ee7b7',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                fontVariantNumeric: 'tabular-nums',
+              }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#10b981', display: 'inline-block' }} />
+                Berjalan: <strong>{formatLiveElapsed(liveElapsedSeconds)}</strong>
+              </div>
+            )}
           </div>
         )}
+
+        {/* Konfirmasi END break — durasi sesi tampil live (berdetak) supaya
+            disadari sebelum disimpan; tanpa klik "Ya, Akhiri" sesi tidak berhenti. */}
+        <Dialog
+          open={showEndBreakDialog}
+          onOpenChange={(open) => {
+            if (!open) setShowEndBreakDialog(false);
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                Break {formatBreakDuration(liveElapsedSeconds)} — akhiri?
+              </DialogTitle>
+              <DialogDescription>
+                Sesi ini berjalan {formatLiveElapsed(liveElapsedSeconds)}. Total
+                break hari ini akan menjadi {formatBreakDuration(liveTotalSeconds)}
+                {overtimeSeconds > 0
+                  ? ` (melebihi batas ${maxBreakMinutes ?? 60} mnt).`
+                  : "."}
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowEndBreakDialog(false)}>
+                Lanjut Break
+              </Button>
+              <Button onClick={handleConfirmEndBreak} disabled={breakLoading}>
+                Ya, Akhiri
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
 
       {/* ─────────────────────────────────────────────

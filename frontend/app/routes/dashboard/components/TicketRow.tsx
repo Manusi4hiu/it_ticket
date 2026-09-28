@@ -5,9 +5,12 @@
  * Memisahkan logika baris dari loop utama di route.tsx agar
  * lebih mudah dibaca dan dipelihara.
  *
- * Mendukung dua mode berdasarkan role:
- * - Administrator: dropdown inline untuk priority dan assignee, tombol delete
- * - Staff: tampilan read-only priority + assignee dengan tombol "Take" jika unassigned
+ * Dashboard = "tiket yang sedang saya pegang": priority & assignee tampil
+ * read-only untuk SEMUA role (termasuk Administrator) + tombol "Take" bila
+ * unassigned + tombol delete khusus admin. Pengubahan priority/assignee
+ * dengan dialog alasan hanya ada di halaman detail tiket — dropdown inline
+ * di sini sengaja dihapus karena perubahan ke-2+ / oper tiket WAJIB alasan
+ * di backend sehingga dropdown tanpa dialog selalu gagal diam-diam.
  */
 
 import { useNavigate } from "react-router";
@@ -15,15 +18,7 @@ import { Tag, Circle, UserCheck, Trash2 } from "lucide-react";
 import { Badge } from "~/components/ui/badge/badge";
 import { Button } from "~/components/ui/button/button";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "~/components/ui/select/select";
-import {
   assignTicket,
-  updateTicketPriority,
   type Ticket,
   type Agent,
 } from "~/services/ticket.service";
@@ -76,9 +71,7 @@ interface TicketRowProps {
  */
 export function TicketRow({
   ticket,
-  agents,
   statuses,
-  priorities,
   isAdministrator,
   session,
   onTicketUpdate,
@@ -129,104 +122,53 @@ export function TicketRow({
         </span>
       </td>
 
-      {/* Priority */}
+      {/* Priority — read-only untuk semua role (ubah via halaman detail) */}
       <td>
-        {isAdministrator ? (
-          <div onClick={(e) => e.stopPropagation()}>
-            <Select
-              value={ticket.priority.toLowerCase()}
-              onValueChange={async (val) => {
-                const updated = await updateTicketPriority(String(ticket.id), val);
-                if (updated) onTicketUpdate(updated);
-              }}
-            >
-              <SelectTrigger
-                className={`${styles.prioritySelect} ${getPriorityClass(
-                  ticket.priority.toLowerCase(),
-                  styles
-                )}`}
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {priorities.filter((p) => p.isActive !== false).map((p) => (
-                  <SelectItem key={p.id} value={p.name.toLowerCase()}>{p.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        ) : (
-          <span
-            className={`${styles.priorityBadge} ${getPriorityClass(
-              ticket.priority,
-              styles
-            )}`}
-          >
-            {ticket.priority}
-          </span>
-        )}
+        <span
+          className={`${styles.priorityBadge} ${getPriorityClass(
+            ticket.priority,
+            styles
+          )}`}
+        >
+          {ticket.priority}
+        </span>
       </td>
 
       {/* Submitter */}
       <td>{ticket.submitterName}</td>
 
-      {/* Assigned To */}
+      {/* Assigned To — read-only + tombol Take bila unassigned */}
       <td>
-        {isAdministrator ? (
-          <div onClick={(e) => e.stopPropagation()}>
-            <Select
-              value={String(ticket.assignedToId) || "unassigned"}
-              onValueChange={async (val) => {
-                const agentId = val === "unassigned" ? null : val;
-                const updated = await assignTicket(String(ticket.id), agentId);
-                if (updated) onTicketUpdate(updated);
-              }}
-            >
-              <SelectTrigger className={styles.assignSelect}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="unassigned">Unassigned</SelectItem>
-                {agents.map((a) => (
-                  <SelectItem key={a.id} value={String(a.id)}>
-                    {a.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        ) : (
-          <div className={styles.assigneeCell}>
-            {ticket.assignedTo ? (
-              <span className={styles.assignedName}>
-                <UserCheck style={{ width: "14px", height: "14px" }} />
-                {ticket.assignedTo}
-              </span>
-            ) : (
-              <div className={styles.takeAction}>
-                <span className={styles.unassignedText}>Unassigned</span>
-                {(session.userRole === "Staff" ||
-                  session.userRole === "Administrator") &&
-                  canTakeTicket(ticket.status) && (
-                  <Button
-                    size="sm"
-                    className={styles.miniTakeButton}
-                    onClick={async (e) => {
-                      e.stopPropagation();
-                      const updated = await assignTicket(
-                        String(ticket.id),
-                        session.userId
-                      );
-                      if (updated) onTicketUpdate(updated);
-                    }}
-                  >
-                    Take
-                  </Button>
-                )}
-              </div>
-            )}
-          </div>
-        )}
+        <div className={styles.assigneeCell}>
+          {ticket.assignedTo ? (
+            <span className={styles.assignedName}>
+              <UserCheck style={{ width: "14px", height: "14px" }} />
+              {ticket.assignedTo}
+            </span>
+          ) : (
+            <div className={styles.takeAction}>
+              <span className={styles.unassignedText}>Unassigned</span>
+              {(session.userRole === "Staff" ||
+                session.userRole === "Administrator") &&
+                canTakeTicket(ticket.status) && (
+                <Button
+                  size="sm"
+                  className={styles.miniTakeButton}
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    const updated = await assignTicket(
+                      String(ticket.id),
+                      session.userId
+                    );
+                    if (updated) onTicketUpdate(updated);
+                  }}
+                >
+                  Take
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
       </td>
 
       {/* Created At */}

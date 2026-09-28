@@ -25,6 +25,7 @@ class User(db.Model):
     is_on_break = db.Column(db.Boolean, default=False)
     break_started_at = db.Column(db.DateTime(timezone=True), nullable=True)
     total_break_seconds_today = db.Column(db.Integer, default=0)
+    break_total_date = db.Column(db.Date, nullable=True)  # hari milik total di atas (reset harian)
     
     # Relationships
     assigned_tickets = db.relationship('Ticket', back_populates='assigned_user', foreign_keys='Ticket.assigned_to_id')

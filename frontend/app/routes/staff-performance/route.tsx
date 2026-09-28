@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { ChevronRight } from "lucide-react";
 import {
@@ -14,6 +14,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { getAllAgentsPerformance, getTicketStats } from "~/services/ticket.service";
+import { usersApi } from "~/services/api.service";
 import { requireAuth } from "~/services/session.service";
 import type { Route } from "./+types/route";
 import styles from "./style.module.css";
@@ -55,7 +56,68 @@ function ChartTip({ active, payload, label }: any) {
 export default function StaffPerformance({ loaderData }: Route.ComponentProps) {
   const { session, agentsPerformance, stats } = loaderData;
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<"overview" | "analytics" | "leaderboard">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "analytics" | "leaderboard" | "break">("overview");
+  const [breakPeriod, setBreakPeriod] = useState<"daily" | "weekly" | "monthly">("daily");
+  const [breakSummary, setBreakSummary] = useState<Array<{
+    userId: number; userName: string; username: string; role: string;
+    isOnBreak: boolean; liveSeconds: number; usedSeconds: number;
+    sessionsCount: number; limitMinutes: number; remainingSeconds: number;
+  }> | null>(null);
+  const [breakRange, setBreakRange] = useState<{ start: string; end: string } | null>(null);
+  const [breakLimit, setBreakLimit] = useState<number | null>(null);
+  const [breakLogs, setBreakLogs] = useState<Array<{
+    id: number; userId: number; userName: string | null;
+    startedAt: string | null; endedAt: string | null;
+    durationSeconds: number; logDate: string | null;
+  }> | null>(null);
+  const [breakLogsTotal, setBreakLogsTotal] = useState<number | null>(null);
+  const [breakLoading, setBreakLoading] = useState(false);
+  const [breakError, setBreakError] = useState<string | null>(null);
+
+  // Sub-page Break: ringkasan pemakaian vs sisa per staff + seluruh sesi log
+  // (limit 200 = maks backend; list di-scroll di dalam container sendiri).
+  useEffect(() => {
+    if (activeTab !== "break") return;
+    let cancelled = false;
+    setBreakLoading(true);
+    setBreakError(null);
+    Promise.all([usersApi.getBreakSummary(breakPeriod), usersApi.getBreakLogs({ period: breakPeriod, limit: 200 })])
+      .then(([sumRes, logRes]) => {
+        if (cancelled) return;
+        if (sumRes.success && sumRes.data) {
+          const d = sumRes.data as any;
+          const body = d?.summary ? d : d?.data;
+          setBreakSummary(body?.summary ?? null);
+          setBreakRange(body?.range ?? null);
+          setBreakLimit(body?.limitMinutes ?? null);
+        } else {
+          setBreakError(sumRes.error || "Gagal memuat ringkasan break.");
+        }
+        if (logRes.success && logRes.data) {
+          const d = logRes.data as any;
+          const body = d?.logs ? d : d?.data;
+          setBreakLogs(body?.logs ?? null);
+          setBreakLogsTotal(typeof body?.total === "number" ? body.total : (body?.logs?.length ?? null));
+        }
+      })
+      .catch((e) => { if (!cancelled) setBreakError(e instanceof Error ? e.message : "Gagal memuat data break."); })
+      .finally(() => { if (!cancelled) setBreakLoading(false); });
+    return () => { cancelled = true; };
+  }, [activeTab, breakPeriod]);
+
+  const formatBreakHM = (seconds: number) => {
+    const s = Math.max(0, Math.round(seconds));
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    return `${h}h ${m}m`;
+  };
+
+  const formatBreakTime = (iso: string | null) => {
+    if (!iso) return "—";
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return "—";
+    return d.toLocaleString("id-ID", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  };
 
   // Calculate detailed staff statistics from agentsPerformance
   const staffStats = agentsPerformance.map((agent) => {
@@ -132,7 +194,7 @@ export default function StaffPerformance({ loaderData }: Route.ComponentProps) {
           <p className={styles.sub}>Who carries the load, how fast work closes, and where it stalls.</p>
         </div>
         <div className={styles.seg} role="tablist" aria-label="Performance views">
-          {(["overview", "analytics", "leaderboard"] as const).map((t) => (
+          {(["overview", "analytics", "leaderboard", "break"] as const).map((t) => (
             <button
               key={t}
               role="tab"
@@ -140,7 +202,7 @@ export default function StaffPerformance({ loaderData }: Route.ComponentProps) {
               className={activeTab === t ? styles.segOn : styles.segBtn}
               onClick={() => setActiveTab(t)}
             >
-              {t === "overview" ? "Overview" : t === "analytics" ? "Analytics" : "Leaderboard"}
+              {t === "overview" ? "Overview" : t === "analytics" ? "Analytics" : t === "leaderboard" ? "Leaderboard" : "Break"}
             </button>
           ))}
         </div>
@@ -327,6 +389,119 @@ export default function StaffPerformance({ loaderData }: Route.ComponentProps) {
             })}
           </div>
         </section>
+      )}
+
+      {activeTab === "break" && (
+        <div className={styles.fade}>
+          <section className={styles.panel}>
+            <div className={styles.panelHead}>
+              <div>
+                <h2 className={styles.panelTitle}>Break time log</h2>
+                <p className={styles.panelSub}>
+                  Pemakaian vs sisa per staff
+                  {breakRange ? ` · ${breakRange.start} s/d ${breakRange.end}` : ""}
+                  {breakLimit != null ? ` · batas ${breakLimit} mnt` : ""}
+                  {session && (session as any)?.userRole === "Staff" ? " · (akun Staff hanya melihat datanya sendiri)" : ""}
+                </p>
+              </div>
+              <div className={styles.seg} role="tablist" aria-label="Break period">
+                {(["daily", "weekly", "monthly"] as const).map((p) => (
+                  <button
+                    key={p}
+                    role="tab"
+                    aria-selected={breakPeriod === p}
+                    className={breakPeriod === p ? styles.segOn : styles.segBtn}
+                    onClick={() => setBreakPeriod(p)}
+                  >
+                    {p === "daily" ? "Harian" : p === "weekly" ? "Mingguan" : "Bulanan"}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {breakLoading && <p className={styles.panelSub}>Memuat data break…</p>}
+            {breakError && <p className={styles.panelSub} style={{ color: "#fca5a5" }}>{breakError}</p>}
+            {!breakLoading && !breakError && breakSummary && (
+              <div className={styles.breakScroll}>
+                <div className={styles.breakHead}>
+                  <span className={styles.rankH}>#</span>
+                  <span>Staff</span>
+                  <span className={`${styles.num} ${styles.breakHeadNum}`}>Sesi</span>
+                  <span className={`${styles.num} ${styles.breakHeadNum}`}>Dipakai</span>
+                  <span className={`${styles.num} ${styles.breakHeadNum}`}>Sisa</span>
+                  <span className={styles.breakHeadStatus}>Status</span>
+                </div>
+                <div>
+                  {breakSummary.length === 0 && (
+                    <p className={styles.panelSub}>Belum ada data break pada periode ini.</p>
+                  )}
+                  {breakSummary.map((row, index) => {
+                    const over = row.remainingSeconds < 0;
+                    return (
+                      <div key={row.userId} className={styles.breakRow}>
+                        <span className={styles.rank}>{String(index + 1).padStart(2, "0")}</span>
+                        <span className={styles.staffCell}>
+                          <span className={styles.avatar}>{(row.userName || "?").charAt(0)}</span>
+                          <span className={styles.staffMeta}>
+                            <span className={styles.staffName}>
+                              {row.userName}
+                              {row.isOnBreak && (
+                                <span style={{ marginLeft: 8, fontSize: 11, color: "#6ee7b7" }}>● on break</span>
+                              )}
+                            </span>
+                            <span className={styles.staffEmail}>{row.username} · {row.role}</span>
+                          </span>
+                        </span>
+                        <span className={`${styles.num} ${styles.big} ${styles.breakNum}`}>{row.sessionsCount}</span>
+                        <span className={`${styles.num} ${styles.breakNum}`}>{formatBreakHM(row.usedSeconds)}</span>
+                        <span className={`${styles.num} ${styles.breakSisa}`} style={{ color: over ? "#fca5a5" : undefined }}>
+                          {over ? `Habis (+${formatBreakHM(-row.remainingSeconds)})` : formatBreakHM(row.remainingSeconds)}
+                        </span>
+                        <span className={`${styles.num} ${styles.breakStatus}`}>
+                          <span className={`${styles.pill} ${styles.breakPill} ${row.isOnBreak ? styles.toneMid : over ? styles.toneBad : styles.toneGood}`}>
+                            <span className={styles.pillDot} />
+                            {row.isOnBreak ? "Break" : over ? "Over" : "Aman"}
+                          </span>
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.panelHead}>
+              <div>
+                <h2 className={styles.panelTitle}>Sesi log</h2>
+                <p className={styles.panelSub}>
+                  {breakLogsTotal != null ? `${breakLogsTotal} sesi` : "Log sesi break yang sudah END"}
+                  {breakRange ? ` · ${breakRange.start} s/d ${breakRange.end}` : ""}
+                  {" · terbaru dulu"}
+                </p>
+              </div>
+            </div>
+            {!breakLogs || breakLogs.length === 0 ? (
+              <p className={styles.panelSub}>Belum ada sesi break pada periode ini.</p>
+            ) : (
+              <div className={styles.breakLogScroll}>
+                {breakLogs.map((log) => (
+                  <div key={log.id} className={styles.breakLogRow}>
+                    <span className={styles.staffCell}>
+                      <span className={styles.staffMeta}>
+                        <span className={styles.staffName}>{log.userName || `User ${log.userId}`}</span>
+                        <span className={styles.staffEmail}>
+                          {formatBreakTime(log.startedAt)} → {formatBreakTime(log.endedAt)}
+                        </span>
+                      </span>
+                    </span>
+                    <span className={`${styles.num} ${styles.big} ${styles.breakLogDur}`}>{formatBreakHM(log.durationSeconds)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        </div>
       )}
     </div>
   );
