@@ -38,6 +38,7 @@ def get_agents():
             'email': u.email,
             'phone': u.phone,
             'isOnBreak': u.is_on_break or False,
+            'presenceStatus': u.presence_status or 'online',
         } for u in users]
     }), 200
 
@@ -213,9 +214,7 @@ def toggle_break(user_id):
     max_minutes = MasterDataService.get_break_setting().max_break_minutes or 60
 
     if user.is_on_break:
-        # END break: akumulasi durasi AKTUAL (tanpa cap) agar user tahu
-        # total waktu sebenarnya. Batas hanya dipakai untuk hitung sisa
-        # + notifikasi overtime, bukan untuk memotong total.
+        # END break: akumulasi durasi AKTUAL (tanpa cap)
         if user.break_started_at:
             break_start = user.break_started_at
             if break_start.tzinfo is None:
@@ -225,18 +224,16 @@ def toggle_break(user_id):
             user.total_break_seconds_today = (user.total_break_seconds_today or 0) + actual
             # Catat riwayat sesi (sumber agregasi harian/mingguan/bulanan).
             try:
-                db.session.add(BreakLog(
-                    user_id=user.id,
-                    started_at=break_start,
-                    ended_at=datetime.now(timezone.utc),
-                    duration_seconds=actual,
-                    log_date=today_wib,
-                ))
-                db.session.flush()  # Test insert sebelum commit
+                with db.session.begin_nested():
+                    db.session.add(BreakLog(
+                        user_id=user.id,
+                        started_at=break_start,
+                        ended_at=datetime.now(timezone.utc),
+                        duration_seconds=actual,
+                        log_date=today_wib,
+                    ))
             except Exception as log_err:
-                db.session.rollback()
                 logger.error(f"Break log insert failed: {log_err}")
-                # total_break_seconds_today tetap ter-update (best-effort tracking)
             # Notifikasi ke admin bila break melebihi batas (best-effort).
             if actual > max_minutes * 60:
                 try:
@@ -256,10 +253,19 @@ def toggle_break(user_id):
                     print(f"Break overtime notification failed: {notif_err}")
         user.is_on_break = False
         user.break_started_at = None
+        # Restore presence ke status sebelum break (simpan di break_pre_status),
+        # fallback ke 'online' kalau tidak ada.
+        restored = getattr(user, 'break_pre_status', None) or 'online'
+        # Pastikan nilai valid setelah restore
+        if restored not in ('online', 'idle', 'dnd', 'invisible'):
+            restored = 'online'
+        user.presence_status = restored
     else:
-        # START break: catat waktu mulai + notifikasi tiket assigned
+        # START break: simpan status saat ini lalu set ke 'break'
+        user.break_pre_status = user.presence_status or 'online'
         user.is_on_break = True
         user.break_started_at = datetime.now(timezone.utc)
+        user.presence_status = 'break'
 
         # Kirim email ke submitter tiket yang sedang assigned ke staff ini
         assigned_tickets = Ticket.query.filter(
@@ -279,6 +285,33 @@ def toggle_break(user_id):
     payload = user.to_dict()
     payload['maxBreakMinutes'] = max_minutes
     return jsonify(payload), 200
+
+
+@users_bp.route('/<int:user_id>/presence-status', methods=['PATCH'])
+@jwt_required()
+def set_presence_status(user_id):
+    """Set presence/availability status: online | idle | dnd | invisible"""
+    from app import db
+    current_user = get_current_user()
+
+    # Only self or admin can change status
+    if current_user.id != user_id and current_user.role != 'Administrator':
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({'error': 'User tidak ditemukan'}), 404
+
+    data = request.get_json()
+    status = (data or {}).get('status', '').lower()
+    # 'break' tidak bisa di-set manual — hanya via toggle break
+    VALID = {'online', 'idle', 'dnd', 'invisible'}
+    if status not in VALID:
+        return jsonify({'error': f'Status tidak valid. Gunakan: {sorted(VALID)}'}), 400
+
+    user.presence_status = status
+    db.session.commit()
+    return jsonify({'success': True, 'presenceStatus': user.presence_status}), 200
 
 
 def _break_period_range(period):

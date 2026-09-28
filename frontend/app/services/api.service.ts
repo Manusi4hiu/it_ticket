@@ -367,6 +367,12 @@ export const usersApi = {
             }>;
         }>(`/users/break-summary?period=${period}`),
 
+    setPresenceStatus: async (id: string | number, status: 'online' | 'idle' | 'dnd' | 'invisible') =>
+        apiRequest<{ success: boolean; presenceStatus: string }>(`/users/${id}/presence-status`, {
+            method: 'PATCH',
+            body: JSON.stringify({ status }),
+        }),
+
     getBreakLogs: async (params?: { period?: string; user_id?: string | number; limit?: number }) => {
         const qs = new URLSearchParams();
         if (params?.period) qs.set('period', params.period);

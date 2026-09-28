@@ -39,6 +39,8 @@ interface TicketRowProps {
   isAdministrator: boolean;
   /** Role dan userId dari session aktif */
   session: { userRole: string; userId: string };
+  /** True jika user yang login saat ini sedang break */
+  currentUserIsOnBreak?: boolean;
   /** Callback setelah ticket diupdate (assign/priority change) */
   onTicketUpdate: (updated: Ticket) => void;
   /** Callback setelah ticket dihapus */
@@ -74,6 +76,7 @@ export function TicketRow({
   statuses,
   isAdministrator,
   session,
+  currentUserIsOnBreak,
   onTicketUpdate,
   onTicketDelete,
 }: TicketRowProps) {
@@ -154,6 +157,9 @@ export function TicketRow({
                 <Button
                   size="sm"
                   className={styles.miniTakeButton}
+                  disabled={currentUserIsOnBreak}
+                  title={currentUserIsOnBreak ? "Tidak bisa ambil tiket saat sedang break" : ""}
+                  style={currentUserIsOnBreak ? { filter: 'brightness(0.6)', cursor: 'not-allowed' } : {}}
                   onClick={async (e) => {
                     e.stopPropagation();
                     const updated = await assignTicket(

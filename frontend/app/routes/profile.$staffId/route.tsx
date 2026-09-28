@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router";
 import {
   Mail,
@@ -23,6 +24,7 @@ import {
   Shield,
   Users,
   Coffee,
+  ChevronDown,
 } from "lucide-react";
 import { Button } from "~/components/ui/button/button";
 import {
@@ -52,6 +54,7 @@ export interface ProfileStaff {
   avatarUrl?: string | null;
   isActive?: boolean;
   updatedAt?: string | null;
+  presenceStatus?: 'online' | 'idle' | 'dnd' | 'invisible';
 }
 
 export type ProfileLoaderData = {
@@ -112,6 +115,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
       avatarUrl: u.avatar_url,
       isActive: (u as any).is_active ?? true,
       updatedAt: (u as any).updated_at,
+      presenceStatus: (u as any).presenceStatus ?? 'online',
       ...(((u as any).isOnBreak !== undefined) ? {
         isOnBreak: (u as any).isOnBreak,
         breakStartedAt: (u as any).breakStartedAt,
@@ -319,6 +323,59 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
   // Detik berjalan untuk live elapsed timer (hanya saat on-break)
   const [nowTick, setNowTick] = useState<number>(Date.now());
 
+  // Presence / availability status (Discord-style)
+  type PresenceStatus = 'online' | 'idle' | 'dnd' | 'invisible' | 'break';
+  const [presenceStatus, setPresenceStatusState] = useState<PresenceStatus>(
+    (staff?.presenceStatus as PresenceStatus) ?? 'online'
+  );
+  const [presenceLoading, setPresenceLoading] = useState(false);
+  const [presenceDropdownOpen, setPresenceDropdownOpen] = useState(false);
+  const presenceBtnRef = useRef<HTMLButtonElement>(null);
+  const [presenceDropdownPos, setPresenceDropdownPos] = useState<{ top: number; left: number } | null>(null);
+
+  // Semua opsi termasuk 'break' (break tidak bisa dipilih manual)
+  const PRESENCE_OPTIONS: { value: PresenceStatus; label: string; color: string; desc: string; autoOnly?: boolean }[] = [
+    { value: 'online',    label: 'Online',         color: '#22c55e', desc: 'Tersedia & aktif' },
+    { value: 'idle',      label: 'Idle',           color: '#f59e0b', desc: 'Jauh dari keyboard' },
+    { value: 'dnd',       label: 'Do Not Disturb', color: '#ef4444', desc: 'Notifikasi dibisukan' },
+    { value: 'invisible', label: 'Invisible',      color: '#94a3b8', desc: 'Tampil offline' },
+    { value: 'break',     label: 'Break',          color: '#fb923c', desc: 'Sedang istirahat', autoOnly: true },
+  ];
+
+  const handleSetPresence = useCallback(async (status: PresenceStatus) => {
+    if (presenceLoading || status === 'break') return; // break hanya via toggle break
+    setPresenceDropdownOpen(false);
+    setPresenceStatusState(status); // optimistic
+    setPresenceLoading(true);
+    try {
+      await usersApi.setPresenceStatus(String(staffId), status as Exclude<PresenceStatus, 'break'>);
+    } catch (e) {
+      console.error('Set presence failed:', e);
+      setPresenceStatusState((staff?.presenceStatus as PresenceStatus) ?? 'online');
+    } finally {
+      setPresenceLoading(false);
+    }
+  }, [presenceLoading, staffId, staff?.presenceStatus]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    if (!presenceDropdownOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (presenceBtnRef.current && presenceBtnRef.current.contains(e.target as Node)) {
+        return;
+      }
+      setPresenceDropdownOpen(false);
+    };
+    // small delay to avoid same-click immediate triggering
+    const t = setTimeout(() => {
+      document.addEventListener('click', handler);
+    }, 0);
+    return () => {
+      clearTimeout(t);
+      document.removeEventListener('click', handler);
+    };
+  }, [presenceDropdownOpen]);
+
   useEffect(() => {
     if (!isOnBreak) return;
     const t = setInterval(() => setNowTick(Date.now()), 1000);
@@ -372,6 +429,10 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
         setBreakStartedAt(updated.breakStartedAt ?? null);
         if (typeof updated.maxBreakMinutes === "number") setMaxBreakMinutes(updated.maxBreakMinutes);
         setNowTick(Date.now());
+        // Sync presence status dari respons server
+        if (updated.presenceStatus) {
+          setPresenceStatusState(updated.presenceStatus as PresenceStatus);
+        }
       }
     } catch (e) {
       console.error('Toggle break failed:', e);
@@ -383,7 +444,15 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
   const formatBreakDuration = (seconds: number) => {
     const h = Math.floor(seconds / 3600);
     const m = Math.floor((seconds % 3600) / 60);
-    return `${h}h ${m}m`;
+    const s = Math.floor(seconds % 60);
+    return h > 0 ? `${h}h ${m}m ${s}s` : `${m}m ${s}s`;
+  };
+
+  const formatRemainingDuration = (seconds: number) => {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = Math.floor(seconds % 60);
+    return h > 0 ? `${h}h ${m}m ${s}s` : `${m}m ${s}s`;
   };
 
   // Live elapsed: detik berjalan sejak breakStartedAt (server), tampil saat on-break
@@ -795,18 +864,43 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
           ───────────────────────────────────────────── */}
       <div className={styles.heroCard}>
         <div className={styles.heroLeft}>
-          {staff.avatarUrl ? (
-            <img
-              src={staff.avatarUrl}
-              alt={staff.name}
-              className={styles.avatarCircle}
-              style={{ objectFit: "cover" }}
-            />
-          ) : (
-            <div className={styles.avatarCircle}>
-              {staff.name ? staff.name.charAt(0).toUpperCase() : staff.username ? staff.username.charAt(0).toUpperCase() : "U"}
-            </div>
-          )}
+          {/* Avatar + presence dot */}
+          <div style={{ position: 'relative', flexShrink: 0 }}>
+            {staff.avatarUrl ? (
+              <img
+                src={staff.avatarUrl}
+                alt={staff.name}
+                className={styles.avatarCircle}
+                style={{ objectFit: "cover" }}
+              />
+            ) : (
+              <div className={styles.avatarCircle}>
+                {staff.name ? staff.name.charAt(0).toUpperCase() : staff.username ? staff.username.charAt(0).toUpperCase() : "U"}
+              </div>
+            )}
+            {/* Presence status dot */}
+            {(() => {
+              const opt = PRESENCE_OPTIONS.find(o => o.value === presenceStatus) ?? PRESENCE_OPTIONS[0];
+              return (
+                <span
+                  title={opt.label}
+                  style={{
+                    position: 'absolute',
+                    bottom: 4,
+                    right: 4,
+                    width: 16,
+                    height: 16,
+                    borderRadius: '50%',
+                    background: opt.color,
+                    border: '2.5px solid #0a0f1e',
+                    boxShadow: `0 0 6px ${opt.color}99`,
+                    display: 'block',
+                    transition: 'background 0.3s',
+                  }}
+                />
+              );
+            })()}
+          </div>
 
           <div className={styles.heroDetails}>
             <div className={styles.nameRow}>
@@ -815,6 +909,122 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
                 {staff.role === "Staff" ? "IT Support Staff" : staff.role || "IT Support Staff"}
               </span>
             </div>
+
+            {/* Presence status selector — only for own profile */}
+            {isSelf && (() => {
+              const current = PRESENCE_OPTIONS.find(o => o.value === presenceStatus) ?? PRESENCE_OPTIONS[0];
+              const isBreakStatus = presenceStatus === 'break' || isOnBreak;
+              return (
+                <div
+                  style={{ position: 'relative', display: 'inline-block' }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <button
+                    ref={presenceBtnRef}
+                    id="presence-status-btn"
+                    onClick={() => {
+                      if (isBreakStatus) return;
+                      if (!presenceDropdownOpen) {
+                        const rect = presenceBtnRef.current?.getBoundingClientRect();
+                        if (rect) setPresenceDropdownPos({ top: rect.bottom + 6, left: rect.left });
+                      }
+                      setPresenceDropdownOpen(prev => !prev);
+                    }}
+                    disabled={presenceLoading || isBreakStatus}
+                    title={isBreakStatus ? 'Status diatur otomatis saat break' : 'Atur status kehadiran'}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      background: 'rgba(255,255,255,0.07)',
+                      border: `1px solid ${current.color}55`,
+                      borderRadius: '20px',
+                      padding: '4px 12px 4px 8px',
+                      cursor: (presenceLoading || isBreakStatus) ? 'not-allowed' : 'pointer',
+                      color: '#f1f5f9',
+                      fontSize: '13px',
+                      fontWeight: 500,
+                      transition: 'all 0.2s',
+                      opacity: presenceLoading ? 0.6 : 1,
+                    }}
+                  >
+                    <span style={{
+                      width: 10,
+                      height: 10,
+                      borderRadius: '50%',
+                      background: current.color,
+                      boxShadow: `0 0 5px ${current.color}aa`,
+                      flexShrink: 0,
+                      transition: 'background 0.3s',
+                    }} />
+                    {current.label}
+                    {!isBreakStatus && <ChevronDown style={{ width: 12, height: 12, opacity: 0.7 }} />}
+                  </button>
+
+                  {/* Dropdown pakai Portal agar keluar sepenuhnya dari stack styling container (escape backdrop-filter) */}
+                  {presenceDropdownOpen && !isBreakStatus && presenceDropdownPos && typeof document !== 'undefined' && createPortal(
+                    <div
+                      style={{
+                        position: 'fixed',
+                        top: presenceDropdownPos.top,
+                        left: presenceDropdownPos.left,
+                        zIndex: 9999,
+                        background: 'rgba(10, 15, 35, 0.97)',
+                        border: '1px solid rgba(59,130,246,0.25)',
+                        borderRadius: '12px',
+                        padding: '6px',
+                        minWidth: '220px',
+                        backdropFilter: 'blur(16px)',
+                        boxShadow: '0 12px 32px rgba(0,0,0,0.6)',
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {PRESENCE_OPTIONS.filter(o => !o.autoOnly).map(opt => (
+                        <button
+                          key={opt.value}
+                          onClick={() => handleSetPresence(opt.value)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            width: '100%',
+                            padding: '8px 10px',
+                            background: presenceStatus === opt.value ? 'rgba(255,255,255,0.08)' : 'transparent',
+                            border: 'none',
+                            borderRadius: '8px',
+                            cursor: 'pointer',
+                            color: '#f1f5f9',
+                            textAlign: 'left',
+                            transition: 'background 0.15s',
+                          }}
+                          onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.12)')}
+                          onMouseLeave={e => (e.currentTarget.style.background = presenceStatus === opt.value ? 'rgba(255,255,255,0.08)' : 'transparent')}
+                        >
+                          <span style={{
+                            width: 11,
+                            height: 11,
+                            borderRadius: '50%',
+                            background: opt.color,
+                            flexShrink: 0,
+                            boxShadow: `0 0 4px ${opt.color}88`,
+                          }} />
+                          <div>
+                            <div style={{ fontSize: '13px', fontWeight: 600 }}>{opt.label}</div>
+                            <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.45)', marginTop: '1px' }}>{opt.desc}</div>
+                          </div>
+                          {presenceStatus === opt.value && (
+                            <span style={{ marginLeft: 'auto', color: opt.color, fontSize: '16px' }}>✓</span>
+                          )}
+                        </button>
+                      ))}
+                    </div>,
+                    document.body
+                  )}
+                </div>
+              );
+            })()}
+
+
 
             <div className={styles.contactRow}>
               <div className={styles.contactItem}>
@@ -897,9 +1107,9 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
             }}>
               <Hourglass style={{ width: 12, height: 12 }} />
               {overtimeSeconds > 0 ? (
-                <>Sisa: <strong>Habis</strong><span>• Lebih {formatBreakDuration(overtimeSeconds)} (batas {maxBreakMinutes ?? 60} mnt)</span></>
+                <>Sisa: <strong>Habis</strong><span>• Lebih {formatRemainingDuration(overtimeSeconds)} (batas {maxBreakMinutes ?? 60} mnt)</span></>
               ) : (
-                <>Sisa Waktu Break: <strong style={{ color: 'rgba(255,255,255,0.9)' }}>{formatBreakDuration(remainingSeconds)}</strong><span>(batas {maxBreakMinutes ?? 60} mnt)</span></>
+                <>Sisa Waktu Break: <strong style={{ color: 'rgba(255,255,255,0.9)' }}>{formatRemainingDuration(remainingSeconds)}</strong><span>(batas {maxBreakMinutes ?? 60} mnt)</span></>
               )}
             </div>
             {isOnBreak && breakStartedAt && (
