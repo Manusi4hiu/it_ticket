@@ -4,18 +4,22 @@ from app.models.user import User
 from app.models.master_data import Department, Status, Priority, Category, SLAPolicy
 from app.utils.logging import log_activity
 from app.utils.security import sanitize_html, NOTE_ALLOWED_TAGS
+from app.utils.report_tz import report_tz
 from datetime import datetime, timedelta, timezone
-from zoneinfo import ZoneInfo
+import logging
 from flask import current_app, has_app_context
 from app.constants import DEV_CATEGORY
 
+logger = logging.getLogger(__name__)
+
 def _report_tz():
     """Zona waktu pelaporan (batas hari grafik/analytics).
-    
-    Hardcode WIB (UTC+7) karena time server berbeda dengan timezone user.
-    Consistency lebih penting daripada flexibility untuk multi-timezone.
+
+    Didelegasikan ke app.utils.report_tz supaya satu sumber kebenaran dengan
+    routes/users.py. Hardcode WIB (UTC+7) karena time server berbeda dengan
+    timezone user; consistency lebih penting untuk multi-timezone.
     """
-    return timezone(timedelta(hours=7))
+    return report_tz()
 
 
 def _parse_window_bounds(start, end, days, tz):
@@ -194,7 +198,7 @@ class TicketService:
             if names:
                 return names
         except Exception as e:
-            print(f"Error loading active priorities: {e}")
+            logger.error("Error loading active priorities: %s", e, exc_info=True)
         return {'critical', 'high', 'medium', 'low'}
 
     @staticmethod
@@ -222,7 +226,7 @@ class TicketService:
             if p_obj and p_obj.sla_hours:
                 return p_obj.sla_hours
         except Exception as e:
-            print(f"Error resolving dynamic SLA hours: {e}")
+            logger.error("Error resolving dynamic SLA hours: %s", e, exc_info=True)
 
         # Hardcoded defaults fallback
         sla_hours_map = {'critical': 4, 'high': 8, 'medium': 24, 'low': 48}
@@ -420,9 +424,9 @@ class TicketService:
                     existing = Ticket.query.filter_by(idempotency_key=idempotency_key).first()
                     if existing:
                         return existing
-                print(f"Duplicate entry detected: {error_msg}")
+                logger.error("Duplicate entry detected: %s", error_msg)
             
-            print(f"Transaction failed: {str(e)}")
+            logger.error("Transaction failed: %s", e, exc_info=True)
             raise e
 
     @staticmethod
@@ -877,7 +881,7 @@ class TicketService:
                 db.session.commit()
             except Exception as notif_err:
                 db.session.rollback()
-                print(f"Admin override notification failed: {notif_err}")
+                logger.error("Admin override notification failed: %s", notif_err, exc_info=True)
 
         return ticket
 
@@ -1027,7 +1031,7 @@ class TicketService:
                 else:
                     NotificationService.notify_assigned(ticket, user, transfer_reason if is_transfer else None)
             except Exception as notif_err:
-                print(f"Notification push failed: {notif_err}")
+                logger.error("Notification push failed: %s", notif_err, exc_info=True)
         else:
             # Un-assign: hanya boleh untuk tiket yang BELUM PERNAH diambil
             # (taken_at kosong). Tiket yang sudah pernah diambil harus dioper,
@@ -1249,7 +1253,7 @@ class TicketService:
                     from app.services.email_service import EmailService
                     EmailService.send_ticket_resolved(ticket)
                 except Exception as e:
-                    print(f"Failed to send resolved email: {e}")
+                    logger.error("Failed to send resolved email: %s", e, exc_info=True)
 
         # ── Notifikasi Admin Override (via endpoint /status):
         # Admin mengubah status tiket milik staff -> alasan dikirim ke PEMILIK tiket.
@@ -1263,7 +1267,7 @@ class TicketService:
                 db.session.commit()
             except Exception as notif_err:
                 db.session.rollback()
-                print(f"Admin override notification failed: {notif_err}")
+                logger.error("Admin override notification failed: %s", notif_err, exc_info=True)
 
         return ticket
 

@@ -9,3 +9,5 @@ bcrypt==4.1.2
 marshmallow==3.20.1
 gunicorn==21.2.0
 bleach==6.1.0
+tzdata==2025.2
+pytest==9.1.1

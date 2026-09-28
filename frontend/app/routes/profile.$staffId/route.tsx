@@ -39,6 +39,7 @@ import { settingsApi } from "~/services/settings.service";
 import { requireAuth } from "~/services/session.service";
 import type { Route } from "./+types/route";
 import styles from "./style.module.css";
+import { useToast } from "~/hooks/use-toast";
 
 
 export interface ProfileStaff {
@@ -307,6 +308,7 @@ function getRoleQuote(role: string | undefined) {
 export default function StaffProfile({ loaderData }: Route.ComponentProps) {
   const { session, staffId, staff, isAgent, tickets, performance } = loaderData as ProfileLoaderData;
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<"all" | "in-progress" | "assigned" | "pending" | "resolved" | "breached">("all");
 
   // Break state — seeded from server data, updated optimistically on toggle
@@ -372,9 +374,25 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
         setBreakStartedAt(updated.breakStartedAt ?? null);
         if (typeof updated.maxBreakMinutes === "number") setMaxBreakMinutes(updated.maxBreakMinutes);
         setNowTick(Date.now());
+      } else {
+        // apiRequest tidak melempar exception; kegagalan HTTP dikembalikan
+        // sebagai { success: false, error }. Tanpa cabang ini, kegagalan
+        // dilewati diam-diam dan user hanya melihat tombol kembali normal.
+        const message = res.error || "Gagal mengubah status break.";
+        console.error("Toggle break failed:", message);
+        toast({
+          title: "Gagal mengubah status break",
+          description: message,
+          variant: "destructive",
+        });
       }
     } catch (e) {
-      console.error('Toggle break failed:', e);
+      console.error("Toggle break failed:", e);
+      toast({
+        title: "Gagal mengubah status break",
+        description: e instanceof Error ? e.message : "Terjadi kesalahan tak terduga.",
+        variant: "destructive",
+      });
     } finally {
       setBreakLoading(false);
     }

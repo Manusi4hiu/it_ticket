@@ -40,7 +40,10 @@ class SystemLog(db.Model):
             try:
                 metadata = json.loads(self.metadata_json)
             except json.JSONDecodeError:
-                print(f"[WARN] Invalid metadata_json for log {self.id}: not valid JSON")
+                import logging as _logging
+                _logging.getLogger(__name__).warning(
+                    "Invalid metadata_json for log %s: not valid JSON", self.id
+                )
                 metadata = None
                 
         return {

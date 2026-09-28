@@ -3,10 +3,13 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.services.user_service import UserService
 from app.models.user import User
 from app.utils.permissions import admin_required, role_required, get_current_user
+from app.utils.report_tz import report_tz, report_today
 from datetime import datetime, timezone, timedelta, date
 import calendar
+import logging
 
 users_bp = Blueprint('users', __name__)
+logger = logging.getLogger(__name__)
 
 
 @users_bp.route('', methods=['GET'])
@@ -187,7 +190,6 @@ def toggle_break(user_id):
     from app.services.email_service import EmailService
     import logging
     
-    logger = logging.getLogger(__name__)
     current_user = get_current_user()
 
     # Guard: hanya bisa toggle break sendiri atau admin
@@ -199,10 +201,10 @@ def toggle_break(user_id):
     if not user:
         return jsonify({'error': 'User tidak ditemukan'}), 404
 
-    # Reset harian: total milik hari lama -> nolkan dulu (WIB = UTC+7, sama
-    # seperti _report_tz; tanpa zoneinfo agar jalan di Windows tanpa tzdata).
+    # Reset harian: total milik hari lama -> nolkan dulu. Batas hari mengikuti
+    # zona pelaporan (WIB) lewat report_tz, bukan offset manual.
     # NULL (data lama) dianggap milik hari ini agar riwayat tak terhapus.
-    today_wib = datetime.now(timezone(timedelta(hours=7))).date()
+    today_wib = report_today()
     if user.break_total_date is None:
         user.break_total_date = today_wib
     elif user.break_total_date != today_wib:
@@ -253,7 +255,7 @@ def toggle_break(user_id):
                             f"Total hari ini {((user.total_break_seconds_today or 0) // 60)} mnt.",
                         )
                 except Exception as notif_err:
-                    print(f"Break overtime notification failed: {notif_err}")
+                    logger.error("Break overtime notification failed: %s", notif_err, exc_info=True)
         user.is_on_break = False
         user.break_started_at = None
     else:
@@ -273,7 +275,7 @@ def toggle_break(user_id):
             try:
                 EmailService.send_staff_break_notification(ticket, user)
             except Exception as e:
-                print(f"Email break notification failed: {e}")
+                logger.error("Email break notification failed: %s", e, exc_info=True)
 
     db.session.commit()
     payload = user.to_dict()
@@ -283,7 +285,7 @@ def toggle_break(user_id):
 
 def _break_period_range(period):
     """Rentang tanggal WIB untuk agregasi break (Senin–Minggu, tgl 1–akhir)."""
-    today = datetime.now(timezone(timedelta(hours=7))).date()
+    today = report_today()
     p = (period or 'daily').lower()
     if p == 'weekly':
         start = today - timedelta(days=today.weekday())
@@ -348,12 +350,12 @@ def break_summary():
                 sums[uid] = int(total or 0)
                 counts[uid] = int(cnt or 0)
         except Exception as agg_err:
-            print(f"Break summary aggregate failed: {agg_err}")
+            logger.error("Break summary aggregate failed: %s", agg_err, exc_info=True)
 
     # Total tercatat hari ini per user (untuk fallback data lama).
     # Untuk weekly/monthly perlu query tambahan karena `sums` di atas
     # mencakup sepekan/sebulan, bukan khusus hari ini.
-    today = datetime.now(timezone(timedelta(hours=7))).date()
+    today = report_today()
     if period == 'daily':
         today_sums = sums
     else:
@@ -370,7 +372,7 @@ def break_summary():
                 for uid, total in trows:
                     today_sums[uid] = int(total or 0)
             except Exception as agg_err:
-                print(f"Break summary today-aggregate failed: {agg_err}")
+                logger.error("Break summary today-aggregate failed: %s", agg_err, exc_info=True)
 
     now_utc = datetime.now(timezone.utc)
     summary = []
@@ -381,6 +383,21 @@ def break_summary():
         # belum tercatat agar weekly/monthly tidak "reset" dan sinkron
         # dengan daily. (Bila log hari ini kosong → seluruh total; bila
         # hari campuran → hanya selisihnya, anti double-count.)
+        #
+        # PERINGATAN (lihat code review): kolom `users.total_break_seconds_today`
+        # tidak menyimpan identitas sesi, hanya satu angka akumulatif per hari.
+        # Edge case yang belum bisa ditangani di sini: sesi yang dimulai
+        # sebelum tengah malam dan berakhir sesudahnya. Sesi itu di-log dengan
+        # `log_date` = tanggal END, sementara nilai kolom users masih menyertakan
+        # seluruh durasi sesi (dimulai di tanggal sebelumnya). Bila hari berikutnya
+        # `total_break_seconds_today` di-reset ke 0, porsi sebelum tengah malam
+        # ikut hilang dari laporan; bila tidak di-reset, hari itu bisa
+        # terhitung dua kali. Steady state aman selama fallback ini dihapus.
+        #
+        # Mitigasi: jalankan backfill dari users ke break_logs lalu set
+        # total_break_seconds_today = 0 (sudah dilakukan manual di DB dev s/d
+        # 2026-09-17). Selama kolom ini masih dipakai, perlakukan angka di
+        # kolom tersebut sebagai "perkiraan kasar", bukan sumber kebenaran.
         legacy_today = 0
         if (u.total_break_seconds_today or 0) > 0:
             if u.break_total_date is None or u.break_total_date == today:
@@ -398,7 +415,7 @@ def break_summary():
             if bs.tzinfo is None:
                 bs = bs.replace(tzinfo=timezone.utc)
             live = max(0, int((now_utc - bs).total_seconds()))
-            bs_wib = (bs + timedelta(hours=7)).date()
+            bs_wib = bs.astimezone(report_tz()).date()
             if start_d <= bs_wib <= end_d:
                 used += live
         summary.append({
@@ -463,5 +480,8 @@ def break_logs():
             'logs': [l.to_dict() for l in logs],
         }), 200
     except Exception as e:
-        print(f"Break logs query failed: {e}")
-        return jsonify({'success': True, 'period': period, 'total': 0, 'logs': []}), 200
+        logger.error("Break logs query failed: %s", e, exc_info=True)
+        # Jangan balas 200 dengan daftar kosong: frontend akan menampilkan
+        # "tidak ada riwayat" padahal query-nya yang gagal. Balas 500 supaya
+        # masalah terlihat di log dan di UI.
+        return jsonify({'success': False, 'error': 'Gagal memuat riwayat break'}), 500
