@@ -7,6 +7,7 @@
  * - <p><strong>Ticket taken by X</strong></p>
  * - <p><strong>Admin changed Kategori ...</strong></p> (future-proof)
  * - <p><strong>Prioritas diganti dari 'X' menjadi 'Y'</strong></p>
+ * - <p><strong>Otomatis di-assign ke 'X' saat mengubah status ke 'Y'</strong></p>
  *
  * Ticket History menampilkan SEMUA perubahan (status + assignee + kategori)
  * dalam format rapi — bukan HTML mentah. Activity & Notes hanya chat/staff notes.
@@ -46,6 +47,7 @@ const SYSTEM_NOTE_PATTERNS = [
   /Assignee diganti/i,
   /Prioritas diganti/i,
   /Priority changed/i,
+  /Otomatis di-assign/i,
 ];
 
 /** Apakah note adalah system note (perubahan status/assignee/kategori, bukan chat staff)? */
@@ -203,6 +205,34 @@ export function parseSystemNote(note: RawNote): HistoryEntry | null {
       kind: "other",
       label: "Prioritas Diubah",
       detail: `${stripHtml(m[1])} → ${stripHtml(m[2])}`,
+      reason,
+      author: note.author,
+      createdAt: note.createdAt,
+    };
+  }
+
+  // 8. Auto-assign: "Otomatis di-assign ke 'X' saat mengubah status ke 'Y'"
+  m = content.match(/Otomatis di-assign ke\s*'(.*?)'\s*saat mengubah status ke\s*'(.*?)'/i);
+  if (m) {
+    return {
+      id: note.id,
+      kind: "assignee",
+      label: "Otomatis Di-assign",
+      detail: `${m[1]} · saat status → ${stripHtml(m[2])}`,
+      reason,
+      author: note.author,
+      createdAt: note.createdAt,
+    };
+  }
+
+  // 8b. Auto-assign (varian backfill tanpa status)
+  m = content.match(/Otomatis di-assign ke\s*'(.*?)'/i);
+  if (m) {
+    return {
+      id: note.id,
+      kind: "assignee",
+      label: "Otomatis Di-assign",
+      detail: stripHtml(m[1]),
       reason,
       author: note.author,
       createdAt: note.createdAt,

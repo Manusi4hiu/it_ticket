@@ -342,4 +342,57 @@ export const usersApi = {
 
     toggleActive: async (id: string) =>
         apiRequest<{ success: boolean; user: User; message: string }>(`/users/${id}/toggle-active`, { method: 'PATCH' }),
+
+    toggleBreak: async (id: string) =>
+        apiRequest<User>(`/users/${id}/break`, { method: 'POST' }),
+
+    getBreakSummary: async (period: 'daily' | 'weekly' | 'monthly' = 'daily') =>
+        apiRequest<{
+            success: boolean;
+            period: string;
+            range: { start: string; end: string };
+            limits: { perSession: number; daily: number; weekly: number; monthly: number };
+            limitMinutes: number;
+            summary: Array<{
+                userId: number;
+                userName: string;
+                username: string;
+                role: string;
+                isOnBreak: boolean;
+                liveSeconds: number;
+                usedSeconds: number;
+                sessionsCount: number;
+                limitMinutes: number;
+                remainingSeconds: number;
+            }>;
+        }>(`/users/break-summary?period=${period}`),
+
+    setPresenceStatus: async (id: string | number, status: 'online' | 'idle' | 'dnd' | 'invisible') =>
+        apiRequest<{ success: boolean; presenceStatus: string }>(`/users/${id}/presence-status`, {
+            method: 'PATCH',
+            body: JSON.stringify({ status }),
+        }),
+
+    getBreakLogs: async (params?: { period?: string; user_id?: string | number; limit?: number }) => {
+        const qs = new URLSearchParams();
+        if (params?.period) qs.set('period', params.period);
+        if (params?.user_id !== undefined) qs.set('user_id', String(params.user_id));
+        if (params?.limit !== undefined) qs.set('limit', String(params.limit));
+        const suffix = qs.toString() ? `?${qs.toString()}` : '';
+        return apiRequest<{
+            success: boolean;
+            period: string;
+            range: { start: string; end: string };
+            total: number;
+            logs: Array<{
+                id: number;
+                userId: number;
+                userName: string | null;
+                startedAt: string | null;
+                endedAt: string | null;
+                durationSeconds: number;
+                logDate: string | null;
+            }>;
+        }>(`/users/break-logs${suffix}`);
+    },
 };

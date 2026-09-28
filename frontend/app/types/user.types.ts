@@ -16,6 +16,10 @@ export interface User {
     department: string | null;
     phone: string | null;
     avatar_url: string | null;
+    is_active?: boolean;
+    isOnBreak?: boolean;
+    breakStartedAt?: string | null;
+    totalBreakSecondsToday?: number;
 }
 
 export interface Agent {
@@ -24,6 +28,7 @@ export interface Agent {
     username: string;
     email: string;
     phone?: string | null;
+    isOnBreak?: boolean;
 }
 
 export interface UserPerformanceSummary {

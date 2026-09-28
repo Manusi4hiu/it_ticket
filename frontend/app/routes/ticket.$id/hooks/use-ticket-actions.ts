@@ -655,7 +655,7 @@ export function useTicketActions({
   const handleStaffClick = async (staffId: string) => {
     const agent = agents.find((a) => String(a.id) === staffId);
     let staffInfo: StaffInfo | undefined = agent
-      ? { id: String(agent.id), name: agent.name, email: agent.email, phone: agent.phone, username: agent.username }
+      ? { id: String(agent.id), name: agent.name, email: agent.email, phone: agent.phone, username: agent.username, presenceStatus: (agent as any).presenceStatus ?? 'online' }
       : undefined;
 
     if (!staffInfo) {
@@ -669,6 +669,7 @@ export function useTicketActions({
             email: user.email,
             phone: user.phone,
             username: user.username,
+            presenceStatus: (user as any).presenceStatus ?? 'online',
           };
         }
       } catch {

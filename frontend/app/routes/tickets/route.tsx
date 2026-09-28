@@ -139,6 +139,12 @@ export default function TicketsList({ loaderData }: Route.ComponentProps) {
     return sortStatusesByWorkflow(statuses);
   }, [statuses]);
 
+  const currentUserIsOnBreak = useMemo(() => {
+    if (!session || !session.userId) return false;
+    const me = agents.find((a: any) => String(a.id) === String(session.userId));
+    return me?.isOnBreak === true || me?.presenceStatus === 'break';
+  }, [session, agents]);
+
   // Sorted tickets: workflow rank New → Triaged → Assigned → In Progress → Resolved (no closed)
   const sortedTickets = useMemo(() => {
     return [...tickets].sort((a, b) => {
@@ -714,6 +720,9 @@ export default function TicketsList({ loaderData }: Route.ComponentProps) {
                             <Button
                               size="sm"
                               className={styles.miniTakeButton}
+                              disabled={currentUserIsOnBreak}
+                              title={currentUserIsOnBreak ? "Tidak bisa ambil tiket saat sedang break" : ""}
+                              style={currentUserIsOnBreak ? { filter: 'brightness(0.6)', cursor: 'not-allowed' } : {}}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleTakeTicket(ticket.id);

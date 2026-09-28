@@ -60,7 +60,7 @@ class EmailService:
                 f"Link tracking: {tracking_url}\n\n"
                 f"Tim IT Support akan segera menindaklanjuti laporan Anda.\n\n"
                 f"Terima kasih,\n"
-                f"— IT Support Aero Nusantara Indonesia\n"
+                f"\u2014 IT Support Aero Nusantara Indonesia\n"
             )
 
             # --- HTML body ---
@@ -255,7 +255,7 @@ class EmailService:
                 f"Untuk melihat detail penyelesaian tiket, silakan kunjungi link berikut:\n"
                 f"{tracking_url}\n\n"
                 f"Terima kasih,\n"
-                f"— IT Support Aero Nusantara Indonesia\n"
+                f"\u2014 IT Support Aero Nusantara Indonesia\n"
             )
 
             html_body = f"""<!DOCTYPE html>
@@ -373,4 +373,166 @@ class EmailService:
         except Exception as e:
             logger.error(
                 f"[Email] Gagal kirim notifikasi resolved tiket {ticket.ticket_code}: {e}"
+            )
+
+    @staticmethod
+    def send_staff_break_notification(ticket, staff):
+        """
+        Kirim notifikasi ke submitter bahwa staff yang menangani tiket sedang istirahat.
+        SLA timer di-pause selama staff break.
+        """
+        if not ticket.submitter_email:
+            logger.debug(f"[Email] Ticket {ticket.ticket_code}: no submitter_email, skip break notif.")
+            return
+
+        try:
+            cfg = EmailService._get_config()
+            tracking_url = f"{cfg['frontend_url']}/ticket/{ticket.ticket_code}"
+
+            safe_name = escape(ticket.submitter_name or '')
+            safe_code = escape(ticket.ticket_code or '')
+            safe_title = escape(ticket.title or '')
+            safe_staff = escape(staff.full_name or '')
+
+            subject = f"[{ticket.ticket_code}] Staff IT Sedang Istirahat"
+
+            text_body = (
+                f"Halo {ticket.submitter_name},\n\n"
+                f"Staff IT yang menangani tiket Anda ({ticket.ticket_code} - {ticket.title}) "
+                f"sedang istirahat sejenak.\n\n"
+                f"  Staff: {staff.full_name}\n\n"
+                f"Pengerjaan tiket akan dilanjutkan setelah istirahat selesai. "
+                f"SLA timer di-pause selama staff istirahat.\n\n"
+                f"Lacak tiket: {tracking_url}\n\n"
+                f"Terima kasih atas pengertiannya.\n"
+                f"\u2014 IT Support Aero Nusantara Indonesia\n"
+            )
+
+            html_body = f"""<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Staff Istirahat</title>
+</head>
+<body style="margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f9;padding:32px 0;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0"
+               style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+
+          <!-- Header -->
+          <tr>
+            <td style="background:#f59e0b;padding:28px 32px;">
+              <h1 style="margin:0;color:#ffffff;font-size:20px;font-weight:700;">
+                IT Support &mdash; ANI
+              </h1>
+              <p style="margin:6px 0 0;color:#fef3c7;font-size:13px;">
+                Notifikasi: Staff Sedang Istirahat
+              </p>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="padding:32px;">
+              <p style="margin:0 0 16px;font-size:15px;color:#374151;">
+                Halo <strong>{safe_name}</strong>,
+              </p>
+              <p style="margin:0 0 24px;font-size:14px;color:#6b7280;line-height:1.6;">
+                Staff IT yang menangani tiket Anda sedang istirahat sejenak.
+                Pengerjaan tiket akan dilanjutkan setelah istirahat selesai.
+              </p>
+
+              <!-- Ticket Info -->
+              <div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;
+                          padding:16px 20px;margin-bottom:24px;">
+                <p style="margin:0 0 4px;font-size:12px;color:#92400e;
+                           text-transform:uppercase;letter-spacing:0.05em;">Tiket Anda</p>
+                <p style="margin:0;font-size:18px;font-weight:700;color:#b45309;">{safe_code}</p>
+                <p style="margin:6px 0 0;font-size:13px;color:#78350f;">{safe_title}</p>
+              </div>
+
+              <!-- Staff Info -->
+              <table width="100%" cellpadding="0" cellspacing="0"
+                     style="border-collapse:collapse;margin-bottom:24px;">
+                <tr>
+                  <td style="padding:10px 0;border-bottom:1px solid #f3f4f6;
+                              font-size:13px;color:#6b7280;width:35%;">Staff</td>
+                  <td style="padding:10px 0;border-bottom:1px solid #f3f4f6;
+                              font-size:13px;color:#111827;font-weight:500;">{safe_staff}</td>
+                </tr>
+                <tr>
+                  <td style="padding:10px 0;font-size:13px;color:#6b7280;">SLA</td>
+                  <td style="padding:10px 0;font-size:13px;color:#111827;">
+                    Di-pause selama istirahat &mdash; tidak dihitung sebagai keterlambatan.
+                  </td>
+                </tr>
+              </table>
+
+              <!-- CTA -->
+              <div style="text-align:center;margin-bottom:24px;">
+                <a href="{tracking_url}"
+                   style="display:inline-block;background:#f59e0b;color:#ffffff;
+                           text-decoration:none;padding:12px 28px;border-radius:6px;
+                           font-size:14px;font-weight:600;">
+                  Lacak Tiket &rarr;
+                </a>
+              </div>
+
+              <p style="margin:0;font-size:12px;color:#9ca3af;line-height:1.5;">
+                Atau salin link berikut ke browser:<br>
+                <a href="{tracking_url}" style="color:#f59e0b;">{tracking_url}</a>
+              </p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background:#f9fafb;padding:16px 32px;border-top:1px solid #e5e7eb;">
+              <p style="margin:0;font-size:12px;color:#9ca3af;text-align:center;">
+                Email ini dikirim otomatis oleh sistem IT Helpdesk &mdash; ANI.<br>
+                Harap tidak membalas email ini.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>"""
+
+            msg = MIMEMultipart('alternative')
+            msg['Subject'] = subject
+            msg['From']    = cfg['from']
+            msg['To']      = ticket.submitter_email
+
+            msg.attach(MIMEText(text_body, 'plain', 'utf-8'))
+            msg.attach(MIMEText(html_body, 'html', 'utf-8'))
+
+            if cfg['use_tls']:
+                server = smtplib.SMTP(cfg['server'], cfg['port'], timeout=10)
+                server.ehlo()
+                server.starttls()
+                server.ehlo()
+            else:
+                server = smtplib.SMTP_SSL(cfg['server'], cfg['port'], timeout=10)
+
+            if cfg['username'] and cfg['password']:
+                server.login(cfg['username'], cfg['password'])
+
+            server.sendmail(cfg['from'], ticket.submitter_email, msg.as_string())
+            server.quit()
+
+            logger.info(
+                f"[Email] Break notif tiket {ticket.ticket_code} "
+                f"terkirim ke {ticket.submitter_email}"
+            )
+
+        except Exception as e:
+            logger.error(
+                f"[Email] Gagal kirim break notif tiket {ticket.ticket_code}: {e}"
             )

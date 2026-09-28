@@ -115,3 +115,56 @@ class Status(db.Model):
             'showOnDevboard': self.show_on_devboard,
             'showOnItHelpdesk': self.show_on_it_helpdesk
         }
+
+class BreakSetting(db.Model):
+    """Batas waktu break (menit). Satu baris default (name='Default') dibuat
+    otomatis saat pertama dibaca — admin ubah via Settings > Break.
+    - max_break_minutes: batas per sesi (dipakai notifikasi overtime + profil).
+    - daily/weekly/monthly_max_minutes: batas periode untuk sub-page Break
+      di Performance (ringkasan pemakaian vs sisa per staff)."""
+    __tablename__ = 'break_settings'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    name = db.Column(db.String(50), unique=True, nullable=False, default='Default')
+    max_break_minutes = db.Column(db.Integer, nullable=False, default=60)
+    daily_max_minutes = db.Column(db.Integer, nullable=False, default=60)
+    weekly_max_minutes = db.Column(db.Integer, nullable=False, default=300)
+    monthly_max_minutes = db.Column(db.Integer, nullable=False, default=1200)
+    description = db.Column(db.String(255), nullable=True)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'maxBreakMinutes': self.max_break_minutes,
+            'dailyMaxMinutes': self.daily_max_minutes,
+            'weeklyMaxMinutes': self.weekly_max_minutes,
+            'monthlyMaxMinutes': self.monthly_max_minutes,
+            'description': self.description
+        }
+
+
+class BreakLog(db.Model):
+    """Riwayat tiap sesi break (satu baris per END). Sumber data sub-page
+    Break di Performance untuk agregasi harian/mingguan/bulanan (WIB)."""
+    __tablename__ = 'break_logs'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    started_at = db.Column(db.DateTime(timezone=True), nullable=False)
+    ended_at = db.Column(db.DateTime(timezone=True), nullable=False)
+    duration_seconds = db.Column(db.Integer, nullable=False, default=0)
+    log_date = db.Column(db.Date, nullable=False, index=True)  # tgl WIB saat END
+
+    user = db.relationship('User', backref=db.backref('break_logs', lazy='dynamic'))
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'userId': self.user_id,
+            'userName': self.user.full_name if self.user else None,
+            'startedAt': self.started_at.isoformat() if self.started_at else None,
+            'endedAt': self.ended_at.isoformat() if self.ended_at else None,
+            'durationSeconds': self.duration_seconds or 0,
+            'logDate': self.log_date.isoformat() if self.log_date else None,
+        }

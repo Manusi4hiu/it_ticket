@@ -138,6 +138,12 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
     if (session?.authToken) setAuthToken(session.authToken);
   }, [session]);
 
+  const currentUserIsOnBreak = useMemo(() => {
+    if (!session || !session.userId) return false;
+    const me = agents.find((a: any) => String(a.id) === String(session.userId));
+    return me?.isOnBreak === true || me?.presenceStatus === 'break';
+  }, [session, agents]);
+
   // Derived state
   const tickets = activeTab === "active" ? activeTickets : completedTickets;
   const hasMore = activeTab === "active" ? hasMoreActive : hasMoreCompleted;
@@ -386,6 +392,7 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
                     priorities={priorities}
                     isAdministrator={isAdministrator}
                     session={session}
+                    currentUserIsOnBreak={currentUserIsOnBreak}
                     onTicketUpdate={updateTicketsState}
                     onTicketDelete={(id) => setDeleteTargetId(id)}
                   />
