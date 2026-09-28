@@ -183,15 +183,21 @@ def toggle_break(user_id):
     """Toggle break status untuk staff IT"""
     from app import db
     from app.models.ticket import Ticket
+    from app.models.master_data import BreakLog
     from app.services.email_service import EmailService
-
+    import logging
+    
+    logger = logging.getLogger(__name__)
     current_user = get_current_user()
 
     # Guard: hanya bisa toggle break sendiri atau admin
     if current_user.id != user_id and current_user.role != 'Administrator':
         return jsonify({'error': 'Unauthorized'}), 403
 
-    user = User.query.get_or_404(user_id)
+    # Lock row untuk mencegah race condition (dua request simultan)
+    user = User.query.filter_by(id=user_id).with_for_update().first()
+    if not user:
+        return jsonify({'error': 'User tidak ditemukan'}), 404
 
     # Reset harian: total milik hari lama -> nolkan dulu (WIB = UTC+7, sama
     # seperti _report_tz; tanpa zoneinfo agar jalan di Windows tanpa tzdata).
@@ -219,21 +225,18 @@ def toggle_break(user_id):
             user.total_break_seconds_today = (user.total_break_seconds_today or 0) + actual
             # Catat riwayat sesi (sumber agregasi harian/mingguan/bulanan).
             try:
-                from app import db as _db
-                from app.models.master_data import BreakLog
-                try:
-                    BreakLog.__table__.create(_db.engine, checkfirst=True)
-                except Exception:
-                    pass
-                _db.session.add(BreakLog(
+                db.session.add(BreakLog(
                     user_id=user.id,
                     started_at=break_start,
                     ended_at=datetime.now(timezone.utc),
                     duration_seconds=actual,
                     log_date=today_wib,
                 ))
+                db.session.flush()  # Test insert sebelum commit
             except Exception as log_err:
-                print(f"Break log insert failed: {log_err}")
+                db.session.rollback()
+                logger.error(f"Break log insert failed: {log_err}")
+                # total_break_seconds_today tetap ter-update (best-effort tracking)
             # Notifikasi ke admin bila break melebihi batas (best-effort).
             if actual > max_minutes * 60:
                 try:
@@ -309,10 +312,6 @@ def break_summary():
     from app import db
     from app.models.master_data import BreakLog
     from app.services.master_data_service import MasterDataService
-    try:
-        BreakLog.__table__.create(db.engine, checkfirst=True)
-    except Exception:
-        pass
 
     current_user = get_current_user()
     period, start_d, end_d = _break_period_range(request.args.get('period', 'daily'))
@@ -432,10 +431,6 @@ def break_logs():
     """Daftar sesi break (terbaru dulu). Query: ?period=daily|weekly|monthly&user_id=&limit=50."""
     from app import db
     from app.models.master_data import BreakLog
-    try:
-        BreakLog.__table__.create(db.engine, checkfirst=True)
-    except Exception:
-        pass
 
     current_user = get_current_user()
     period, start_d, end_d = _break_period_range(request.args.get('period', 'daily'))
