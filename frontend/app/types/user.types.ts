@@ -29,6 +29,8 @@ export interface Agent {
     email: string;
     phone?: string | null;
     isOnBreak?: boolean;
+    presenceStatus?: 'online' | 'idle' | 'dnd' | 'invisible' | 'break';
+    customStatusMessage?: string | null;
 }
 
 export interface UserPerformanceSummary {

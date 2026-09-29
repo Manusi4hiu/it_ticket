@@ -17,6 +17,7 @@ import type { Route } from "./+types/layout";
 import styles from "./layout.module.css";
 import { useIdleTimeout } from "~/hooks/use-idle-timeout";
 import { SessionWarningModal } from "~/components/session-warning-modal";
+import { StaffStatusWidget } from "~/components/staff-status-widget";
 
 export async function loader({ request }: Route.LoaderArgs) {
   const session = await getUserSession(request);
@@ -237,6 +238,8 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
           onLogout={logoutNow}
         />
       )}
+
+      {session && <StaffStatusWidget />}
     </div>
   );
 }

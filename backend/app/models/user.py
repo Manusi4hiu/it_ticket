@@ -32,6 +32,8 @@ class User(db.Model):
     presence_status = db.Column(db.String(20), nullable=False, default='online')
     # Status sebelum break (untuk restore saat selesai break)
     break_pre_status = db.Column(db.String(20), nullable=True, default=None)
+    # Custom status text (seperti Discord custom status) yang menggantikan quotes
+    custom_status_message = db.Column(db.String(255), nullable=True, default=None)
     
     # Relationships
     assigned_tickets = db.relationship('Ticket', back_populates='assigned_user', foreign_keys='Ticket.assigned_to_id')
@@ -64,6 +66,7 @@ class User(db.Model):
             'breakStartedAt': self.break_started_at.isoformat() if self.break_started_at else None,
             'totalBreakSecondsToday': self.total_break_seconds_today or 0,
             'presenceStatus': self.presence_status or 'online',
+            'customStatusMessage': self.custom_status_message,
         }
     
     def __repr__(self):

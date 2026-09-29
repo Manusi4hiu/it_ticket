@@ -367,10 +367,10 @@ export const usersApi = {
             }>;
         }>(`/users/break-summary?period=${period}`),
 
-    setPresenceStatus: async (id: string | number, status: 'online' | 'idle' | 'dnd' | 'invisible') =>
-        apiRequest<{ success: boolean; presenceStatus: string }>(`/users/${id}/presence-status`, {
+    setPresenceStatus: async (id: string | number, status: 'online' | 'idle' | 'dnd' | 'invisible', message?: string) =>
+        apiRequest<{ success: boolean; presenceStatus: string; customStatusMessage?: string }>(`/users/${id}/presence-status`, {
             method: 'PATCH',
-            body: JSON.stringify({ status }),
+            body: JSON.stringify({ status, message }),
         }),
 
     getBreakLogs: async (params?: { period?: string; user_id?: string | number; limit?: number }) => {

@@ -39,6 +39,7 @@ def get_agents():
             'phone': u.phone,
             'isOnBreak': u.is_on_break or False,
             'presenceStatus': u.presence_status or 'online',
+            'customStatusMessage': u.custom_status_message,
         } for u in users]
     }), 200
 
@@ -310,8 +311,22 @@ def set_presence_status(user_id):
         return jsonify({'error': f'Status tidak valid. Gunakan: {sorted(VALID)}'}), 400
 
     user.presence_status = status
+    if 'message' in (data or {}):
+        message = data.get('message')
+        if message is not None:
+            message = str(message).strip()
+            if not message:
+                message = None
+            if message and len(message) > 255:
+                message = message[:255]
+        user.custom_status_message = message
+
     db.session.commit()
-    return jsonify({'success': True, 'presenceStatus': user.presence_status}), 200
+    return jsonify({
+        'success': True,
+        'presenceStatus': user.presence_status,
+        'customStatusMessage': user.custom_status_message
+    }), 200
 
 
 def _break_period_range(period):

@@ -55,6 +55,7 @@ export interface ProfileStaff {
   isActive?: boolean;
   updatedAt?: string | null;
   presenceStatus?: 'online' | 'idle' | 'dnd' | 'invisible';
+  customStatusMessage?: string | null;
 }
 
 export type ProfileLoaderData = {
@@ -333,6 +334,14 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
   const presenceBtnRef = useRef<HTMLButtonElement>(null);
   const [presenceDropdownPos, setPresenceDropdownPos] = useState<{ top: number; left: number } | null>(null);
 
+  // Custom status
+  const [customStatusMessage, setCustomStatusMessage] = useState<string | null>(
+    (staff as any)?.customStatusMessage ?? null
+  );
+  const [showCustomStatusDialog, setShowCustomStatusDialog] = useState(false);
+  const [tempCustomStatus, setTempCustomStatus] = useState("");
+  const [tempPresence, setTempPresence] = useState<PresenceStatus>('online');
+
   // Semua opsi termasuk 'break' (break tidak bisa dipilih manual)
   const PRESENCE_OPTIONS: { value: PresenceStatus; label: string; color: string; desc: string; autoOnly?: boolean }[] = [
     { value: 'online',    label: 'Online',         color: '#22c55e', desc: 'Tersedia & aktif' },
@@ -342,20 +351,28 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
     { value: 'break',     label: 'Break',          color: '#fb923c', desc: 'Sedang istirahat', autoOnly: true },
   ];
 
-  const handleSetPresence = useCallback(async (status: PresenceStatus) => {
+  const handleSetPresence = useCallback(async (status: PresenceStatus, message?: string | null) => {
     if (presenceLoading || status === 'break') return; // break hanya via toggle break
     setPresenceDropdownOpen(false);
-    setPresenceStatusState(status); // optimistic
+    
+    // Optimistic update
+    const prevStatus = presenceStatus;
+    const prevMessage = customStatusMessage;
+    setPresenceStatusState(status);
+    if (message !== undefined) setCustomStatusMessage(message);
+    
     setPresenceLoading(true);
     try {
-      await usersApi.setPresenceStatus(String(staffId), status as Exclude<PresenceStatus, 'break'>);
+      await usersApi.setPresenceStatus(String(staffId), status as Exclude<PresenceStatus, 'break'>, message || undefined);
     } catch (e) {
       console.error('Set presence failed:', e);
-      setPresenceStatusState((staff?.presenceStatus as PresenceStatus) ?? 'online');
+      // Revert on error
+      setPresenceStatusState(prevStatus);
+      if (message !== undefined) setCustomStatusMessage(prevMessage);
     } finally {
       setPresenceLoading(false);
     }
-  }, [presenceLoading, staffId, staff?.presenceStatus]);
+  }, [presenceLoading, staffId, presenceStatus, customStatusMessage]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -1017,6 +1034,48 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
                           )}
                         </button>
                       ))}
+
+                      {/* Divider */}
+                      <div style={{ height: '1px', background: 'rgba(255,255,255,0.1)', margin: '4px 0' }} />
+                      
+                      {/* Set Custom Status Button */}
+                      <button
+                        onClick={() => {
+                          setPresenceDropdownOpen(false);
+                          setTempCustomStatus(customStatusMessage || "");
+                          setTempPresence(presenceStatus === 'break' ? 'online' : presenceStatus);
+                          setShowCustomStatusDialog(true);
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '10px',
+                          width: '100%',
+                          padding: '8px 10px',
+                          background: 'transparent',
+                          border: 'none',
+                          borderRadius: '8px',
+                          cursor: 'pointer',
+                          color: '#f1f5f9',
+                          textAlign: 'left',
+                          transition: 'background 0.15s',
+                        }}
+                        onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.12)')}
+                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                      >
+                        <span style={{
+                          width: 11,
+                          height: 11,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                          fontSize: '12px'
+                        }}>💬</span>
+                        <div>
+                          <div style={{ fontSize: '13px', fontWeight: 600 }}>Set Custom Status</div>
+                        </div>
+                      </button>
                     </div>,
                     document.body
                   )}
@@ -1044,11 +1103,17 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
         </div>
 
         <div className={styles.quoteBox}>
-          <p className={styles.quoteText}>
-            &ldquo;{quote.line1}
-            <br />
-            {quote.line2}&rdquo;
-          </p>
+          {customStatusMessage ? (
+            <p className={styles.quoteText} style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontStyle: 'normal', fontSize: '1.05rem' }}>
+              💬 {customStatusMessage}
+            </p>
+          ) : (
+            <p className={styles.quoteText}>
+              &ldquo;{quote.line1}
+              <br />
+              {quote.line2}&rdquo;
+            </p>
+          )}
         </div>
 
         {/* Break Toggle — hanya tampil untuk profil sendiri (non-Management) */}
@@ -1381,6 +1446,87 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
           )}
         </div>
       </div>
+
+      {/* ─────────────────────────────────────────────
+          5. Custom Status Dialog
+          ───────────────────────────────────────────── */}
+      <Dialog open={showCustomStatusDialog} onOpenChange={setShowCustomStatusDialog}>
+        <DialogContent style={{ background: '#0a0f1e', color: '#f1f5f9', border: '1px solid rgba(59,130,246,0.3)' }}>
+          <DialogHeader>
+            <DialogTitle>Set Custom Status</DialogTitle>
+            <DialogDescription>
+              What's on your mind? This will be displayed on your profile.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', margin: '16px 0' }}>
+            <div>
+              <label style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '8px', display: 'block' }}>
+                Status Message
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. In a meeting, be right back!"
+                value={tempCustomStatus}
+                onChange={e => setTempCustomStatus(e.target.value)}
+                maxLength={255}
+                style={{
+                  width: '100%',
+                  padding: '10px 14px',
+                  background: 'rgba(255,255,255,0.05)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: '8px',
+                  color: '#fff',
+                  outline: 'none',
+                }}
+              />
+            </div>
+            
+            <div>
+              <label style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '8px', display: 'block' }}>
+                Clear after (WIP - Optional)
+              </label>
+              <select
+                style={{
+                  width: '100%',
+                  padding: '10px 14px',
+                  background: 'rgba(255,255,255,0.05)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: '8px',
+                  color: '#fff',
+                  outline: 'none',
+                }}
+                disabled
+              >
+                <option>Don't clear</option>
+              </select>
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowCustomStatusDialog(false);
+                setTempCustomStatus("");
+              }}
+              style={{ background: 'transparent', borderColor: 'rgba(255,255,255,0.2)', color: '#fff' }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                setShowCustomStatusDialog(false);
+                void handleSetPresence(tempPresence, tempCustomStatus.trim() || null);
+              }}
+              style={{ background: '#3b82f6', color: '#fff' }}
+              disabled={presenceLoading}
+            >
+              Save Status
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
