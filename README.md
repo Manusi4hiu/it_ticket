@@ -1,5 +1,9 @@
 # IT Ticket System
 
+A full-stack ticket management system with React Router frontend and Flask backend.
+
+Last updated: 2026-09-29
+
 ## Project Structure
 
 - **frontend/**: React Router application (The User Interface).
