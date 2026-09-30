@@ -19,6 +19,7 @@ import {
   DialogTitle,
 } from "~/components/ui/dialog/dialog";
 import { toDatetimeLocalString } from "~/utils/date";
+import type { Category } from "~/services/settings.service";
 import styles from "../style.module.css";
 
 // ─────────────────────────────────────────────

@@ -130,13 +130,31 @@ class NotificationService:
 
     @staticmethod
     def delete_for_user(user_id, notification_ids):
-        """Hapus notifikasi milik user (validasi ownership per baris)."""
+        """Hapus notifikasi milik user (validasi ownership per baris).
+
+        Id yang bukan bilangan bulat DITOLAK dengan ValueError, bukan
+        diam-diam dilewati. Sebelumnya `except ValueError: return 0` membuat
+        server membalas 200 `{"deleted": 0, "success": true}` untuk payload
+        seperti {"ids": ["abc"]} — user mengera notifikasi terhapus padahal
+        tidak ada yang berubah.
+        """
         if not notification_ids:
             return 0
-        try:
-            id_list = [int(i) for i in notification_ids]
-        except (TypeError, ValueError):
-            return 0
+        id_list = []
+        for raw in notification_ids:
+            # bool adalah subclass int; True/False bukan id notifikasi.
+            if isinstance(raw, bool) or not isinstance(raw, (int, str, float)):
+                raise ValueError(f'notification id tidak valid: {raw!r}')
+            try:
+                value = int(raw)
+            except (TypeError, ValueError):
+                raise ValueError(f'notification id harus angka: {raw!r}')
+            # menolak 1.5 / "1.5" — bukan id bulat yang sah
+            if isinstance(raw, float) and not raw.is_integer():
+                raise ValueError(f'notification id harus bilangan bulat: {raw!r}')
+            if str(raw).strip() != str(value):
+                raise ValueError(f'notification id harus angka bulat: {raw!r}')
+            id_list.append(value)
         q = Notification.query.filter(
             Notification.user_id == int(user_id),
             Notification.id.in_(id_list),
@@ -145,5 +163,19 @@ class NotificationService:
         for n in q.all():
             db.session.delete(n)
             deleted += 1
+        db.session.commit()
+        return deleted
+
+    @staticmethod
+    def delete_all_for_user(user_id):
+        """Hapus SEMUA notifikasi milik satu user.
+
+        Dipakai tombol "Delete all" di lonceng notifikasi supaya user tidak
+        perlu memilih satu per satu saat inboxnya panjang. Tetap di-scope ke
+        user yang login — tidak mungkin menyentuh notifikasi user lain.
+        """
+        deleted = Notification.query.filter(
+            Notification.user_id == int(user_id)
+        ).delete(synchronize_session=False)
         db.session.commit()
         return deleted
