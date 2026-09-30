@@ -278,35 +278,35 @@ export default function StaffPerformance({ loaderData }: Route.ComponentProps) {
             </div>
             <div className={styles.chartScroll}>
               <div className={styles.chartMid} style={{ height: workloadH }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={comparisonData} layout="vertical" margin={{ top: 8, right: 48, left: 8, bottom: 0 }} barCategoryGap="26%">
-                  <CartesianGrid strokeDasharray="2 4" horizontal={false} stroke="rgba(255,255,255,0.07)" />
-                  <XAxis type="number" tickLine={false} axisLine={false} tick={{ fill: "#7d8590", fontSize: 11 }} allowDecimals={false} />
-                  <YAxis
-                    type="category"
-                    dataKey="name"
-                    width={118}
-                    tickLine={false}
-                    axisLine={false}
-                    tick={{ fill: "#d1d5db", fontSize: 12 }}
-                    tickFormatter={(v: string) => (v.length > 16 ? `${v.slice(0, 15)}…` : v)}
-                  />
-                  <Tooltip content={<ChartTip />} cursor={{ fill: "rgba(255, 255, 255, 0.03)" }} />
-                  <Bar dataKey="resolved" name="Resolved" fill="#10b981" radius={[4, 0, 0, 4]} barSize={18} stackId="w" />
-                  <Bar dataKey="inProgress" name="In Progress" fill="#3b82f6" barSize={18} stackId="w" />
-                  <Bar
-                    dataKey="pending"
-                    name="Pending"
-                    fill="#64748b"
-                    radius={[0, 4, 4, 0]}
-                    barSize={18}
-                    stackId="w"
-                    background={{ fill: "rgba(255,255,255,0.04)", radius: 4 } as any}
-                  >
-                    <LabelList dataKey="total" position="right" fill="#e5e7eb" fontSize={12} fontWeight={700} formatter={(v: any) => (v > 0 ? v : "")} />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={comparisonData} layout="vertical" margin={{ top: 8, right: 48, left: 8, bottom: 0 }} barCategoryGap="26%">
+                    <CartesianGrid strokeDasharray="2 4" horizontal={false} stroke="rgba(255,255,255,0.07)" />
+                    <XAxis type="number" tickLine={false} axisLine={false} tick={{ fill: "#7d8590", fontSize: 11 }} allowDecimals={false} />
+                    <YAxis
+                      type="category"
+                      dataKey="name"
+                      width={118}
+                      tickLine={false}
+                      axisLine={false}
+                      tick={{ fill: "#d1d5db", fontSize: 12 }}
+                      tickFormatter={(v: string) => (v.length > 16 ? `${v.slice(0, 15)}…` : v)}
+                    />
+                    <Tooltip content={<ChartTip />} cursor={{ fill: "rgba(255, 255, 255, 0.03)" }} />
+                    <Bar dataKey="resolved" name="Resolved" fill="#10b981" radius={[4, 0, 0, 4]} barSize={18} stackId="w" />
+                    <Bar dataKey="inProgress" name="In Progress" fill="#3b82f6" barSize={18} stackId="w" />
+                    <Bar
+                      dataKey="pending"
+                      name="Pending"
+                      fill="#64748b"
+                      radius={[0, 4, 4, 0]}
+                      barSize={18}
+                      stackId="w"
+                      background={{ fill: "rgba(255,255,255,0.04)", radius: 4 } as any}
+                    >
+                      <LabelList dataKey="total" position="right" fill="#e5e7eb" fontSize={12} fontWeight={700} formatter={(v: any) => (v > 0 ? v : "")} />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
             </div>
           </section>

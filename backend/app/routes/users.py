@@ -37,9 +37,10 @@ def get_agents():
             'username': u.username,
             'email': u.email,
             'phone': u.phone,
+            'isActive': u.is_active if u.is_active is not None else True,
             'isOnBreak': u.is_on_break or False,
-            'presenceStatus': u.presence_status or 'online',
-            'customStatusMessage': u.custom_status_message,
+            'presenceStatus': u.to_dict().get('presenceStatus', 'online'),
+            'customStatusMessage': u.to_dict().get('customStatusMessage'),
         } for u in users]
     }), 200
 
@@ -310,6 +311,7 @@ def set_presence_status(user_id):
     if status not in VALID:
         return jsonify({'error': f'Status tidak valid. Gunakan: {sorted(VALID)}'}), 400
 
+    old_presence = user.presence_status
     user.presence_status = status
     if 'message' in (data or {}):
         message = data.get('message')
@@ -320,6 +322,24 @@ def set_presence_status(user_id):
             if message and len(message) > 255:
                 message = message[:255]
         user.custom_status_message = message
+
+        # Handling clearAfterMinutes for custom status
+        clear_after = data.get('clearAfterMinutes')
+        if clear_after is not None:
+            try:
+                minutes = int(clear_after)
+                if minutes > 0:
+                    user.custom_status_expires_at = datetime.now(timezone.utc) + timedelta(minutes=minutes)
+                    user.custom_status_pre_status = old_presence
+                else:
+                    user.custom_status_expires_at = None
+                    user.custom_status_pre_status = None
+            except ValueError:
+                pass
+        else:
+            # If they didn't specify clearAfterMinutes but they changed the message, we clear the expiration
+            user.custom_status_expires_at = None
+            user.custom_status_pre_status = None
 
     db.session.commit()
     return jsonify({
@@ -376,7 +396,10 @@ def break_summary():
     if current_user.role == 'Staff':
         users = [current_user]
     else:
-        users = User.query.order_by(User.full_name).all()
+        users = User.query.filter(
+            User.is_active == True,
+            User.role != 'Management'
+        ).order_by(User.full_name).all()
 
     user_ids = [u.id for u in users]
     sums = {}

@@ -33,9 +33,17 @@ export function StaffStatusWidget() {
   };
 
   useEffect(() => {
-    if (open && agents.length === 0) {
+    if (!open) return;
+
+    // Fetch immediately when opened
+    void fetchAgents();
+
+    // Auto-refresh every 30 seconds while open
+    const interval = setInterval(() => {
       void fetchAgents();
-    }
+    }, 30000);
+
+    return () => clearInterval(interval);
   }, [open]);
 
   const handleMouseEnter = () => {
@@ -49,13 +57,17 @@ export function StaffStatusWidget() {
     }, 300);
   };
 
-  const filteredAgents = agents.filter(a => 
-    a.name.toLowerCase().includes(search.toLowerCase()) || 
-    a.username.toLowerCase().includes(search.toLowerCase())
+  const filteredAgents = agents.filter(a =>
+    a.isActive !== false &&
+    a.presenceStatus !== 'invisible' &&
+    (
+      a.name.toLowerCase().includes(search.toLowerCase()) ||
+      a.username.toLowerCase().includes(search.toLowerCase())
+    )
   );
 
   return (
-    <div 
+    <div
       style={{ position: 'fixed', bottom: '24px', right: '24px', zIndex: 9000 }}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
@@ -63,7 +75,7 @@ export function StaffStatusWidget() {
       {/* Floating Button */}
       <button
         onClick={() => setOpen(!open)}
-        title="Staff Directory"
+        title="Staff List"
         style={{
           width: '56px',
           height: '56px',
@@ -85,7 +97,7 @@ export function StaffStatusWidget() {
 
       {/* Popup Panel */}
       {open && (
-        <div 
+        <div
           style={{
             position: 'absolute',
             bottom: '70px', // above the button
@@ -104,7 +116,7 @@ export function StaffStatusWidget() {
         >
           {/* Header */}
           <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h4 style={{ margin: 0, fontSize: '14px', color: '#f1f5f9' }}>Staff Directory</h4>
+            <h4 style={{ margin: 0, fontSize: '14px', color: '#f1f5f9' }}>Staff List</h4>
             <div style={{ display: 'flex', gap: '8px' }}>
               <button onClick={fetchAgents} disabled={loading} style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: 0 }}>
                 <RefreshCw size={14} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />
@@ -114,7 +126,7 @@ export function StaffStatusWidget() {
               </button>
             </div>
           </div>
-          
+
           {/* Search */}
           <div style={{ padding: '8px 12px', background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
             <div style={{ position: 'relative' }}>
@@ -179,7 +191,7 @@ export function StaffStatusWidget() {
           </div>
         </div>
       )}
-      
+
       <style>{`
         @keyframes fadeInUp {
           from { opacity: 0; transform: translateY(10px); }

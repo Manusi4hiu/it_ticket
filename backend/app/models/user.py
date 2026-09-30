@@ -34,6 +34,8 @@ class User(db.Model):
     break_pre_status = db.Column(db.String(20), nullable=True, default=None)
     # Custom status text (seperti Discord custom status) yang menggantikan quotes
     custom_status_message = db.Column(db.String(255), nullable=True, default=None)
+    custom_status_expires_at = db.Column(db.DateTime(timezone=True), nullable=True, default=None)
+    custom_status_pre_status = db.Column(db.String(20), nullable=True, default=None)
     
     # Relationships
     assigned_tickets = db.relationship('Ticket', back_populates='assigned_user', foreign_keys='Ticket.assigned_to_id')
@@ -50,6 +52,17 @@ class User(db.Model):
     
     def to_dict(self):
         """Convert user to dictionary"""
+        now_utc = datetime.now(timezone.utc)
+        is_expired = self.custom_status_expires_at and now_utc >= self.custom_status_expires_at
+
+        presence_status = self.presence_status or 'online'
+        custom_message = self.custom_status_message
+
+        if is_expired:
+            custom_message = None
+            if self.custom_status_pre_status:
+                presence_status = self.custom_status_pre_status
+
         return {
             'id': self.id,
             'email': self.email,
@@ -65,8 +78,9 @@ class User(db.Model):
             'isOnBreak': self.is_on_break or False,
             'breakStartedAt': self.break_started_at.isoformat() if self.break_started_at else None,
             'totalBreakSecondsToday': self.total_break_seconds_today or 0,
-            'presenceStatus': self.presence_status or 'online',
-            'customStatusMessage': self.custom_status_message,
+            'presenceStatus': presence_status,
+            'customStatusMessage': custom_message,
+            'customStatusExpiresAt': self.custom_status_expires_at.isoformat() if self.custom_status_expires_at and not is_expired else None,
         }
     
     def __repr__(self):

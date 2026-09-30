@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { NotificationBell } from "~/components/notification-bell";
 import { getUserSession, logout } from "~/services/session.service";
-import { setAuthToken } from "~/services/api.service";
+import { setAuthToken, usersApi } from "~/services/api.service";
 import type { Route } from "./+types/layout";
 import styles from "./layout.module.css";
 import { useIdleTimeout } from "~/hooks/use-idle-timeout";
@@ -93,6 +93,49 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
     !!session,
     WARNING_MINUTES
   );
+
+  // Auto-Idle detection (5 minutes)
+  useEffect(() => {
+    if (!session?.userId) return;
+
+    let idleTimer: NodeJS.Timeout;
+    let isIdle = false;
+
+    const handleActivity = () => {
+      if (isIdle) {
+        isIdle = false;
+        usersApi.setPresenceStatus(session.userId, 'online').catch(() => {});
+      }
+      
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => {
+        isIdle = true;
+        usersApi.setPresenceStatus(session.userId, 'idle').catch(() => {});
+      }, 5 * 60 * 1000); // 5 minutes
+    };
+
+    let throttleTimer: NodeJS.Timeout | null = null;
+    const throttledActivity = () => {
+      if (!throttleTimer) {
+        throttleTimer = setTimeout(() => {
+          handleActivity();
+          throttleTimer = null;
+        }, 2000);
+      }
+      if (isIdle) handleActivity(); // break out immediately
+    };
+
+    const events = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart'];
+    events.forEach(e => document.addEventListener(e, throttledActivity));
+    
+    handleActivity();
+
+    return () => {
+      events.forEach(e => document.removeEventListener(e, throttledActivity));
+      clearTimeout(idleTimer);
+      if (throttleTimer) clearTimeout(throttleTimer);
+    };
+  }, [session?.userId]);
 
   return (
     <div className={styles.container}>

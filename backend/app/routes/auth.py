@@ -49,10 +49,23 @@ def get_current_user():
 @jwt_required()
 def logout():
     """Logout user and revoke token"""
+    from app.models.user import User
+    from app import db
+    
+    current_user_id = get_jwt_identity()
+    if current_user_id:
+        user = User.query.get(current_user_id)
+        if user:
+            user.presence_status = 'invisible'
+            user.custom_status_message = None
+            user.custom_status_expires_at = None
+            db.session.commit()
+
     jwt_payload = get_jwt()
     jti = jwt_payload.get("jti")
     if jti:
         jwt_blocklist.add(jti)
+        
     return jsonify({
         'success': True,
         'message': 'Logout berhasil'

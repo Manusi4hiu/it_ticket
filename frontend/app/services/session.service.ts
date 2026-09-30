@@ -100,6 +100,23 @@ export async function requireRole(request: Request, allowedRoles: string[]) {
 
 export async function logout(request: Request) {
   const session = await sessionStorage.getSession(request.headers.get('Cookie'));
+  
+  const token = session.get('authToken');
+  if (token) {
+    const baseUrl = typeof process !== 'undefined' && process.env.API_URL ? process.env.API_URL : 'http://127.0.0.1:5000/api';
+    try {
+      await fetch(`${baseUrl}/auth/logout`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+    } catch (e) {
+      console.error('Backend logout failed:', e);
+    }
+  }
+
   return {
     'Set-Cookie': await sessionStorage.destroySession(session),
   };

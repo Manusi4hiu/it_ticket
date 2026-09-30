@@ -21,6 +21,11 @@ class AuthService:
         if not user.is_active:
             return None, 'Akun Anda telah dinonaktifkan. Hubungi Administrator.'
         
+        # Set status to online
+        from app import db
+        user.presence_status = 'online'
+        db.session.commit()
+
         # Create JWT token
         access_token = create_access_token(identity=str(user.id))
         

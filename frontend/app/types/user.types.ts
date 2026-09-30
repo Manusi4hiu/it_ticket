@@ -20,6 +20,9 @@ export interface User {
     isOnBreak?: boolean;
     breakStartedAt?: string | null;
     totalBreakSecondsToday?: number;
+    presenceStatus?: 'online' | 'idle' | 'dnd' | 'invisible' | 'break';
+    customStatusMessage?: string | null;
+    customStatusExpiresAt?: string | null;
 }
 
 export interface Agent {
@@ -28,9 +31,11 @@ export interface Agent {
     username: string;
     email: string;
     phone?: string | null;
+    isActive?: boolean;
     isOnBreak?: boolean;
     presenceStatus?: 'online' | 'idle' | 'dnd' | 'invisible' | 'break';
     customStatusMessage?: string | null;
+    customStatusExpiresAt?: string | null;
 }
 
 export interface UserPerformanceSummary {

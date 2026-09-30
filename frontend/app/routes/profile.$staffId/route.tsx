@@ -117,6 +117,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
       isActive: (u as any).is_active ?? true,
       updatedAt: (u as any).updated_at,
       presenceStatus: (u as any).presenceStatus ?? 'online',
+      customStatusMessage: (u as any).customStatusMessage ?? null,
       ...(((u as any).isOnBreak !== undefined) ? {
         isOnBreak: (u as any).isOnBreak,
         breakStartedAt: (u as any).breakStartedAt,
@@ -134,6 +135,8 @@ export async function loader({ request, params }: Route.LoaderArgs) {
         phone: a.phone,
         role: "IT Support Staff",
         isActive: true,
+        presenceStatus: (a as any).presenceStatus ?? 'online',
+        customStatusMessage: (a as any).customStatusMessage ?? null,
       };
     }
   }
@@ -341,6 +344,8 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
   const [showCustomStatusDialog, setShowCustomStatusDialog] = useState(false);
   const [tempCustomStatus, setTempCustomStatus] = useState("");
   const [tempPresence, setTempPresence] = useState<PresenceStatus>('online');
+  const [tempClearAfter, setTempClearAfter] = useState<number | null>(null);
+  const [isCustomClearAfter, setIsCustomClearAfter] = useState(false);
 
   // Semua opsi termasuk 'break' (break tidak bisa dipilih manual)
   const PRESENCE_OPTIONS: { value: PresenceStatus; label: string; color: string; desc: string; autoOnly?: boolean }[] = [
@@ -351,7 +356,7 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
     { value: 'break',     label: 'Break',          color: '#fb923c', desc: 'Sedang istirahat', autoOnly: true },
   ];
 
-  const handleSetPresence = useCallback(async (status: PresenceStatus, message?: string | null) => {
+  const handleSetPresence = useCallback(async (status: PresenceStatus, message?: string | null, clearAfterMinutes?: number | null) => {
     if (presenceLoading || status === 'break') return; // break hanya via toggle break
     setPresenceDropdownOpen(false);
     
@@ -363,7 +368,7 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
     
     setPresenceLoading(true);
     try {
-      await usersApi.setPresenceStatus(String(staffId), status as Exclude<PresenceStatus, 'break'>, message || undefined);
+      await usersApi.setPresenceStatus(String(staffId), status as Exclude<PresenceStatus, 'break'>, message, clearAfterMinutes);
     } catch (e) {
       console.error('Set presence failed:', e);
       // Revert on error
@@ -927,8 +932,9 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
               </span>
             </div>
 
-            {/* Presence status selector — only for own profile */}
-            {isSelf && (() => {
+            {/* Presence status & Custom status message */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', marginTop: '8px' }}>
+              {isSelf ? (() => {
               const current = PRESENCE_OPTIONS.find(o => o.value === presenceStatus) ?? PRESENCE_OPTIONS[0];
               const isBreakStatus = presenceStatus === 'break' || isOnBreak;
               return (
@@ -1044,6 +1050,8 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
                           setPresenceDropdownOpen(false);
                           setTempCustomStatus(customStatusMessage || "");
                           setTempPresence(presenceStatus === 'break' ? 'online' : presenceStatus);
+                          setTempClearAfter(null);
+                          setIsCustomClearAfter(false);
                           setShowCustomStatusDialog(true);
                         }}
                         style={{
@@ -1081,7 +1089,55 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
                   )}
                 </div>
               );
-            })()}
+              })() : (() => {
+                const current = PRESENCE_OPTIONS.find(o => o.value === presenceStatus) ?? PRESENCE_OPTIONS[0];
+                return (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    background: 'rgba(255,255,255,0.04)',
+                    border: `1px solid ${current.color}44`,
+                    borderRadius: '20px',
+                    padding: '4px 12px 4px 8px',
+                    color: '#f1f5f9',
+                    fontSize: '13px',
+                    fontWeight: 500,
+                  }}>
+                    <span style={{
+                      width: 10,
+                      height: 10,
+                      borderRadius: '50%',
+                      background: current.color,
+                      boxShadow: `0 0 5px ${current.color}aa`,
+                      flexShrink: 0,
+                    }} />
+                    {current.label}
+                  </div>
+                );
+              })()}
+              
+              {customStatusMessage && (
+                <div 
+                  title={customStatusMessage}
+                  style={{
+                    fontSize: '13px',
+                    color: '#cbd5e1',
+                    fontStyle: 'italic',
+                    maxWidth: '300px',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    background: 'rgba(255,255,255,0.03)',
+                    padding: '4px 12px',
+                    borderRadius: '16px',
+                    border: '1px solid rgba(255,255,255,0.08)',
+                  }}
+                >
+                  💬 {customStatusMessage}
+                </div>
+              )}
+            </div>
 
 
 
@@ -1103,17 +1159,11 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
         </div>
 
         <div className={styles.quoteBox}>
-          {customStatusMessage ? (
-            <p className={styles.quoteText} style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontStyle: 'normal', fontSize: '1.05rem' }}>
-              💬 {customStatusMessage}
-            </p>
-          ) : (
-            <p className={styles.quoteText}>
-              &ldquo;{quote.line1}
-              <br />
-              {quote.line2}&rdquo;
-            </p>
-          )}
+          <p className={styles.quoteText}>
+            &ldquo;{quote.line1}
+            <br />
+            {quote.line2}&rdquo;
+          </p>
         </div>
 
         {/* Break Toggle — hanya tampil untuk profil sendiri (non-Management) */}
@@ -1469,7 +1519,7 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
                 placeholder="e.g. In a meeting, be right back!"
                 value={tempCustomStatus}
                 onChange={e => setTempCustomStatus(e.target.value)}
-                maxLength={255}
+                maxLength={60}
                 style={{
                   width: '100%',
                   padding: '10px 14px',
@@ -1484,22 +1534,73 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
             
             <div>
               <label style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '8px', display: 'block' }}>
-                Clear after (WIP - Optional)
+                Clear after (Optional)
               </label>
-              <select
-                style={{
-                  width: '100%',
-                  padding: '10px 14px',
-                  background: 'rgba(255,255,255,0.05)',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  borderRadius: '8px',
-                  color: '#fff',
-                  outline: 'none',
-                }}
-                disabled
-              >
-                <option>Don't clear</option>
-              </select>
+              {!isCustomClearAfter ? (
+                <select
+                  value={tempClearAfter === null ? "" : tempClearAfter}
+                  onChange={e => {
+                    if (e.target.value === 'custom') {
+                      setIsCustomClearAfter(true);
+                      setTempClearAfter(10); // default custom value
+                    } else {
+                      setTempClearAfter(e.target.value ? parseInt(e.target.value) : null);
+                    }
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '10px 14px',
+                    background: 'rgba(255,255,255,0.05)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: '8px',
+                    color: '#fff',
+                    outline: 'none',
+                    appearance: 'none',
+                  }}
+                >
+                  <option value="">Don't clear</option>
+                  <option value="15">15 minutes</option>
+                  <option value="30">30 minutes</option>
+                  <option value="60">1 hour</option>
+                  <option value="120">2 hours</option>
+                  <option value="240">4 hours</option>
+                  <option value="custom">Custom...</option>
+                </select>
+              ) : (
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <input
+                    type="number"
+                    min="1"
+                    value={tempClearAfter || ""}
+                    onChange={e => setTempClearAfter(parseInt(e.target.value) || null)}
+                    style={{
+                      flex: 1,
+                      padding: '10px 14px',
+                      background: 'rgba(255,255,255,0.05)',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      borderRadius: '8px',
+                      color: '#fff',
+                      outline: 'none',
+                    }}
+                  />
+                  <span style={{ color: '#94a3b8', fontSize: '13px' }}>minutes</span>
+                  <button
+                    onClick={() => {
+                      setIsCustomClearAfter(false);
+                      setTempClearAfter(null);
+                    }}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#ef4444',
+                      cursor: 'pointer',
+                      padding: '8px',
+                    }}
+                  >
+                    X
+                  </button>
+                </div>
+              )}
             </div>
           </div>
           
@@ -1509,6 +1610,8 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
               onClick={() => {
                 setShowCustomStatusDialog(false);
                 setTempCustomStatus("");
+                setTempClearAfter(null);
+                setIsCustomClearAfter(false);
               }}
               style={{ background: 'transparent', borderColor: 'rgba(255,255,255,0.2)', color: '#fff' }}
             >
@@ -1517,7 +1620,8 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
             <Button
               onClick={() => {
                 setShowCustomStatusDialog(false);
-                void handleSetPresence(tempPresence, tempCustomStatus.trim() || null);
+                void handleSetPresence(tempPresence, tempCustomStatus.trim() || null, tempClearAfter);
+                setIsCustomClearAfter(false);
               }}
               style={{ background: '#3b82f6', color: '#fff' }}
               disabled={presenceLoading}
