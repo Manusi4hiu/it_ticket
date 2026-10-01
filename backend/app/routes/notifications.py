@@ -42,15 +42,34 @@ def mark_read():
 @notifications_bp.route('/delete', methods=['PUT'])
 @jwt_required()
 def delete_notifications():
-    """Hapus notifikasi milik user. Body: {"ids": [1,2,..]} (WAJIB).
-    Dipakai fitur hapus single/multi-select di notification bell."""
+    """Hapus notifikasi milik user. Body: {"ids": [1,2,..]} atau {"all": true}.
+
+    Dipakai fitur hapus single/multi-select dan tombol "Delete all" di
+    notification bell. Keduanya tetap scoped ke user yang sedang login.
+    """
     user_id = int(get_jwt_identity())
     data = request.get_json(silent=True) or {}
+
+    if data.get('all') is True:
+        deleted = NotificationService.delete_all_for_user(user_id)
+        return jsonify({
+            'success': True,
+            'deleted': deleted,
+            'unreadCount': NotificationService.unread_count(user_id),
+        }), 200
+
     ids = data.get('ids')
     if not ids or not isinstance(ids, list) or len(ids) == 0:
-        return jsonify({'success': False, 'error': 'ids array wajib diisi'}), 400
+        return jsonify({'success': False, 'error': 'ids array wajib diisi (atau kirim {"all": true})'}), 400
 
-    deleted = NotificationService.delete_for_user(user_id, ids)
+    # Id yang bukan bilangan bulat ditolak 400, bukan dilaporkan "sukses"
+    # dengan deleted: 0. Frontend memakai status ini untuk rollback state
+    # optimistic, jadi diam-diam mengembalikan 200 akan membuat notifikasi
+    # tampak terhapus lalu muncul kembali 60 detik kemudian.
+    try:
+        deleted = NotificationService.delete_for_user(user_id, ids)
+    except ValueError as exc:
+        return jsonify({'success': False, 'error': str(exc)}), 400
     return jsonify({
         'success': True,
         'deleted': deleted,

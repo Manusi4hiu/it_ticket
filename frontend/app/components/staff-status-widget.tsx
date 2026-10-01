@@ -16,7 +16,20 @@ export function StaffStatusWidget() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
-  const closeTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Dipakai untuk menutup panel saat user klik di luar widget.
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  // Klik di luar widget menutup panel. Ini menggantikan perilaku hover yang
+  // dihapus, supaya panel tetap bisa ditutup dengan cara yang wajar.
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (e: MouseEvent) => {
+      if (wrapperRef.current?.contains(e.target as Node)) return;
+      setOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [open]);
 
   const fetchAgents = async () => {
     setLoading(true);
@@ -46,16 +59,17 @@ export function StaffStatusWidget() {
     return () => clearInterval(interval);
   }, [open]);
 
-  const handleMouseEnter = () => {
-    if (closeTimeout.current) clearTimeout(closeTimeout.current);
-    setOpen(true);
-  };
-
-  const handleMouseLeave = () => {
-    closeTimeout.current = setTimeout(() => {
-      setOpen(false);
-    }, 300);
-  };
+  // Panel tidak lagi dibuka atau ditutup mengikuti hover kursor, hanya lewat
+  // klik pada tombol. Sebelumnya `onMouseEnter` pada wrapper membuat panel
+  // ikut terbuka sekadar karena kursor menyentuhnya, padahal tidak ada klik.
+  //
+  // Efek samping yang ikut hilang: `onMouseLeave` beserta timeout 300ms yang
+  // sebelumnya menutup panel. Itulah yang menyebabkan panel menutup tepat saat
+  // user mengetik: saat daftar difilter, panel menyusut ke atas dan kotak
+  // search ikut bergeser menjauh dari kursor, sehingga browser melaporkan
+  // mouseleave. Tanpa hover, tidak ada lagi mouseleave yang bisa menutup panel.
+  //
+  // Panel ditutup dengan: klik tombol lagi, tombol X, atau klik di luar.
 
   const filteredAgents = agents.filter(a =>
     a.isActive !== false &&
@@ -68,9 +82,8 @@ export function StaffStatusWidget() {
 
   return (
     <div
+      ref={wrapperRef}
       style={{ position: 'fixed', bottom: '24px', right: '24px', zIndex: 9000 }}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
     >
       {/* Floating Button */}
       <button

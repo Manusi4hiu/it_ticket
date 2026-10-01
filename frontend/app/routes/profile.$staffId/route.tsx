@@ -42,6 +42,10 @@ import { requireAuth } from "~/services/session.service";
 import type { Route } from "./+types/route";
 import styles from "./style.module.css";
 
+// Batas panjang input custom status di dialog. Mengikuti keputusan upstream
+// (maxLength={60} pada input di bawah); backend tetap menolak >255 dengan 400.
+const CUSTOM_STATUS_MAX_LENGTH = 60;
+
 
 export interface ProfileStaff {
   id: string | number;
@@ -1530,6 +1534,18 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
                   outline: 'none',
                 }}
               />
+              {/* Penghitung karakter: server menolak pesan lebih dari 255 karakter,
+                  jadi beri tahu user sebelum dia menekan Save. */}
+              <div
+                style={{
+                  marginTop: '6px',
+                  fontSize: '11px',
+                  textAlign: 'right',
+                  color: tempCustomStatus.length >= CUSTOM_STATUS_MAX_LENGTH ? '#f87171' : '#64748b',
+                }}
+              >
+                {tempCustomStatus.length} / {CUSTOM_STATUS_MAX_LENGTH}
+              </div>
             </div>
             
             <div>
