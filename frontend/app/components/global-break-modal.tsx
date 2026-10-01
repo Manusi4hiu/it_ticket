@@ -1,11 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { usersApi } from "~/services/api.service";
-import { Coffee } from "lucide-react";
+import { Coffee, Clock } from "lucide-react";
 
 export function GlobalBreakModal({ userId }: { userId: string | number }) {
   const [isOnBreak, setIsOnBreak] = useState(false);
+  const [breakStartedAt, setBreakStartedAt] = useState<string | null>(null);
   const [isToggling, setIsToggling] = useState(false);
+  const [nowTick, setNowTick] = useState<number>(Date.now());
 
   const checkBreakStatus = async () => {
     if (!userId) return;
@@ -13,6 +15,7 @@ export function GlobalBreakModal({ userId }: { userId: string | number }) {
       const res = await usersApi.getById(String(userId));
       if (res.success && res.data?.user) {
         setIsOnBreak(res.data.user.isOnBreak || res.data.user.presenceStatus === 'break');
+        setBreakStartedAt(res.data.user.breakStartedAt || null);
       }
     } catch (e) {
       console.error("Failed to check break status:", e);
@@ -36,6 +39,26 @@ export function GlobalBreakModal({ userId }: { userId: string | number }) {
       window.removeEventListener('break-toggled', handleToggle);
     };
   }, [userId]);
+
+  useEffect(() => {
+    if (!isOnBreak) return;
+    const t = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [isOnBreak]);
+
+  const elapsedSeconds = useMemo(() => {
+    if (!isOnBreak || !breakStartedAt) return 0;
+    const start = new Date(breakStartedAt).getTime();
+    return Math.max(0, Math.floor((nowTick - start) / 1000));
+  }, [isOnBreak, breakStartedAt, nowTick]);
+
+  const formatTime = (secs: number) => {
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    const s = secs % 60;
+    if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
 
   const handleEndBreak = async () => {
     if (isToggling) return;
@@ -102,6 +125,27 @@ export function GlobalBreakModal({ userId }: { userId: string | number }) {
           Sedang Istirahat
         </h2>
         
+        {breakStartedAt && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '8px',
+            marginBottom: '16px',
+            color: '#fb923c',
+            fontWeight: 'bold',
+            fontSize: '18px',
+            background: 'rgba(251, 146, 60, 0.1)',
+            padding: '8px 16px',
+            borderRadius: '20px',
+            width: 'fit-content',
+            margin: '0 auto 24px auto'
+          }}>
+            <Clock size={20} />
+            {formatTime(elapsedSeconds)}
+          </div>
+        )}
+
         <p style={{ color: '#94a3b8', marginBottom: '32px', fontSize: '15px', lineHeight: '1.6' }}>
           Anda saat ini dalam status Break. Selesaikan waktu istirahat Anda untuk kembali menerima dan mengerjakan tiket.
         </p>

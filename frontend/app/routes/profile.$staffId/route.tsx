@@ -408,6 +408,25 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
     return () => clearInterval(t);
   }, [isOnBreak]);
 
+  useEffect(() => {
+    const handleBreakToggled = async () => {
+      try {
+        const res = await usersApi.getById(String(staffId));
+        if (res.success && res.data?.user) {
+          const u = res.data.user as any;
+          setIsOnBreak(u.isOnBreak ?? false);
+          setTotalBreakSeconds(u.totalBreakSecondsToday ?? 0);
+          setBreakStartedAt(u.breakStartedAt ?? null);
+          if (u.presenceStatus) setPresenceStatusState(u.presenceStatus);
+        }
+      } catch (e) {
+        console.error("Failed to sync break status", e);
+      }
+    };
+    window.addEventListener('break-toggled', handleBreakToggled);
+    return () => window.removeEventListener('break-toggled', handleBreakToggled);
+  }, [staffId]);
+
   // Ambil batas break agar bisa hitung sisa waktu (best-effort, default 60)
   // NOTE: apiRequest membungkus body backend satu level:
   // res = { success, data: { success, data: setting } }
@@ -1170,8 +1189,8 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
           </p>
         </div>
 
-        {/* Break Toggle — hanya tampil untuk profil sendiri (non-Management) */}
-        {canToggleBreak && (
+        {/* Break Toggle — hanya tampil untuk profil sendiri (non-Management), dan hanya saat tidak break */}
+        {canToggleBreak && !isOnBreak && (
           <div style={{
             display: 'flex',
             flexDirection: 'column',
