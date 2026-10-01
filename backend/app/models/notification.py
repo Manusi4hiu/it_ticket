@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from app import db
+from app.models.ticket import format_iso_date
 
 
 class Notification(db.Model):
@@ -38,5 +39,11 @@ class Notification(db.Model):
             'message': self.message,
             'reason': self.reason,
             'isRead': self.is_read,
-            'createdAt': self.created_at.isoformat() + ('Z' if self.created_at.tzinfo else '') if self.created_at else None,
+            # PAKAI helper bersama app/models/ticket.py. Sebelumnya kode ini
+            # melakukan `isoformat() + 'Z'`, yang menghasilkan string TIDAK valid
+            # seperti '2026-09-29T13:35:23.382533+07:00Z' (suffix 'Z' ditumpuk
+            # setelah offset). JS `new Date(...)` lalu mengembalikan Invalid Date,
+            # sehingga formatTime() di frontend menghitung NaN dan lonceng
+            # menampilkan "NaNd ago" untuk SETIAP notifikasi.
+            'createdAt': format_iso_date(self.created_at),
         }

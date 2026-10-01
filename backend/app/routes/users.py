@@ -5,8 +5,13 @@ from app.models.user import User
 from app.utils.permissions import admin_required, role_required, get_current_user
 from datetime import datetime, timezone, timedelta, date
 import calendar
+import re
 
 users_bp = Blueprint('users', __name__)
+
+# Batas panjang pesan custom status. Nilai ini harus sama dengan
+# db.String(255) pada model User.custom_status_message.
+CUSTOM_STATUS_MAX_LENGTH = 255
 
 
 @users_bp.route('', methods=['GET'])
@@ -319,8 +324,20 @@ def set_presence_status(user_id):
             message = str(message).strip()
             if not message:
                 message = None
-            if message and len(message) > 255:
-                message = message[:255]
+            else:
+                # Tolak pesan yang kepanjangan, jangan dipotong diam-diam.
+                # Sebelumnya di-`[:255]` sehingga user mengetik 300 karakter,
+                # server membalas 200 sukses, dan teksnya terpotong tanpa
+                # pemberitahuan apa pun.
+                if len(message) > CUSTOM_STATUS_MAX_LENGTH:
+                    return jsonify({
+                        'error': (f'Pesan status maksimal {CUSTOM_STATUS_MAX_LENGTH} karakter. '
+                                  f'Saat ini {len(message)} karakter.')
+                    }), 400
+                # Simpan sebagai teks biasa: buang tag HTML supaya payload
+                # seperti <script> tidak tersimpan mentah di database. React
+                # sudah meng-escape saat render, jadi ini lapisan kedua.
+                message = re.sub(r'<[^>]*>', '', message).strip() or None
         user.custom_status_message = message
 
         # Handling clearAfterMinutes for custom status
