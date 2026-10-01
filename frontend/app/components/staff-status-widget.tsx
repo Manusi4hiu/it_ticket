@@ -7,7 +7,7 @@ const PRESENCE_COLORS: Record<string, string> = {
   online: '#22c55e',
   idle: '#f59e0b',
   dnd: '#ef4444',
-  invisible: '#94a3b8',
+  offline: '#94a3b8',
   break: '#fb923c',
 };
 
@@ -59,7 +59,6 @@ export function StaffStatusWidget() {
 
   const filteredAgents = agents.filter(a =>
     a.isActive !== false &&
-    a.presenceStatus !== 'invisible' &&
     (
       a.name.toLowerCase().includes(search.toLowerCase()) ||
       a.username.toLowerCase().includes(search.toLowerCase())

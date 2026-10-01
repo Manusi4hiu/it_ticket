@@ -18,6 +18,7 @@ import styles from "./layout.module.css";
 import { useIdleTimeout } from "~/hooks/use-idle-timeout";
 import { SessionWarningModal } from "~/components/session-warning-modal";
 import { StaffStatusWidget } from "~/components/staff-status-widget";
+import { GlobalBreakModal } from "~/components/global-break-modal";
 
 export async function loader({ request }: Route.LoaderArgs) {
   const session = await getUserSession(request);
@@ -283,6 +284,7 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
       )}
 
       {session && <StaffStatusWidget />}
+      {session?.userId && <GlobalBreakModal userId={session.userId} />}
     </div>
   );
 }

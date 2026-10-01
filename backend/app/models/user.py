@@ -28,7 +28,7 @@ class User(db.Model):
     break_total_date = db.Column(db.Date, nullable=True)  # hari milik total di atas (reset harian)
 
     # Presence / availability status (Discord-style)
-    # Values: 'online' | 'idle' | 'dnd' | 'invisible' | 'break'
+    # Values: 'online' | 'idle' | 'dnd' | 'offline' | 'break'
     presence_status = db.Column(db.String(20), nullable=False, default='online')
     # Status sebelum break (untuk restore saat selesai break)
     break_pre_status = db.Column(db.String(20), nullable=True, default=None)
@@ -55,13 +55,13 @@ class User(db.Model):
         now_utc = datetime.now(timezone.utc)
         is_expired = self.custom_status_expires_at and now_utc >= self.custom_status_expires_at
 
-        presence_status = self.presence_status or 'online'
+        presence_status = 'offline' if self.presence_status == 'invisible' else (self.presence_status or 'online')
         custom_message = self.custom_status_message
 
         if is_expired:
             custom_message = None
             if self.custom_status_pre_status:
-                presence_status = self.custom_status_pre_status
+                presence_status = 'offline' if self.custom_status_pre_status == 'invisible' else self.custom_status_pre_status
 
         return {
             'id': self.id,

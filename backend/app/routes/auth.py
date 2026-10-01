@@ -56,7 +56,7 @@ def logout():
     if current_user_id:
         user = User.query.get(current_user_id)
         if user:
-            user.presence_status = 'invisible'
+            user.presence_status = 'offline'
             user.custom_status_message = None
             user.custom_status_expires_at = None
             db.session.commit()

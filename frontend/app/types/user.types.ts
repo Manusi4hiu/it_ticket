@@ -20,7 +20,7 @@ export interface User {
     isOnBreak?: boolean;
     breakStartedAt?: string | null;
     totalBreakSecondsToday?: number;
-    presenceStatus?: 'online' | 'idle' | 'dnd' | 'invisible' | 'break';
+    presenceStatus?: 'online' | 'idle' | 'dnd' | 'offline' | 'break';
     customStatusMessage?: string | null;
     customStatusExpiresAt?: string | null;
 }
@@ -33,7 +33,7 @@ export interface Agent {
     phone?: string | null;
     isActive?: boolean;
     isOnBreak?: boolean;
-    presenceStatus?: 'online' | 'idle' | 'dnd' | 'invisible' | 'break';
+    presenceStatus?: 'online' | 'idle' | 'dnd' | 'offline' | 'break';
     customStatusMessage?: string | null;
     customStatusExpiresAt?: string | null;
 }

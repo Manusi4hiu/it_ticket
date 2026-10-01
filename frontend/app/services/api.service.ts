@@ -116,6 +116,7 @@ export async function apiRequest<T>(
         try {
             const response = await fetch(fullUrl, {
                 ...fetchOptions,
+                cache: fetchOptions.cache || 'no-store',
                 headers,
             });
 
@@ -343,8 +344,11 @@ export const usersApi = {
     toggleActive: async (id: string) =>
         apiRequest<{ success: boolean; user: User; message: string }>(`/users/${id}/toggle-active`, { method: 'PATCH' }),
 
-    toggleBreak: async (id: string) =>
-        apiRequest<User>(`/users/${id}/break`, { method: 'POST' }),
+    toggleBreak: async (id: string) => {
+        const res = await apiRequest<User>(`/users/${id}/break`, { method: 'POST' });
+        if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('break-toggled'));
+        return res;
+    },
 
     getBreakSummary: async (period: 'daily' | 'weekly' | 'monthly' = 'daily') =>
         apiRequest<{
@@ -367,7 +371,7 @@ export const usersApi = {
             }>;
         }>(`/users/break-summary?period=${period}`),
 
-    setPresenceStatus: async (id: string | number, status: 'online' | 'idle' | 'dnd' | 'invisible', message?: string | null, clearAfterMinutes?: number | null) =>
+    setPresenceStatus: async (id: string | number, status: 'online' | 'idle' | 'dnd' | 'offline', message?: string | null, clearAfterMinutes?: number | null) =>
         apiRequest<{ success: boolean; presenceStatus: string; customStatusMessage?: string; customStatusExpiresAt?: string }>(`/users/${id}/presence-status`, {
             method: 'PATCH',
             body: JSON.stringify({ status, message, clearAfterMinutes }),

@@ -99,11 +99,11 @@ export function StaffProfileModal({
                     online: '#22c55e',
                     idle: '#f59e0b',
                     dnd: '#ef4444',
-                    invisible: '#94a3b8',
+                    offline: '#94a3b8',
                     break: '#fb923c',
                   };
                   const color = COLOR_MAP[staff.presenceStatus ?? 'online'] ?? '#22c55e';
-                  const label = { online: 'Online', idle: 'Idle', dnd: 'Do Not Disturb', invisible: 'Invisible', break: 'Break' }[staff.presenceStatus ?? 'online'] ?? 'Online';
+                  const label = { online: 'Online', idle: 'Idle', dnd: 'Do Not Disturb', offline: 'Offline', break: 'Break' }[staff.presenceStatus ?? 'online'] ?? 'Online';
                   return (
                     <span
                       title={label}
@@ -131,7 +131,7 @@ export function StaffProfileModal({
                     online:    { label: 'Online',         color: '#22c55e' },
                     idle:      { label: 'Idle',           color: '#f59e0b' },
                     dnd:       { label: 'Do Not Disturb', color: '#ef4444' },
-                    invisible: { label: 'Invisible',      color: '#94a3b8' },
+                    offline: { label: 'Offline',      color: '#94a3b8' },
                     break:     { label: 'Break',          color: '#fb923c' },
                   };
                   const info = LABELS[staff.presenceStatus ?? 'online'] ?? LABELS.online;

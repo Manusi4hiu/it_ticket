@@ -31,7 +31,7 @@ export interface StaffInfo {
   email: string;
   phone?: string | null;
   username?: string;
-  presenceStatus?: 'online' | 'idle' | 'dnd' | 'invisible';
+  presenceStatus?: 'online' | 'idle' | 'dnd' | 'offline';
 }
 
 // ─────────────────────────────────────────────

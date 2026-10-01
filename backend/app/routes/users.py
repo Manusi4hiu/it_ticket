@@ -259,7 +259,7 @@ def toggle_break(user_id):
         # fallback ke 'online' kalau tidak ada.
         restored = getattr(user, 'break_pre_status', None) or 'online'
         # Pastikan nilai valid setelah restore
-        if restored not in ('online', 'idle', 'dnd', 'invisible'):
+        if restored not in ('online', 'idle', 'dnd', 'offline'):
             restored = 'online'
         user.presence_status = restored
     else:
@@ -292,7 +292,7 @@ def toggle_break(user_id):
 @users_bp.route('/<int:user_id>/presence-status', methods=['PATCH'])
 @jwt_required()
 def set_presence_status(user_id):
-    """Set presence/availability status: online | idle | dnd | invisible"""
+    """Set presence/availability status: online | idle | dnd | offline"""
     from app import db
     current_user = get_current_user()
 
@@ -307,7 +307,7 @@ def set_presence_status(user_id):
     data = request.get_json()
     status = (data or {}).get('status', '').lower()
     # 'break' tidak bisa di-set manual — hanya via toggle break
-    VALID = {'online', 'idle', 'dnd', 'invisible'}
+    VALID = {'online', 'idle', 'dnd', 'offline'}
     if status not in VALID:
         return jsonify({'error': f'Status tidak valid. Gunakan: {sorted(VALID)}'}), 400
 

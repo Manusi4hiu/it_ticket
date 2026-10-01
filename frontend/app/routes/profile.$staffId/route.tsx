@@ -54,7 +54,7 @@ export interface ProfileStaff {
   avatarUrl?: string | null;
   isActive?: boolean;
   updatedAt?: string | null;
-  presenceStatus?: 'online' | 'idle' | 'dnd' | 'invisible';
+  presenceStatus?: 'online' | 'idle' | 'dnd' | 'offline';
   customStatusMessage?: string | null;
 }
 
@@ -328,7 +328,7 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
   const [nowTick, setNowTick] = useState<number>(Date.now());
 
   // Presence / availability status (Discord-style)
-  type PresenceStatus = 'online' | 'idle' | 'dnd' | 'invisible' | 'break';
+  type PresenceStatus = 'online' | 'idle' | 'dnd' | 'offline' | 'break';
   const [presenceStatus, setPresenceStatusState] = useState<PresenceStatus>(
     (staff?.presenceStatus as PresenceStatus) ?? 'online'
   );
@@ -352,7 +352,7 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
     { value: 'online',    label: 'Online',         color: '#22c55e', desc: 'Tersedia & aktif' },
     { value: 'idle',      label: 'Idle',           color: '#f59e0b', desc: 'Jauh dari keyboard' },
     { value: 'dnd',       label: 'Do Not Disturb', color: '#ef4444', desc: 'Notifikasi dibisukan' },
-    { value: 'invisible', label: 'Invisible',      color: '#94a3b8', desc: 'Tampil offline' },
+    { value: 'offline',   label: 'Offline',        color: '#94a3b8', desc: 'Tampil offline', autoOnly: true },
     { value: 'break',     label: 'Break',          color: '#fb923c', desc: 'Sedang istirahat', autoOnly: true },
   ];
 
