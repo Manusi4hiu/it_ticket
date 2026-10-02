@@ -274,19 +274,7 @@ def toggle_break(user_id):
         user.break_started_at = datetime.now(timezone.utc)
         user.presence_status = 'break'
 
-        # Kirim email ke submitter tiket yang sedang assigned ke staff ini
-        assigned_tickets = Ticket.query.filter(
-            Ticket.assigned_to_id == user.id,
-            Ticket.status.notin_(['resolved', 'closed', 'completed']),
-            Ticket.receive_updates == True,
-            Ticket.submitter_email.isnot(None)
-        ).all()
 
-        for ticket in assigned_tickets:
-            try:
-                EmailService.send_staff_break_notification(ticket, user)
-            except Exception as e:
-                print(f"Email break notification failed: {e}")
 
     db.session.commit()
     payload = user.to_dict()
