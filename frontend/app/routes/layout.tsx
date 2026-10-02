@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Outlet, useNavigate, Form, redirect, NavLink, useLocation } from "react-router";
 import {
   User,
@@ -95,7 +95,38 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
     WARNING_MINUTES
   );
 
-  // Auto-Idle detection (5 minutes)
+  // Ref untuk track status break — diperbarui via event 'break-toggled'.
+  // Dipakai oleh auto-idle agar tidak overwrite presence saat staff sedang break.
+  const isOnBreakRef = useRef(false);
+
+  useEffect(() => {
+    if (!session?.userId) return;
+    // Cek status break awal dari backend
+    usersApi.getById(String(session.userId))
+      .then(res => {
+        if (res.success && res.data?.user) {
+          isOnBreakRef.current =
+            res.data.user.isOnBreak || res.data.user.presenceStatus === 'break';
+        }
+      })
+      .catch(() => {});
+
+    const onBreakToggled = () => {
+      // Re-check backend setelah toggle break
+      usersApi.getById(String(session.userId))
+        .then(res => {
+          if (res.success && res.data?.user) {
+            isOnBreakRef.current =
+              res.data.user.isOnBreak || res.data.user.presenceStatus === 'break';
+          }
+        })
+        .catch(() => {});
+    };
+    window.addEventListener('break-toggled', onBreakToggled);
+    return () => window.removeEventListener('break-toggled', onBreakToggled);
+  }, [session?.userId]);
+
+  // Auto-Idle detection (5 minutes) — dinonaktifkan saat staff sedang break
   useEffect(() => {
     if (!session?.userId) return;
 
@@ -103,13 +134,21 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
     let isIdle = false;
 
     const handleActivity = () => {
+      // Jangan ubah presence apapun selama staff sedang break
+      if (isOnBreakRef.current) {
+        clearTimeout(idleTimer);
+        return;
+      }
+
       if (isIdle) {
         isIdle = false;
         usersApi.setPresenceStatus(session.userId, 'online').catch(() => {});
       }
-      
+
       clearTimeout(idleTimer);
       idleTimer = setTimeout(() => {
+        // Double-check break status sebelum set idle
+        if (isOnBreakRef.current) return;
         isIdle = true;
         usersApi.setPresenceStatus(session.userId, 'idle').catch(() => {});
       }, 5 * 60 * 1000); // 5 minutes
@@ -128,7 +167,7 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
 
     const events = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart'];
     events.forEach(e => document.addEventListener(e, throttledActivity));
-    
+
     handleActivity();
 
     return () => {
