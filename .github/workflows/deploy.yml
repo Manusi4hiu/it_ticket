@@ -42,7 +42,6 @@ jobs:
           username: ${{ secrets.SERVER_USERNAME }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: ${{ secrets.SERVER_PORT || 22 }}
-          timeout: 120s
           source: "frontend/build/,frontend/package.json,frontend/pnpm-lock.yaml,backend/"
           target: "/www/wwwroot/staging.ani.co.id/it_ticket"
           strip_components: 0
@@ -57,7 +56,6 @@ jobs:
           username: ${{ secrets.SERVER_USERNAME }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: ${{ secrets.SERVER_PORT || 22 }}
-          timeout: 120s
           script: |
             # --- Frontend Restart ---
             cd /www/wwwroot/staging.ani.co.id/it_ticket/frontend
