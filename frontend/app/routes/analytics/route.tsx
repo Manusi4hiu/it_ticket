@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
 import {
   BarChart,
@@ -28,10 +28,14 @@ import styles from "./style.module.css";
 const autoColor = (index: number) =>
   `hsl(${Math.round((index * 137.508) % 360)}, 65%, 55%)`;
 
-// Periode tren (jangkar kalender): "7d" = minggu berjalan Senin–Minggu,
-// "30d" = bulan berjalan tgl 1–akhir, atau quarter tahun berjalan.
-const RANGES = ["7d", "30d", "q1", "q2", "q3", "q4"] as const;
+// Periode tren: "7d" = 7 hari terakhir dari hari ini (rolling),
+// "30d" = 30 hari terakhir dari hari ini (rolling), atau quarter
+// tahun berjalan (jangkar kalender — jangan diubah, sudah benar).
+const RANGES = ["7d", "30d", "q1", "q2", "q3", "q4", "custom"] as const;
 type TrendRange = (typeof RANGES)[number];
+
+// Rentang custom maksimal 365 hari (inklusif).
+const CUSTOM_MAX_DAYS = 365;
 
 /** Batas tanggal quarter (ISO YYYY-MM-DD). Akhir dijepit ke hari ini agar
     quarter berjalan tak meminta hari masa depan. */
@@ -47,45 +51,72 @@ function quarterBounds(q: number, now: Date) {
   return { start, end };
 }
 
-/** Minggu berjalan Senin–Minggu (ISO YYYY-MM-DD). Stabil kapan pun dibuka:
-    besok tetap minggu yang sama sampai Senin berikutnya. Hari masa depan
-    dijepit backend (tren) / tak ada data (KPI) sehingga aman. */
-function weekBounds(now: Date) {
+/** 7 hari terakhir dari hari ini (rolling, inklusif). Mis. dibuka
+    tanggal 8 → 2–8. Bukan Senin–Minggu. */
+function last7Days(now: Date) {
   const pad = (n: number) => String(n).padStart(2, "0");
   const iso = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-  const monday = new Date(now);
-  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
-  const sunday = new Date(monday);
-  sunday.setDate(sunday.getDate() + 6);
-  return { start: iso(monday), end: iso(sunday) };
+  const start = new Date(now);
+  start.setDate(start.getDate() - 6);
+  return { start: iso(start), end: iso(now) };
 }
 
-/** Bulan berjalan tanggal 1–akhir (ISO YYYY-MM-DD). Sama seperti quarter:
-    jangkar kalender, bukan rolling tanggal. */
-function monthBounds(now: Date) {
+/** 30 hari terakhir dari hari ini (rolling, inklusif). Bukan
+    tanggal 1–akhir bulan. */
+function last30Days(now: Date) {
   const pad = (n: number) => String(n).padStart(2, "0");
-  const y = now.getFullYear();
-  const m = now.getMonth() + 1;
-  const lastDay = new Date(y, m, 0).getDate();
-  return { start: `${y}-${pad(m)}-01`, end: `${y}-${pad(m)}-${pad(lastDay)}` };
+  const iso = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const start = new Date(now);
+  start.setDate(start.getDate() - 29);
+  return { start: iso(start), end: iso(now) };
+}
+
+/** Rentang custom pilihan user (ISO YYYY-MM-DD). Invalid (format salah,
+    start > end, keduanya di masa depan) → null supaya loader fallback ke 7d.
+    Akhir dijepit ke hari ini, rentang dijepit ke CUSTOM_MAX_DAYS. */
+function customBounds(startRaw: string | null, endRaw: string | null, now: Date) {
+  const valid = (s: string | null) =>
+    !!s && /^\d{4}-\d{2}-\d{2}$/.test(s) && !isNaN(new Date(`${s}T00:00:00`).getTime());
+  if (!valid(startRaw) || !valid(endRaw)) return null;
+  let start = startRaw as string;
+  let end = endRaw as string;
+  if (start > end) return null;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  if (end > today) end = today;
+  if (start > end) return null;
+  const earliest = new Date(`${end}T00:00:00`);
+  earliest.setDate(earliest.getDate() - (CUSTOM_MAX_DAYS - 1));
+  const earliestIso = `${earliest.getFullYear()}-${pad(earliest.getMonth() + 1)}-${pad(earliest.getDate())}`;
+  if (start < earliestIso) start = earliestIso;
+  return { start, end };
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
   const session = await requireRole(request, ["Administrator", "Management"]);
 
-  const raw = new URL(request.url).searchParams.get("range") || "7d";
-  const range: TrendRange = (RANGES as readonly string[]).includes(raw) ? (raw as TrendRange) : "7d";
+  const params = new URL(request.url).searchParams;
+  const raw = params.get("range") || "7d";
+  let range: TrendRange = (RANGES as readonly string[]).includes(raw) ? (raw as TrendRange) : "7d";
 
   // Jendela eksplisit per periode — HANYA untuk sub-page Overview (KPI kohort
-  // + tren). Jangkar kalender (bukan rolling): 7d = minggu berjalan
-  // Senin–Minggu, 30d = bulan berjalan tgl 1–akhir, q* = quarter kalender.
+  // + tren). Rolling dari hari ini: 7d = 7 hari terakhir, 30d = 30 hari
+  // terakhir, custom = pilihan user (divalidasi, fallback 7d bila invalid),
+  // q* = quarter kalender (jangan diubah).
   // Distribution & Staff ranking selalu all-time (semua data, tanpa
   // filter waktu), jadi diambil dari panggilan terpisah tanpa window.
   const now = new Date();
-  const window =
-    range === "7d" ? weekBounds(now)
-    : range === "30d" ? monthBounds(now)
-    : quarterBounds(Number(range.slice(1)), now);
+  let window;
+  if (range === "custom") {
+    const custom = customBounds(params.get("start"), params.get("end"), now);
+    if (!custom) range = "7d";
+    window = custom ?? last7Days(now);
+  } else {
+    window =
+      range === "7d" ? last7Days(now)
+      : range === "30d" ? last30Days(now)
+      : quarterBounds(Number(range.slice(1)), now);
+  }
 
   const [stats, statsAll, agentsPerformance, categoriesRes, prioritiesRes, statusesRes, departmentsRes] = await Promise.all([
     getTicketStats(false, undefined, window),
@@ -107,6 +138,8 @@ export async function loader({ request }: Route.LoaderArgs) {
   return Response.json({
     session,
     range,
+    start: window.start,
+    end: window.end,
     stats,
     statsAll,
     agentsPerformance,
@@ -164,7 +197,7 @@ function Ledger({ rows, total }: { rows: { name: string; value: number; color: s
 }
 
 export default function Analytics({ loaderData }: Route.ComponentProps) {
-  const { stats, statsAll, agentsPerformance, categories, priorities, statuses, departments, range } = loaderData;
+  const { stats, statsAll, agentsPerformance, categories, priorities, statuses, departments, range, start, end } = loaderData;
   const [activeTab, setActiveTab] = useState<"overview" | "distribution" | "staff">("overview");
   const [, setParams] = useSearchParams();
 
@@ -182,13 +215,17 @@ export default function Analytics({ loaderData }: Route.ComponentProps) {
       activeTab={activeTab}
       setActiveTab={setActiveTab}
       range={range as TrendRange}
-      onRangeChange={(r) => setParams(r === "7d" ? {} : { range: r })}
+      rangeStart={start}
+      rangeEnd={end}
+      onRangeChange={(r, custom) =>
+        setParams(r === "7d" ? {} : custom ? { range: r, start: custom.start, end: custom.end } : { range: r })
+      }
     />
   );
 }
 
 function AnalyticsBody({
-  stats, statsAll, agentsPerformance, categories, priorities, statuses, departments, activeTab, setActiveTab, range, onRangeChange,
+  stats, statsAll, agentsPerformance, categories, priorities, statuses, departments, activeTab, setActiveTab, range, rangeStart, rangeEnd, onRangeChange,
 }: {
   stats: any;
   statsAll: any;
@@ -200,7 +237,9 @@ function AnalyticsBody({
   activeTab: "overview" | "distribution" | "staff";
   setActiveTab: (t: "overview" | "distribution" | "staff") => void;
   range: TrendRange;
-  onRangeChange: (r: TrendRange) => void;
+  rangeStart: string;
+  rangeEnd: string;
+  onRangeChange: (r: TrendRange, custom?: { start: string; end: string }) => void;
 }) {
   const resolvedTickets = stats.resolved;
   const avgResolutionTime = `${stats.avgResolutionTime}h`;
@@ -209,6 +248,37 @@ function AnalyticsBody({
     : "0.0";
   const openPct = stats.total > 0 ? ((stats.open / stats.total) * 100).toFixed(1) : "0.0";
   const resolutionRate = stats.total > 0 ? ((stats.resolved / stats.total) * 100).toFixed(1) : "0.0";
+
+  // Rentang custom: input tanggal user. Hanya disinkron dari loader saat
+  // periode custom aktif, agar pilihan tanggal bertahan saat user pindah
+  // ke periode lain lalu kembali. Hari ini (lokal) = batas atas input.
+  const todayIso = useMemo(() => {
+    const t = new Date();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}`;
+  }, []);
+  const [customStart, setCustomStart] = useState(rangeStart);
+  const [customEnd, setCustomEnd] = useState(rangeEnd);
+  useEffect(() => {
+    if (range === "custom") {
+      setCustomStart(rangeStart);
+      setCustomEnd(rangeEnd);
+    }
+  }, [range, rangeStart, rangeEnd]);
+  const customValid =
+    !!customStart && !!customEnd && customStart <= customEnd && customEnd <= todayIso;
+
+  // Panjang jendela efektif (hari, inklusif). Custom ≤14 hari digambar harian
+  // seperti 7d; selebihnya diagregasi per minggu seperti 30d/quarter.
+  const spanDays = useMemo(() => {
+    const ms = new Date(`${rangeEnd}T00:00:00`).getTime() - new Date(`${rangeStart}T00:00:00`).getTime();
+    return Number.isFinite(ms) ? Math.round(ms / 86400000) + 1 : 0;
+  }, [rangeStart, rangeEnd]);
+  const isDaily = range === "7d" || (range === "custom" && spanDays <= 14);
+
+  const fmtShort = (iso: string) =>
+    new Date(`${iso}T00:00:00`).toLocaleDateString("id-ID", { day: "numeric", month: "short" });
+  const customLabel = `${fmtShort(rangeStart)} – ${fmtShort(rangeEnd)} ${rangeEnd.slice(0, 4)}`;
 
   // Distribusi status: 4 grup kerja backend (New/In Progress/Pending/Resolved).
   // Warna diambil dari master Status (case-insensitive); fallback ke netral bila
@@ -332,9 +402,10 @@ function AnalyticsBody({
     [agentsPerformance]
   );
 
-  // Kicker mengikuti periode aktif (jangkar kalender).
+  // Kicker mengikuti periode aktif (rolling dari hari ini / custom user).
   const rangeKicker = useMemo(() => {
-    if (range === "30d") return "Helpdesk · This month";
+    if (range === "custom") return `Helpdesk · ${customLabel}`;
+    if (range === "30d") return "Helpdesk · Last 30 days";
     if (range.startsWith("q")) {
       const q = Number(range.slice(1));
       const year = new Date().getFullYear();
@@ -343,8 +414,8 @@ function AnalyticsBody({
         new Date(year, mi, 1).toLocaleDateString("en-US", { month: "short" });
       return `Helpdesk · Q${q} ${year} · ${mon(sm)}–${mon(sm + 2)}`;
     }
-    return "Helpdesk · This week";
-  }, [range]);
+    return "Helpdesk · Last 7 days";
+  }, [range, customLabel]);
 
   // Tren harian backend diagregasi per minggu (7 hari) untuk 30d/quarter agar
   // garis tetap terbaca — pola sama seperti staff-performance: Week 1..N +
@@ -356,7 +427,7 @@ function AnalyticsBody({
       iso
         ? new Date(`${iso}T00:00:00`).toLocaleDateString("id-ID", { day: "numeric", month: "short" })
         : "";
-    if (range === "7d") return daily.map((d: any) => ({ ...d, short: shortDay(d.date) || d.day }));
+    if (isDaily) return daily.map((d: any) => ({ ...d, short: shortDay(d.date) || d.day }));
     const fmtDay = (iso?: string) =>
       iso ? new Date(`${iso}T00:00:00`).toLocaleDateString("id-ID", { day: "numeric", month: "long" }) : "";
     const out: { week: string; created: number; resolved: number; range: string }[] = [];
@@ -371,14 +442,16 @@ function AnalyticsBody({
       });
     }
     return out;
-  }, [stats.trend, range]);
+  }, [stats.trend, range, isDaily]);
 
-  // Frasa periode untuk sub-judul panel ("in this month", "in Q3 2026").
+  // Frasa periode untuk sub-judul panel ("in the last 30 days", "in Q3 2026",
+  // "in 2–20 Sep 2026" untuk custom).
   const periodNoun = useMemo(() => {
-    if (range === "30d") return "this month";
+    if (range === "custom") return customLabel;
+    if (range === "30d") return "the last 30 days";
     if (range.startsWith("q")) return `Q${range.slice(1)} ${new Date().getFullYear()}`;
-    return "this week";
-  }, [range]);
+    return "the last 7 days";
+  }, [range, customLabel]);
   const trendTotals = useMemo(() => trendData.reduce(
     (s: { created: number; resolved: number }, d: any) => ({
       created: s.created + (d.created || 0),
@@ -387,6 +460,17 @@ function AnalyticsBody({
     { created: 0, resolved: 0 }
   ), [trendData]);
   const statusTotal = statusData.reduce((s, d) => s + d.value, 0);
+  // Terapkan rentang custom. Bila input tak valid, kembalikan ke jendela
+  // efektif terakhir lalu terapkan itu (tak pernah navigasi buta).
+  const applyCustom = () => {
+    if (customValid) {
+      onRangeChange("custom", { start: customStart, end: customEnd });
+    } else {
+      setCustomStart(rangeStart);
+      setCustomEnd(rangeEnd);
+      onRangeChange("custom", { start: rangeStart, end: rangeEnd });
+    }
+  };
   const categoryTotal = categoryData.reduce((s, d) => s + (d.value as number), 0);
 
   return (
@@ -446,10 +530,11 @@ function AnalyticsBody({
             <span className={styles.rangeLbl}>Period</span>
             <div className={styles.seg} role="tablist" aria-label="Trend period">
               {(RANGES as readonly TrendRange[]).map((r) => {
-                const label = r === "7d" ? "7D" : r === "30d" ? "1M" : r.toUpperCase();
+                const label = r === "7d" ? "7D" : r === "30d" ? "1M" : r === "custom" ? "Custom" : r.toUpperCase();
                   const hint =
-                    r === "7d" ? "Minggu ini (Senin–Minggu)"
-                    : r === "30d" ? "Bulan ini (tanggal 1–akhir)"
+                    r === "7d" ? "7 hari terakhir dari hari ini"
+                    : r === "30d" ? "30 hari terakhir dari hari ini"
+                    : r === "custom" ? "Pilih rentang tanggal sendiri"
                   : `Quarter ${r.slice(1)}, this year`;
                 return (
                   <button
@@ -458,13 +543,49 @@ function AnalyticsBody({
                     aria-selected={range === r}
                     title={hint}
                     className={range === r ? styles.segOn : styles.segBtn}
-                    onClick={() => onRangeChange(r)}
+                    onClick={() => (r === "custom" ? applyCustom() : onRangeChange(r))}
                   >
                     {label}
                   </button>
                 );
               })}
             </div>
+            {range === "custom" && (
+              <div className={styles.customRow}>
+                <label className={styles.dateField}>
+                  Dari
+                  <input
+                    type="date"
+                    value={customStart}
+                    max={customEnd || todayIso}
+                    onChange={(e) => setCustomStart(e.target.value)}
+                  />
+                </label>
+                <label className={styles.dateField}>
+                  Sampai
+                  <input
+                    type="date"
+                    value={customEnd}
+                    min={customStart}
+                    max={todayIso}
+                    onChange={(e) => setCustomEnd(e.target.value)}
+                  />
+                </label>
+                <button
+                  type="button"
+                  className={styles.applyBtn}
+                  disabled={!customValid || (customStart === rangeStart && customEnd === rangeEnd)}
+                  onClick={applyCustom}
+                >
+                  Terapkan
+                </button>
+                {customStart && customEnd && !customValid && (
+                  <span className={styles.dateHint}>
+                    Tanggal &ldquo;Sampai&rdquo; harus &ge; &ldquo;Dari&rdquo; dan tidak melewati hari ini.
+                  </span>
+                )}
+              </div>
+            )}
           </div>
 
           <section className={styles.panel}>
@@ -472,7 +593,7 @@ function AnalyticsBody({
               <div>
                 <h2 className={styles.panelTitle}>Ticket activity</h2>
                 <p className={styles.panelSub}>
-                  {range === "7d" ? "Created vs. resolved per day" : "Created vs. resolved per week"}
+                  {isDaily ? "Created vs. resolved per day" : "Created vs. resolved per week"}
                 </p>
               </div>
               <div className={styles.seriesKey}>
@@ -485,7 +606,7 @@ function AnalyticsBody({
                 <LineChart data={trendData} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.05)" vertical={false} />
                   <XAxis
-                    dataKey={range === "7d" ? "short" : "week"}
+                    dataKey={isDaily ? "short" : "week"}
                     axisLine={false}
                     tickLine={false}
                     tick={{ fill: "#94a3b8", fontSize: 12 }}

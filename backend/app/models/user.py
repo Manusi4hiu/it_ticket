@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import uuid
 import bcrypt
 from app import db
@@ -50,6 +50,13 @@ class User(db.Model):
         """Verify the password against the stored hash"""
         return bcrypt.checkpw(password.encode('utf-8'), self.password_hash.encode('utf-8'))
     
+    def get_break_seconds_today(self) -> int:
+        """Ambil total detik break hari ini (WIB = UTC+7), auto-reset 0 jika ganti hari"""
+        today_wib = (datetime.now(timezone.utc) + timedelta(hours=7)).date()
+        if self.break_total_date != today_wib:
+            return 0
+        return self.total_break_seconds_today or 0
+
     def to_dict(self):
         """Convert user to dictionary"""
         now_utc = datetime.now(timezone.utc)
@@ -77,7 +84,8 @@ class User(db.Model):
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
             'isOnBreak': self.is_on_break or False,
             'breakStartedAt': self.break_started_at.isoformat() if self.break_started_at else None,
-            'totalBreakSecondsToday': self.total_break_seconds_today or 0,
+            'totalBreakSecondsToday': self.get_break_seconds_today(),
+            'breakTotalDate': self.break_total_date.isoformat() if self.break_total_date else None,
             'presenceStatus': presence_status,
             'customStatusMessage': custom_message,
             'customStatusExpiresAt': self.custom_status_expires_at.isoformat() if self.custom_status_expires_at and not is_expired else None,
