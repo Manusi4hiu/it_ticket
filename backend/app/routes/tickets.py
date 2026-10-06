@@ -1,3 +1,4 @@
+from datetime import datetime, time, timedelta, timezone
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity, verify_jwt_in_request
 from sqlalchemy import case
@@ -39,6 +40,12 @@ def get_tickets():
     assigned_to = request.args.get('assignedTo')
     search = request.args.get('search')
     is_resolved = request.args.get('is_resolved', type=lambda v: v.lower() == 'true')
+    start_date = request.args.get('start_date') or request.args.get('startDate')
+    end_date = request.args.get('end_date') or request.args.get('endDate')
+    date_param = request.args.get('date')
+    if date_param:
+        start_date = start_date or date_param
+        end_date = end_date or date_param
     
     query = Ticket.query.options(
         joinedload(Ticket.assigned_user),
@@ -128,6 +135,24 @@ def get_tickets():
                 ).match(search_query, postgresql_regconfig='english')
             )
         )
+
+    if start_date:
+        try:
+            sd = datetime.strptime(start_date.strip(), '%Y-%m-%d').date()
+            tz = timezone(timedelta(hours=7))
+            start_utc = datetime.combine(sd, time.min).replace(tzinfo=tz).astimezone(timezone.utc)
+            query = query.filter(Ticket.created_at >= start_utc)
+        except (ValueError, TypeError):
+            pass
+
+    if end_date:
+        try:
+            ed = datetime.strptime(end_date.strip(), '%Y-%m-%d').date()
+            tz = timezone(timedelta(hours=7))
+            end_utc = datetime.combine(ed, time.max).replace(tzinfo=tz).astimezone(timezone.utc)
+            query = query.filter(Ticket.created_at <= end_utc)
+        except (ValueError, TypeError):
+            pass
 
     # Total count before pagination
     total = query.count()

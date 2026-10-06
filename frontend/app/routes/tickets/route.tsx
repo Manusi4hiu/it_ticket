@@ -16,7 +16,8 @@ import {
   UserCheck,
   Trash2,
   Check,
-  MoreHorizontal
+  MoreHorizontal,
+  Calendar
 } from "lucide-react";
 import { Button } from "~/components/ui/button/button";
 import {
@@ -61,6 +62,8 @@ export async function loader({ request }: Route.LoaderArgs) {
     category: url.searchParams.get("category") || undefined,
     assignedTo: url.searchParams.get("assignedTo") || undefined,
     search: url.searchParams.get("search") || undefined,
+    startDate: url.searchParams.get("startDate") || undefined,
+    endDate: url.searchParams.get("endDate") || undefined,
     page: parseInt(url.searchParams.get("page") || "1"),
     per_page: 15
   };
@@ -122,11 +125,15 @@ export default function TicketsList({ loaderData }: Route.ComponentProps) {
   const [assigneeSearch, setAssigneeSearch] = useState("");
   const [categorySearch, setCategorySearch] = useState("");
   const tableRef = useRef<HTMLDivElement>(null);
+  const filterBarRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown on click outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (tableRef.current && !tableRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      const inTable = tableRef.current && tableRef.current.contains(target);
+      const inFilterBar = filterBarRef.current && filterBarRef.current.contains(target);
+      if (!inTable && !inFilterBar) {
         setActiveHeaderDropdown(null);
       }
     }
@@ -193,11 +200,203 @@ export default function TicketsList({ loaderData }: Route.ComponentProps) {
     setActiveHeaderDropdown(null);
   };
 
+  const currentStartDate = searchParams.get("startDate") || "";
+  const currentEndDate = searchParams.get("endDate") || "";
+  const [customStart, setCustomStart] = useState(currentStartDate);
+  const [customEnd, setCustomEnd] = useState(currentEndDate);
+
+  useEffect(() => {
+    setCustomStart(currentStartDate);
+    setCustomEnd(currentEndDate);
+  }, [currentStartDate, currentEndDate]);
+
+  const handleDateRangeChange = (start?: string, end?: string) => {
+    const newParams = new URLSearchParams(searchParams);
+    if (start) {
+      newParams.set("startDate", start);
+    } else {
+      newParams.delete("startDate");
+    }
+    if (end) {
+      newParams.set("endDate", end);
+    } else {
+      newParams.delete("endDate");
+    }
+    newParams.set("page", "1");
+    setSearchParams(newParams);
+    setActiveHeaderDropdown(null);
+  };
+
+  const toDateStr = (d: Date) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  const todayStr = useMemo(() => toDateStr(new Date()), []);
+  const yesterdayStr = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return toDateStr(d);
+  }, []);
+  const last7DaysStr = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 6);
+    return toDateStr(d);
+  }, []);
+  const last30DaysStr = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 29);
+    return toDateStr(d);
+  }, []);
+  const thisMonthStartStr = useMemo(() => {
+    const now = new Date();
+    return toDateStr(new Date(now.getFullYear(), now.getMonth(), 1));
+  }, []);
+
+  const isTodayActive = currentStartDate === todayStr && currentEndDate === todayStr;
+  const isYesterdayActive = currentStartDate === yesterdayStr && currentEndDate === yesterdayStr;
+  const isLast7DaysActive = currentStartDate === last7DaysStr && currentEndDate === todayStr;
+  const isLast30DaysActive = currentStartDate === last30DaysStr && currentEndDate === todayStr;
+  const isThisMonthActive = currentStartDate === thisMonthStartStr && currentEndDate === todayStr;
+
   const clearFilters = () => {
     setSearchParams(new URLSearchParams());
     setSearchValue("");
+    setCustomStart("");
+    setCustomEnd("");
     setActiveHeaderDropdown(null);
   };
+
+  const renderDateFilterPopover = (pos: "top" | "table") => (
+    <div
+      className={pos === "top" ? styles.dateFilterPopoverTop : styles.dateFilterPopoverTable}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className={styles.datePopoverHeader}>
+        <span>Filter Tanggal</span>
+        {(currentStartDate || currentEndDate) && (
+          <button
+            type="button"
+            className={styles.dateResetLink}
+            onClick={() => {
+              setCustomStart("");
+              setCustomEnd("");
+              handleDateRangeChange("", "");
+            }}
+          >
+            Reset
+          </button>
+        )}
+      </div>
+
+      <div className={styles.datePresetsList}>
+        <div
+          className={`${styles.datePresetItem} ${!currentStartDate && !currentEndDate ? styles.datePresetItemActive : ""}`}
+          onClick={() => {
+            setCustomStart("");
+            setCustomEnd("");
+            handleDateRangeChange("", "");
+          }}
+        >
+          <span>Semua Tanggal</span>
+          {!currentStartDate && !currentEndDate && <Check size={12} />}
+        </div>
+        <div
+          className={`${styles.datePresetItem} ${isTodayActive ? styles.datePresetItemActive : ""}`}
+          onClick={() => {
+            setCustomStart(todayStr);
+            setCustomEnd(todayStr);
+            handleDateRangeChange(todayStr, todayStr);
+          }}
+        >
+          <span>Hari Ini</span>
+          {isTodayActive && <Check size={12} />}
+        </div>
+        <div
+          className={`${styles.datePresetItem} ${isYesterdayActive ? styles.datePresetItemActive : ""}`}
+          onClick={() => {
+            setCustomStart(yesterdayStr);
+            setCustomEnd(yesterdayStr);
+            handleDateRangeChange(yesterdayStr, yesterdayStr);
+          }}
+        >
+          <span>Kemarin</span>
+          {isYesterdayActive && <Check size={12} />}
+        </div>
+        <div
+          className={`${styles.datePresetItem} ${isLast7DaysActive ? styles.datePresetItemActive : ""}`}
+          onClick={() => {
+            setCustomStart(last7DaysStr);
+            setCustomEnd(todayStr);
+            handleDateRangeChange(last7DaysStr, todayStr);
+          }}
+        >
+          <span>7 Hari Terakhir</span>
+          {isLast7DaysActive && <Check size={12} />}
+        </div>
+        <div
+          className={`${styles.datePresetItem} ${isLast30DaysActive ? styles.datePresetItemActive : ""}`}
+          onClick={() => {
+            setCustomStart(last30DaysStr);
+            setCustomEnd(todayStr);
+            handleDateRangeChange(last30DaysStr, todayStr);
+          }}
+        >
+          <span>30 Hari Terakhir</span>
+          {isLast30DaysActive && <Check size={12} />}
+        </div>
+        <div
+          className={`${styles.datePresetItem} ${isThisMonthActive ? styles.datePresetItemActive : ""}`}
+          onClick={() => {
+            setCustomStart(thisMonthStartStr);
+            setCustomEnd(todayStr);
+            handleDateRangeChange(thisMonthStartStr, todayStr);
+          }}
+        >
+          <span>Bulan Ini</span>
+          {isThisMonthActive && <Check size={12} />}
+        </div>
+      </div>
+
+      <div style={{ height: 1, background: "rgba(255,255,255,0.1)", margin: "4px 0" }} />
+
+      <div className={styles.customDateSection}>
+        <div className={styles.customDateLabel}>Rentang Kustom</div>
+        <div className={styles.customDateInputs}>
+          <label className={styles.dateFieldLabel}>
+            <span>Dari</span>
+            <input
+              type="date"
+              className={styles.dateInput}
+              value={customStart}
+              max={customEnd || undefined}
+              onChange={(e) => setCustomStart(e.target.value)}
+            />
+          </label>
+          <label className={styles.dateFieldLabel}>
+            <span>Sampai</span>
+            <input
+              type="date"
+              className={styles.dateInput}
+              value={customEnd}
+              min={customStart || undefined}
+              onChange={(e) => setCustomEnd(e.target.value)}
+            />
+          </label>
+        </div>
+        <Button
+          size="sm"
+          className={styles.dateApplyButton}
+          disabled={!customStart && !customEnd}
+          onClick={() => handleDateRangeChange(customStart, customEnd)}
+        >
+          Terapkan
+        </Button>
+      </div>
+    </div>
+  );
 
   // ── Multi-select filter helpers ─────────────────────────────────────────
   // Nilai filter disimpan di URL sebagai comma-joined (mis. "New,In Progress").
@@ -365,7 +564,7 @@ export default function TicketsList({ loaderData }: Route.ComponentProps) {
   const currentAssignedTo = currentAssignedToList.length ? currentAssignedToList.join(",") : "";
   const currentPriority = currentPriorityList.length ? currentPriorityList.join(",") : "";
   const currentCategory = currentCategoryList.length ? currentCategoryList.join(",") : "";
-  const hasActiveFilters = Boolean((currentStatusParam && currentStatusParam !== "all") || currentAssignedTo || currentPriority || currentCategory || searchValue);
+  const hasActiveFilters = Boolean((currentStatusParam && currentStatusParam !== "all") || currentAssignedTo || currentPriority || currentCategory || currentStartDate || currentEndDate || searchValue);
 
   // Filtered lists for popover search
   const filteredAgents = useMemo(() => {
@@ -383,27 +582,66 @@ export default function TicketsList({ loaderData }: Route.ComponentProps) {
       <div className={styles.header}>
         <h1 className={styles.title}>Tickets</h1>
         
-        <div className={styles.filterBar}>
-          {/* 1. Full-Width Search Input */}
-          <div className={styles.searchInputWrapperFull}>
-            <Search className={styles.searchIcon} />
-            <input 
-              type="text" 
-              placeholder="Search summary, description, ticket code, or submitter..." 
-              className={styles.searchInput}
-              value={searchValue}
-              onChange={(e) => setSearchValue(e.target.value)}
-            />
-            {searchValue && (
-              <button 
-                type="button" 
-                className={styles.searchClearBtn}
-                onClick={() => setSearchValue("")}
-                title="Clear search"
+        <div className={styles.filterBar} ref={filterBarRef}>
+          {/* 1. Search Input & Date Filter in Top Bar */}
+          <div className={styles.topFilterRow}>
+            <div className={styles.searchInputWrapperFull}>
+              <Search className={styles.searchIcon} />
+              <input 
+                type="text" 
+                placeholder="Search summary, description, ticket code, or submitter..." 
+                className={styles.searchInput}
+                value={searchValue}
+                onChange={(e) => setSearchValue(e.target.value)}
+              />
+              {searchValue && (
+                <button 
+                  type="button" 
+                  className={styles.searchClearBtn}
+                  onClick={() => setSearchValue("")}
+                  title="Clear search"
+                >
+                  <X size={16} />
+                </button>
+              )}
+            </div>
+
+            <div className={styles.dateFilterContainerTop}>
+              <button
+                type="button"
+                className={`${styles.dateFilterBtnTop} ${(currentStartDate || currentEndDate) ? styles.dateFilterBtnTopActive : ""}`}
+                onClick={() => setActiveHeaderDropdown(activeHeaderDropdown === "topDate" ? null : "topDate")}
               >
-                <X size={16} />
+                <Calendar size={15} />
+                <span>
+                  {currentStartDate && currentEndDate
+                    ? `${currentStartDate} - ${currentEndDate}`
+                    : currentStartDate
+                    ? `>= ${currentStartDate}`
+                    : currentEndDate
+                    ? `<= ${currentEndDate}`
+                    : "Filter Tanggal"}
+                </span>
+                {(currentStartDate || currentEndDate) ? (
+                  <span
+                    className={styles.dateFilterClearTop}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setCustomStart("");
+                      setCustomEnd("");
+                      handleDateRangeChange("", "");
+                    }}
+                    title="Hapus filter tanggal"
+                  >
+                    <X size={12} />
+                  </span>
+                ) : (
+                  <ChevronDown size={14} className={styles.thChevron} style={{ transform: activeHeaderDropdown === "topDate" ? "rotate(180deg)" : "none" }} />
+                )}
               </button>
-            )}
+
+              {activeHeaderDropdown === "topDate" && renderDateFilterPopover("top")}
+            </div>
           </div>
 
           {/* 2. Segmented Status Buttons (New, Progress, Done, Pending) */}
@@ -493,6 +731,26 @@ export default function TicketsList({ loaderData }: Route.ComponentProps) {
                   <span className={styles.filterPill}>
                     Category: {currentCategory}
                     <span className={styles.filterPillClose} onClick={() => handleFilterChange("category", "all")}><X size={12} /></span>
+                  </span>
+                )}
+                {(currentStartDate || currentEndDate) && (
+                  <span className={styles.filterPill}>
+                    Tanggal: {currentStartDate && currentEndDate
+                      ? `${currentStartDate} s/d ${currentEndDate}`
+                      : currentStartDate
+                      ? `Dari ${currentStartDate}`
+                      : `Sampai ${currentEndDate}`}
+                    <span
+                      className={styles.filterPillClose}
+                      onClick={() => {
+                        setCustomStart("");
+                        setCustomEnd("");
+                        handleDateRangeChange("", "");
+                      }}
+                      title="Hapus filter tanggal"
+                    >
+                      <X size={12} />
+                    </span>
                   </span>
                 )}
                 {searchValue && (
@@ -684,7 +942,24 @@ export default function TicketsList({ loaderData }: Route.ComponentProps) {
                   </div>
                 </th>
 
-                <th style={{ width: '130px' }}>Created</th>
+                {/* CREATED Column Header with Popover Filter */}
+                <th style={{ width: '140px' }}>
+                  <div className={styles.thFilterContainer}>
+                    <button
+                      type="button"
+                      className={`${styles.thFilterButton} ${(currentStartDate || currentEndDate) ? styles.thFilterButtonActive : ""}`}
+                      onClick={() => setActiveHeaderDropdown(activeHeaderDropdown === "created" ? null : "created")}
+                    >
+                      <span>
+                        Created
+                        {(currentStartDate || currentEndDate) && <span className={styles.filterBadgeDot} />}
+                      </span>
+                      <ChevronDown size={14} className={styles.thChevron} style={{ transform: activeHeaderDropdown === "created" ? "rotate(180deg)" : "none" }} />
+                    </button>
+
+                    {activeHeaderDropdown === "created" && renderDateFilterPopover("table")}
+                  </div>
+                </th>
                 {isAdministrator && <th style={{ width: '60px', textAlign: 'center' }}>Aksi</th>}
               </tr>
             </thead>

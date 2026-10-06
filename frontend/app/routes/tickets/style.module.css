@@ -34,9 +34,17 @@
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
+.topFilterRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
 .searchInputWrapperFull {
   position: relative;
-  width: 100%;
+  flex: 1;
+  min-width: 0;
 }
 
 .searchInput {
@@ -364,6 +372,218 @@
   background: rgba(59, 130, 246, 0.28) !important;
   color: #93c5fd !important;
   font-weight: 600;
+}
+
+/* Date Filter Top Controls & Popover */
+.dateFilterContainerTop {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.dateFilterBtnTop {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 42px;
+  padding: 0 14px;
+  border-radius: 8px;
+  background: rgba(17, 24, 39, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #9ca3af;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.dateFilterBtnTop:hover {
+  background: rgba(30, 41, 59, 0.8);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.dateFilterBtnTopActive {
+  background: rgba(59, 130, 246, 0.16) !important;
+  border: 1.5px solid #3b82f6 !important;
+  color: #60a5fa !important;
+}
+
+.dateFilterClearTop {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border-radius: 50%;
+  color: #93c5fd;
+  cursor: pointer;
+  margin-left: 2px;
+}
+
+.dateFilterClearTop:hover {
+  background: rgba(59, 130, 246, 0.3);
+  color: #fff;
+}
+
+.dateFilterPopoverTop {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  width: 220px;
+  background: #1a2234;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  padding: 8px 10px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.7);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: normal;
+}
+
+.dateFilterPopoverTable {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  width: 220px;
+  background: #1a2234;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  padding: 8px 10px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.7);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: normal;
+}
+
+.datePopoverHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 3px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: #e5e7eb;
+}
+
+.dateResetLink {
+  background: none;
+  border: none;
+  color: #f87171;
+  font-size: 0.7rem;
+  cursor: pointer;
+  padding: 0;
+}
+
+.dateResetLink:hover {
+  text-decoration: underline;
+}
+
+.datePresetsList {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.datePresetItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 7px;
+  border-radius: 5px;
+  font-size: 0.75rem;
+  color: #d1d5db;
+  cursor: pointer;
+  transition: background 0.12s ease;
+  user-select: none;
+}
+
+.datePresetItem:hover {
+  background: rgba(59, 130, 246, 0.16);
+  color: #fff;
+}
+
+.datePresetItemActive {
+  background: rgba(59, 130, 246, 0.25) !important;
+  color: #93c5fd !important;
+  font-weight: 600;
+}
+
+.customDateSection {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding-top: 2px;
+}
+
+.customDateLabel {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.customDateInputs {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dateFieldLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.68rem;
+  color: #9ca3af;
+}
+
+.dateInput {
+  width: 100%;
+  height: 27px;
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 5px;
+  padding: 3px 6px;
+  font-size: 0.74rem;
+  color: #fff;
+  outline: none;
+  box-sizing: border-box;
+  color-scheme: dark;
+}
+
+.dateInput:focus {
+  border-color: #3b82f6;
+}
+
+.dateApplyButton {
+  width: 100%;
+  margin-top: 2px;
+  background: #2563eb;
+  color: white;
+  font-size: 0.74rem;
+  height: 26px;
+  border-radius: 5px;
+}
+
+.dateApplyButton:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.dateApplyButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* Body rows — clear separators + hover */
