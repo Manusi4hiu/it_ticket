@@ -58,6 +58,18 @@ def get_user(user_id):
     
     if not user:
         return jsonify({'success': False, 'error': 'User tidak ditemukan'}), 404
+
+    # Reset total break di DB bila hari berganti
+    today_wib = datetime.now(timezone(timedelta(hours=7))).date()
+    if user.break_total_date != today_wib:
+        if (user.total_break_seconds_today or 0) > 0 or user.break_total_date is None:
+            user.total_break_seconds_today = 0
+            user.break_total_date = today_wib
+            try:
+                from app import db
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
     
     return jsonify({
         'success': True,
@@ -209,11 +221,8 @@ def toggle_break(user_id):
 
     # Reset harian: total milik hari lama -> nolkan dulu (WIB = UTC+7, sama
     # seperti _report_tz; tanpa zoneinfo agar jalan di Windows tanpa tzdata).
-    # NULL (data lama) dianggap milik hari ini agar riwayat tak terhapus.
     today_wib = datetime.now(timezone(timedelta(hours=7))).date()
-    if user.break_total_date is None:
-        user.break_total_date = today_wib
-    elif user.break_total_date != today_wib:
+    if user.break_total_date != today_wib:
         user.total_break_seconds_today = 0
         user.break_total_date = today_wib
 
@@ -471,7 +480,7 @@ def break_summary():
         # hari campuran → hanya selisihnya, anti double-count.)
         legacy_today = 0
         if (u.total_break_seconds_today or 0) > 0:
-            if u.break_total_date is None or u.break_total_date == today:
+            if u.break_total_date == today:
                 legacy_today = u.total_break_seconds_today or 0
         if legacy_today:
             today_logged = today_sums.get(u.id, 0)

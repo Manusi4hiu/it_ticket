@@ -427,6 +427,13 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
     return () => window.removeEventListener('break-toggled', handleBreakToggled);
   }, [staffId]);
 
+  // Sync break state saat loaderData staff berubah
+  useEffect(() => {
+    setIsOnBreak((staff as any)?.isOnBreak || false);
+    setTotalBreakSeconds((staff as any)?.totalBreakSecondsToday || 0);
+    setBreakStartedAt((staff as any)?.breakStartedAt || null);
+  }, [(staff as any)?.totalBreakSecondsToday, (staff as any)?.isOnBreak, (staff as any)?.breakStartedAt]);
+
   // Ambil batas break agar bisa hitung sisa waktu (best-effort, default 60)
   // NOTE: apiRequest membungkus body backend satu level:
   // res = { success, data: { success, data: setting } }
