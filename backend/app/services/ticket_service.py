@@ -657,7 +657,12 @@ class TicketService:
 
             ticket.status = status
             if status.lower() in ['resolved', 'closed']:
-                ticket.resolved_at = datetime.now(timezone.utc)
+                # Waktu resolve dicatat SEKALI saat pertama masuk Resolved/Closed.
+                # Resolved -> Closed (mis. 2 hari kemudian) TIDAK menimpa resolved_at,
+                # agar resolution time/SLA tidak membengkak mengikuti waktu close.
+                was_done = str(old_status_name).strip().lower() in ('resolved', 'closed')
+                if not (was_done and ticket.resolved_at):
+                    ticket.resolved_at = datetime.now(timezone.utc)
             # Auto-assign: tiap perubahan status ke non-New berarti aktor
             # mengambil alih tiket — unassigned -> assignee = aktor.
             # (Status New = pool, boleh unassigned.)
