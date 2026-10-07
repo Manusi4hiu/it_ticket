@@ -31,6 +31,12 @@ export async function action({ request }: Route.ActionArgs) {
     const intent = formData.get('intent');
 
     if (intent === 'logout') {
+      // Unsubscribe push sebelum clear session — device shared gak ke-tagih notif orang lain.
+      // Silent fail: gak mau push error nge-block logout.
+      if (typeof window !== 'undefined') {
+        const { unsubscribePush } = await import('~/services/push.service');
+        await unsubscribePush().catch(() => {});
+      }
       return redirect('/login', {
         headers: await logout(request),
       });

@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Bell, Trash2, CheckCheck, X } from "lucide-react";
+import { Bell, Trash2, CheckCheck, Circle, X } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "~/components/ui/button/button";
 import { Badge } from "~/components/ui/badge/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "~/components/ui/popover/popover";
 import { getTickets } from "~/services/ticket.service";
 import { getAuthToken } from "~/services/api.service";
+import { subscribePush, isPushSupported } from "~/services/push.service";
 import styles from "./notification-bell.module.css";
 import { useNavigate, useLocation } from "react-router";
 
@@ -28,6 +30,8 @@ export function NotificationBell({ userId }: NotificationBellProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isDeleteMode, setIsDeleteMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const pushSupported = isPushSupported();
   // Dialog konfirmasi hapus: 'selected' = hapus yang dicentang,
   // 'all' = hapus seluruh inbox. null = dialog tertutup.
   // Alasan: penghapusan tidak bisa dibatalkan, jadi klik Delete
@@ -60,6 +64,21 @@ export function NotificationBell({ userId }: NotificationBellProps) {
   });
   const readIdsRef = useRef(readIds);
   useEffect(() => { readIdsRef.current = readIds; }, [readIds]);
+
+  // Sync push permission state on mount and when popover opens
+  useEffect(() => {
+    setPushEnabled(typeof Notification !== "undefined" && Notification.permission === "granted");
+  }, [isOpen]);
+
+  const handleEnablePush = async () => {
+    const ok = await subscribePush();
+    setPushEnabled(ok);
+    if (ok) {
+      toast.success("Notifications enabled", { description: "You'll receive push alerts even when app is closed." });
+    } else {
+      toast.error("Failed to enable notifications", { description: "Check browser permission settings." });
+    }
+  };
 
   const fetchNotifications = useCallback(async () => {
     try {
@@ -411,6 +430,12 @@ export function NotificationBell({ userId }: NotificationBellProps) {
           <div className={styles.headerActions}>
             {!isDeleteMode ? (
               <>
+                {pushSupported && !pushEnabled && (
+                  <button className={styles.markReadBtn} onClick={handleEnablePush} title="Aktifkan push notification di device ini">
+                    <Bell size={14} style={{ marginRight: 4, verticalAlign: -2 }} />
+                    Enable
+                  </button>
+                )}
                 {unreadCount > 0 && (
                   <button className={styles.markReadBtn} onClick={markAllAsRead} title="Tandai semua sudah dibaca (tidak menghapus)">
                     <CheckCheck size={14} style={{ marginRight: 4, verticalAlign: -2 }} />

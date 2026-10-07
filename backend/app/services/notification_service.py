@@ -29,6 +29,27 @@ class NotificationService:
             reason=reason,
         )
         db.session.add(notif)
+
+        # Dispatch web push after commit — gak kirim kalau rollback.
+        # once=True: listener auto-cleanup, gak leak across sessions.
+        from sqlalchemy import event
+
+        _user_id = int(user_id)
+        _ticket_id = ticket.id if ticket else None
+        _ticket_code = ticket.ticket_code if ticket else None
+        _title = title
+        _message = message
+
+        @event.listens_for(db.session, 'after_commit', once=True)
+        def _dispatch_webpush(*_):
+            from app.services.push_service import send_push
+            send_push(_user_id, {
+                'title': _title,
+                'body': _message,
+                'tag': f'ticket-{_ticket_id}' if _ticket_id else 'it-aero',
+                'url': f'/it_ticket/frontend/ticket/{_ticket_code}' if _ticket_code else '/it_ticket/frontend/dashboard',
+            })
+
         return notif
 
     # ── Take / oper biasa (oleh staff) ──

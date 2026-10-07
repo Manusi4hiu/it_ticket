@@ -1,8 +1,10 @@
 import { isRouteErrorResponse, Links, Meta, Outlet, Scripts, ScrollRestoration } from "react-router";
+import { useEffect } from "react";
 
 import type { Route } from "./+types/root";
 import { Toaster } from "./components/ui/toaster/toaster";
 import colorSchemeApi from "@dazl/color-scheme/client?url";
+import { setupPWAUpdatePrompt } from "./components/reload-prompt";
 
 import "./styles/reset.css";
 import "./styles/global.css";
@@ -43,6 +45,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <Meta />
         <title>IT Aero Nusantara - IT Support Ticketing System</title>
+        <meta name="theme-color" content="#050b14" />
         <script src={colorSchemeApi}></script>
         <Links />
       </head>
@@ -57,6 +60,20 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
+  // Register PWA service worker + update prompt (client-side only)
+  useEffect(() => {
+    if ("serviceWorker" in navigator && !import.meta.env.SSR) {
+      // vite-plugin-pwa injectManifest: register the SW from /sw.js
+      navigator.serviceWorker
+        .register(import.meta.env.DEV ? "/dev-sw.js?dev-sw" : "/sw.js", {
+          scope: import.meta.env.PROD ? "/it_ticket/frontend/" : "/",
+          type: "module",
+        })
+        .catch(() => {});
+      setupPWAUpdatePrompt();
+    }
+  }, []);
+
   return <Outlet />;
 }
 

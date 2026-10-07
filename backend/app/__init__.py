@@ -72,7 +72,7 @@ def create_app(config_name=None):
     })
     
     # Import models for migrations
-    from app.models import user, ticket, master_data, system_log, notification
+    from app.models import user, ticket, master_data, system_log, notification, push_subscription
     
     # Register blueprints
     from app.routes.auth import auth_bp
