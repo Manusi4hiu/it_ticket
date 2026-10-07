@@ -40,6 +40,7 @@ def get_tickets():
     assigned_to = request.args.get('assignedTo')
     search = request.args.get('search')
     is_resolved = request.args.get('is_resolved', type=lambda v: v.lower() == 'true')
+    is_pending = request.args.get('is_pending', type=lambda v: v.lower() == 'true')
     start_date = request.args.get('start_date') or request.args.get('startDate')
     end_date = request.args.get('end_date') or request.args.get('endDate')
     date_param = request.args.get('date')
@@ -79,6 +80,19 @@ def get_tickets():
             query = query.filter(db.func.lower(Ticket.status).in_(_done_statuses))
         else:
             query = query.filter(db.func.lower(Ticket.status).notin_(_done_statuses))
+
+    if is_pending is not None:
+        # Grup pending dinamis dari master Status.filter_group (fallback infer nama).
+        from app.models.master_data import Status
+        from app.services.master_data_service import _infer_filter_group
+        _pending_statuses = [
+            s.name.lower() for s in Status.query.all()
+            if (s.filter_group or _infer_filter_group(s.name, s.is_default)) == 'pending'
+        ]
+        if is_pending:
+            query = query.filter(db.func.lower(Ticket.status).in_(_pending_statuses or ['__none__']))
+        elif _pending_statuses:
+            query = query.filter(db.func.lower(Ticket.status).notin_(_pending_statuses))
 
     if priority:
         priority_list = [p.strip().lower() for p in priority.split(',') if p.strip()]

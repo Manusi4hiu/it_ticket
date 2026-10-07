@@ -5,7 +5,7 @@
  * Menampilkan:
  * - Stats personal (active, completed, SLA breached, avg resolution)
  * - Tabel ticket dengan infinite scroll
- * - Tab: My Active Tickets / My Completed Tickets
+ * - Tab: My Active Tickets / My Pending Tickets / My Completed Tickets
  *
  * Logika baris tabel ada di: components/TicketRow.tsx
  * Shared utils: ~/utils/ticket-ui, ~/utils/date
@@ -41,7 +41,7 @@ import { settingsApi } from "~/services/settings.service";
 import { requireAuth, logout } from "~/services/session.service";
 import { setAuthToken } from "~/services/api.service";
 import { getTicketStats } from "~/services/ticket.service";
-import { isResolvedStatus } from "~/utils/ticket-ui";
+import { isResolvedStatus, inferFilterGroup } from "~/utils/ticket-ui";
 import { TicketRow } from "./components/TicketRow";
 import styles from "./style.module.css";
 
@@ -53,9 +53,10 @@ export async function loader({ request }: Route.LoaderArgs) {
   const session = await requireAuth(request);
 
   // Fetch data personal secara paralel
-  const [activeResponse, completedResponse, agents, statusResponse, prioritiesResponse, stats] =
+  const [activeResponse, pendingResponse, completedResponse, agents, statusResponse, prioritiesResponse, stats] =
     await Promise.all([
-      getTickets({ assignedTo: session.userId, is_resolved: false, page: 1, per_page: 5 }),
+      getTickets({ assignedTo: session.userId, is_resolved: false, is_pending: false, page: 1, per_page: 5 }),
+      getTickets({ assignedTo: session.userId, is_resolved: false, is_pending: true, page: 1, per_page: 5 }),
       getTickets({ assignedTo: session.userId, is_resolved: true, page: 1, per_page: 5 }),
       getAgents(),
       settingsApi.getStatuses(),
@@ -67,6 +68,8 @@ export async function loader({ request }: Route.LoaderArgs) {
     session,
     activeTickets: activeResponse.tickets,
     activeTotal: activeResponse.total,
+    pendingTickets: pendingResponse.tickets,
+    pendingTotal: pendingResponse.total,
     completedTickets: completedResponse.tickets,
     completedTotal: completedResponse.total,
     agents,
@@ -101,6 +104,8 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
     session,
     activeTickets: initialActive,
     activeTotal,
+    pendingTickets: initialPending,
+    pendingTotal,
     completedTickets: initialCompleted,
     completedTotal,
     agents,
@@ -113,13 +118,19 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
   const tableWrapperRef = useRef<HTMLDivElement>(null);
 
   // ── Tab State ──
-  const [activeTab, setActiveTab] = useState<"active" | "completed">("active");
+  const [activeTab, setActiveTab] = useState<"active" | "pending" | "completed">("active");
 
   // ── Ticket Lists ──
   const [activeTickets, setActiveTickets] = useState(initialActive);
   const [activePage, setActivePage] = useState(1);
   const [hasMoreActive, setHasMoreActive] = useState(
     initialActive.length < activeTotal
+  );
+
+  const [pendingTickets, setPendingTickets] = useState(initialPending);
+  const [pendingPage, setPendingPage] = useState(1);
+  const [hasMorePending, setHasMorePending] = useState(
+    initialPending.length < pendingTotal
   );
 
   const [completedTickets, setCompletedTickets] = useState(initialCompleted);
@@ -145,9 +156,12 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
   }, [session, agents]);
 
   // Derived state
-  const tickets = activeTab === "active" ? activeTickets : completedTickets;
-  const hasMore = activeTab === "active" ? hasMoreActive : hasMoreCompleted;
-  const totalCount = activeTab === "active" ? activeTotal : completedTotal;
+  const tickets =
+    activeTab === "active" ? activeTickets : activeTab === "pending" ? pendingTickets : completedTickets;
+  const hasMore =
+    activeTab === "active" ? hasMoreActive : activeTab === "pending" ? hasMorePending : hasMoreCompleted;
+  const totalCount =
+    activeTab === "active" ? activeTotal : activeTab === "pending" ? pendingTotal : completedTotal;
   const isAdministrator = session.userRole === "Administrator";
 
   // ─────────────────────────────────────────────
@@ -168,7 +182,7 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
     if (sentinel) observer.observe(sentinel);
 
     return () => observer.disconnect();
-  }, [hasMore, isLoadingMore, activeTab, activeTickets.length, completedTickets.length]);
+  }, [hasMore, isLoadingMore, activeTab, activeTickets.length, pendingTickets.length, completedTickets.length]);
 
   /**
    * Muat halaman berikutnya dari ticket list aktif.
@@ -176,22 +190,30 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
    */
   const loadMoreTickets = async () => {
     setIsLoadingMore(true);
-    const isWorkingOnActive = activeTab === "active";
-    const nextPage = isWorkingOnActive ? activePage + 1 : completedPage + 1;
+    const tab = activeTab;
+    const nextPage =
+      tab === "active" ? activePage + 1 : tab === "pending" ? pendingPage + 1 : completedPage + 1;
 
     const response = await getTickets({
       assignedTo: session.userId,
-      is_resolved: !isWorkingOnActive,
+      is_resolved: tab === "completed",
+      ...(tab !== "completed" ? { is_pending: tab === "pending" } : {}),
       page: nextPage,
       per_page: 5,
     });
 
     if (response.tickets.length > 0) {
-      if (isWorkingOnActive) {
+      if (tab === "active") {
         setActiveTickets((prev) => [...prev, ...response.tickets]);
         setActivePage(nextPage);
         setHasMoreActive(
           activeTickets.length + response.tickets.length < activeTotal
+        );
+      } else if (tab === "pending") {
+        setPendingTickets((prev) => [...prev, ...response.tickets]);
+        setPendingPage(nextPage);
+        setHasMorePending(
+          pendingTickets.length + response.tickets.length < pendingTotal
         );
       } else {
         setCompletedTickets((prev) => [...prev, ...response.tickets]);
@@ -201,7 +223,8 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
         );
       }
     } else {
-      if (isWorkingOnActive) setHasMoreActive(false);
+      if (tab === "active") setHasMoreActive(false);
+      else if (tab === "pending") setHasMorePending(false);
       else setHasMoreCompleted(false);
     }
 
@@ -220,32 +243,31 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
    * @param updated - Ticket yang baru saja diupdate
    */
   const updateTicketsState = (updated: Ticket) => {
-    // Ticket tidak lagi assigned ke user ini — hapus dari kedua list
+    const upsert = (prev: Ticket[]) =>
+      prev.find((t) => t.id === updated.id)
+        ? prev.map((t) => (t.id === updated.id ? updated : t))
+        : [updated, ...prev];
+    const remove = (prev: Ticket[]) => prev.filter((t) => t.id !== updated.id);
+
+    // Ticket tidak lagi assigned ke user ini — hapus dari semua list
     if (updated.assignedToId !== parseInt(session.userId)) {
-      setActiveTickets((prev) => prev.filter((t) => t.id !== updated.id));
-      setCompletedTickets((prev) => prev.filter((t) => t.id !== updated.id));
+      setActiveTickets(remove);
+      setPendingTickets(remove);
+      setCompletedTickets(remove);
       return;
     }
 
     const resolved = isResolvedStatus(updated.status);
+    const master = statuses.find(
+      (s: any) => String(s.name).toLowerCase() === String(updated.status).toLowerCase()
+    );
+    const pending =
+      !resolved &&
+      (master?.filterGroup || inferFilterGroup(updated.status, master?.isDefault)) === "pending";
 
-    if (resolved) {
-      setActiveTickets((prev) => prev.filter((t) => t.id !== updated.id));
-      setCompletedTickets((prev) => {
-        if (prev.find((t) => t.id === updated.id)) {
-          return prev.map((t) => (t.id === updated.id ? updated : t));
-        }
-        return [updated, ...prev];
-      });
-    } else {
-      setCompletedTickets((prev) => prev.filter((t) => t.id !== updated.id));
-      setActiveTickets((prev) => {
-        if (prev.find((t) => t.id === updated.id)) {
-          return prev.map((t) => (t.id === updated.id ? updated : t));
-        }
-        return [updated, ...prev];
-      });
-    }
+    setActiveTickets(resolved || pending ? remove : upsert);
+    setPendingTickets(pending ? upsert : remove);
+    setCompletedTickets(resolved ? upsert : remove);
   };
 
   // ─────────────────────────────────────────────
@@ -261,6 +283,7 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
     const success = await deleteTicket(String(deleteTargetId));
     if (success) {
       setActiveTickets((prev) => prev.filter((t) => t.id !== deleteTargetId));
+      setPendingTickets((prev) => prev.filter((t) => t.id !== deleteTargetId));
       setCompletedTickets((prev) =>
         prev.filter((t) => t.id !== deleteTargetId)
       );
@@ -337,6 +360,15 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
             </button>
             <button
               className={`${styles.tab} ${
+                activeTab === "pending" ? styles.activeTab : ""
+              }`}
+              onClick={() => setActiveTab("pending")}
+            >
+              My Pending Tickets
+              <span className={styles.tabCount}>{pendingTotal}</span>
+            </button>
+            <button
+              className={`${styles.tab} ${
                 activeTab === "completed" ? styles.activeTab : ""
               }`}
               onClick={() => setActiveTab("completed")}
@@ -363,6 +395,8 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
             <p className={styles.emptyStateText}>
               {activeTab === "active"
                 ? "You don't have any active tickets assigned"
+                : activeTab === "pending"
+                ? "You don't have any pending tickets"
                 : "You haven't completed any tickets yet"}
             </p>
           </div>
