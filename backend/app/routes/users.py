@@ -215,6 +215,16 @@ def toggle_break(user_id):
     if current_user.id != user_id and current_user.role != 'Administrator':
         return jsonify({'error': 'Unauthorized'}), 403
 
+    # ── Break hanya untuk anggota team IT (COC/Design tidak ada fitur break) ──
+    from app.utils.permissions import get_user_team_ids
+    from app.models.team import Team
+    target = User.query.get(user_id)
+    target_team_ids = get_user_team_ids(target) if target else set()
+    it_team = Team.query.filter_by(code='IT').first()
+    it_team_id = it_team.id if it_team else None
+    if it_team_id is not None and it_team_id not in target_team_ids and current_user.role != 'Administrator':
+        return jsonify({'error': 'Fitur Break hanya tersedia untuk tim IT'}), 403
+
     # Lock row untuk mencegah race condition (dua request simultan)
     user = User.query.filter_by(id=user_id).with_for_update().first()
     if not user:

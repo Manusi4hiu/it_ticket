@@ -449,9 +449,12 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
     return () => { cancelled = true; };
   }, []);
 
-  // Only show break button for own profile and non-Management roles
+  // Only show break button for own profile and non-Management roles.
+  // Break adalah fitur IT-only — user team COC/Design tidak punya break.
   const isSelf = String(session.userId) === String(staffId);
-  const canToggleBreak = isSelf && staff?.role !== 'Management';
+  const sessionTeams = (session?.teams || []) as { code: string }[];
+  const isCoc = sessionTeams.some(t => t.code === 'COC') && !sessionTeams.some(t => t.code === 'IT');
+  const canToggleBreak = isSelf && staff?.role !== 'Management' && !isCoc;
 
   const handleToggleBreak = () => {
     if (breakLoading) return;

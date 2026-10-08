@@ -339,7 +339,7 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
       )}
 
       {session && <StaffStatusWidget />}
-      {session?.userId && <GlobalBreakModal userId={session.userId} />}
+      {session?.userId && !isCoc && <GlobalBreakModal userId={session.userId} />}
     </div>
   );
 }

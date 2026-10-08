@@ -56,7 +56,11 @@ function ChartTip({ active, payload, label }: any) {
 export default function StaffPerformance({ loaderData }: Route.ComponentProps) {
   const { session, agentsPerformance, stats } = loaderData;
   const navigate = useNavigate();
+  // Break tab IT-only (COC tidak punya fitur break).
+  const sessionTeams = ((session as any)?.teams || []) as { code: string }[];
+  const isCoc = sessionTeams.some(t => t.code === 'COC') && !sessionTeams.some(t => t.code === 'IT');
   const [activeTab, setActiveTab] = useState<"overview" | "analytics" | "leaderboard" | "break">("overview");
+  const visibleTabs = (["overview", "analytics", "leaderboard", ...(isCoc ? [] : ["break"] as const)] as const);
   const [breakPeriod, setBreakPeriod] = useState<"daily" | "weekly" | "monthly">("daily");
   const [breakSummary, setBreakSummary] = useState<Array<{
     userId: number; userName: string; username: string; role: string;
@@ -194,7 +198,7 @@ export default function StaffPerformance({ loaderData }: Route.ComponentProps) {
           <p className={styles.sub}>Who carries the load, how fast work closes, and where it stalls.</p>
         </div>
         <div className={styles.seg} role="tablist" aria-label="Performance views">
-          {(["overview", "analytics", "leaderboard", "break"] as const).map((t) => (
+          {visibleTabs.map((t) => (
             <button
               key={t}
               role="tab"
