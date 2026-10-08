@@ -47,10 +47,16 @@ class UserService:
         return query.order_by(User.full_name).all()
 
     @staticmethod
-    def get_agents():
+    def get_agents(team_id=None):
         """Get users who can be assigned to tickets: Staff & Administrator saja.
-        Role Management TIDAK termasuk — view-only, tidak mengerjakan tiket."""
-        return User.query.filter(User.role.in_(['Staff', 'Administrator'])).order_by(User.full_name).all()
+        Role Management TIDAK termasuk — view-only, tidak mengerjakan tiket.
+        Bila team_id diberikan, hanya anggota team tsb."""
+        query = User.query.filter(User.role.in_(['Staff', 'Administrator']))
+        if team_id is not None:
+            from app.models.team import user_teams
+            query = query.join(user_teams, user_teams.c.user_id == User.id)\
+                .filter(user_teams.c.team_id == team_id)
+        return query.order_by(User.full_name).all()
 
     @staticmethod
     def get_user_by_id(user_id):
@@ -78,6 +84,17 @@ class UserService:
             avatar_url=data.get('avatar_url')
         )
         user.set_password(data['password'])
+
+        # Team membership (many-to-many). teamIds = list of team id.
+        from app.models.team import Team
+        team_ids = data.get('teamIds') or data.get('team_id')
+        if isinstance(team_ids, list):
+            teams = Team.query.filter(Team.id.in_(team_ids)).all()
+            user.teams = teams
+        elif team_ids:
+            t = Team.query.get(int(team_ids))
+            if t:
+                user.teams = [t]
         
         db.session.add(user)
         db.session.commit()
@@ -126,6 +143,15 @@ class UserService:
         # Only admin can change role
         if 'role' in data and current_user.role == 'Administrator':
             user.role = data['role']
+
+        # Team membership (admin only)
+        if 'teamIds' in data and current_user.role == 'Administrator':
+            from app.models.team import Team
+            team_ids = data.get('teamIds')
+            if isinstance(team_ids, list):
+                user.teams = Team.query.filter(Team.id.in_([int(x) for x in team_ids])).all()
+            elif team_ids is None:
+                user.teams = []
         
         # Only admin can change is_active
         if 'is_active' in data and current_user.role == 'Administrator':

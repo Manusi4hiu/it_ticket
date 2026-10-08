@@ -1,13 +1,14 @@
 from app import db
 from app.models.ticket import Ticket, TicketNote
 from app.models.user import User
-from app.models.master_data import Department, Status, Priority, Category, SLAPolicy
+from app.models.master_data import Status, Priority, Category, SLAPolicy
+from app.models.team import Team
 from app.utils.logging import log_activity
 from app.utils.security import sanitize_html, NOTE_ALLOWED_TAGS
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 from flask import current_app, has_app_context
-from app.constants import DEV_CATEGORY
+from app.constants import DEV_CATEGORY, TICKET_CODE_PREFIX, TICKET_CODE_PADDING
 
 def _report_tz():
     """Zona waktu pelaporan (batas hari grafik/analytics).
@@ -245,6 +246,39 @@ class TicketService:
         return sla_hours_map.get(priority_name.lower() if priority_name else 'medium', 24)
 
     @staticmethod
+    def _resolve_team(data):
+        """Resolve team pemilik ticket dari input.
+
+        Prioritas: teamId (int) > teamCode (str) > default IT.
+        teamCode menerima nilai seperti 'IT', 'COC' (atau lowercase/uppercase).
+        """
+        from app.constants import TEAM_DEFAULT_CODE
+
+        team_id = data.get('teamId')
+        if team_id:
+            t = Team.query.get(int(team_id))
+            if t:
+                return t
+
+        team_code = data.get('teamCode') or data.get('team')
+        if team_code:
+            t = Team.query.filter(Team.code.ilike(str(team_code).strip())).first()
+            if t:
+                return t
+
+        # Fallback: team default (IT).
+        t = Team.query.filter_by(code=TEAM_DEFAULT_CODE).first()
+        if t:
+            return t
+
+        # Last resort: team pertama yang aktif.
+        t = Team.query.filter_by(is_active=True).first()
+        if t:
+            return t
+
+        raise ValueError("Tidak ada team yang tersedia untuk membuat ticket")
+
+    @staticmethod
     def create_ticket(data, image_url=None, idempotency_key=None, is_authenticated=False, **kwargs):
         """
         Create a new ticket using the provided data and optional image URL.
@@ -305,6 +339,9 @@ class TicketService:
             priority = 'medium'
         category = (data.get('category') or 'Other').strip()
 
+        # 6b. Team pemilik ticket (workspace tujuan). Default IT bila kosong.
+        team = TicketService._resolve_team(data)
+
         # 7. Mass Assignment Protection for unauthenticated creations
         if not is_authenticated:
             assigned_to_id = None
@@ -335,25 +372,22 @@ class TicketService:
             else:
                 sla_taken_at = None
             
-            # Fetch department info
-            dept_code = "TKT"
+            # Fetch department info (identitas PEMOHON — tetap, bukan team tujuan)
             dept_name = data.get('submitterDepartment')
-            if dept_name:
-                dept = Department.query.filter_by(name=dept_name).first()
-                if dept and dept.code:
-                    dept_code = dept.code
-            
-            # Generate ticket code (per department counter) — fix race condition with FOR UPDATE
-            last_ticket = Ticket.query.filter(Ticket.ticket_code.like(f"{dept_code}-%"))\
+
+            # Generate ticket code — SATU master counter global untuk semua team.
+            # Format: TCK-000001. Kode lama ({dept}-{counter}) dibiarkan historis.
+            # FOR UPDATE mencegah race condition pada counter.
+            last_ticket = Ticket.query\
                 .order_by(Ticket.code_counter.desc())\
                 .with_for_update()\
                 .first()
-            
+
             new_counter = 1
             if last_ticket and last_ticket.code_counter:
                 new_counter = last_ticket.code_counter + 1
-            
-            ticket_code = f"{dept_code}-{str(new_counter).zfill(3)}"
+
+            ticket_code = f"{TICKET_CODE_PREFIX}-{str(new_counter).zfill(TICKET_CODE_PADDING)}"
 
             # Fetch default status from master data
             default_status = Status.query.filter_by(is_default=True).first()
@@ -384,6 +418,7 @@ class TicketService:
                 taken_at=sla_taken_at,
                 ticket_code=ticket_code,
                 code_counter=new_counter,
+                team_id=team.id,
                 assigned_to_id=assigned_to_id
             )
             
@@ -1317,9 +1352,11 @@ class TicketService:
         return note
 
     @staticmethod
-    def get_stats(user_id=None, days=7, start=None, end=None):
-        """Get ticket statistics for dashboard, optionally filtered by user"""
+    def get_stats(user_id=None, days=7, start=None, end=None, team_id=None):
+        """Get ticket statistics for dashboard, optionally filtered by user/team."""
         base_query = Ticket.query.filter(Ticket.category != DEV_CATEGORY)
+        if team_id is not None:
+            base_query = base_query.filter(Ticket.team_id == team_id)
         if user_id:
             base_query = base_query.filter(Ticket.assigned_to_id == user_id)
             
@@ -1387,6 +1424,8 @@ class TicketService:
         prio_query = db.session.query(
             db.func.lower(Ticket.priority), db.func.count(Ticket.id)
         ).filter(Ticket.category != DEV_CATEGORY)
+        if team_id is not None:
+            prio_query = prio_query.filter(Ticket.team_id == team_id)
         if user_id:
             prio_query = prio_query.filter(Ticket.assigned_to_id == user_id)
         if done_status_names:
@@ -1396,6 +1435,8 @@ class TicketService:
 
         # Category breakdown (tiket DIBUAT dalam jendela bila ada)
         cats_query = db.session.query(Ticket.category, db.func.count(Ticket.id)).filter(Ticket.category != DEV_CATEGORY)
+        if team_id is not None:
+            cats_query = cats_query.filter(Ticket.team_id == team_id)
         if user_id:
             cats_query = cats_query.filter(Ticket.assigned_to_id == user_id)
         cats_query = _in_window(cats_query)
@@ -1404,6 +1445,8 @@ class TicketService:
 
         # Department breakdown (tiket DIBUAT dalam jendela bila ada)
         depts_query = db.session.query(Ticket.submitter_department, db.func.count(Ticket.id)).filter(Ticket.category != DEV_CATEGORY)
+        if team_id is not None:
+            depts_query = depts_query.filter(Ticket.team_id == team_id)
         if user_id:
             depts_query = depts_query.filter(Ticket.assigned_to_id == user_id)
         depts_query = _in_window(depts_query)
@@ -1435,6 +1478,8 @@ class TicketService:
             ).all() if done_status_names else []
         else:
             resolved_all_q = Ticket.query.filter(Ticket.category != DEV_CATEGORY).filter(db.func.lower(Ticket.status).in_(done_status_names))
+            if team_id is not None:
+                resolved_all_q = resolved_all_q.filter(Ticket.team_id == team_id)
             if user_id:
                 resolved_all_q = resolved_all_q.filter(Ticket.assigned_to_id == user_id)
             resolved_all = resolved_all_q.all()

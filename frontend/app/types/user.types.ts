@@ -7,6 +7,15 @@
 
 export type UserRole = 'Administrator' | 'Management' | 'Staff';
 
+export interface Team {
+    id: string | number;
+    name: string;
+    code: string;
+    slug?: string | null;
+    description?: string | null;
+    isActive: boolean;
+}
+
 export interface User {
     id: string;
     email: string | null;
@@ -16,6 +25,8 @@ export interface User {
     department: string | null;
     phone: string | null;
     avatar_url: string | null;
+    teams?: Team[];
+    teamIds?: (string | number)[];
     is_active?: boolean;
     isOnBreak?: boolean;
     breakStartedAt?: string | null;
@@ -88,4 +99,5 @@ export interface CreateUserPayload {
     role: string;
     department?: string | null;
     phone?: string | null;
+    teamIds?: (string | number)[];
 }

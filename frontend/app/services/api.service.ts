@@ -319,8 +319,8 @@ export const usersApi = {
     getAll: async () =>
         apiRequest<{ success: boolean; users: User[]; total: number }>('/users'),
 
-    getAgents: async () =>
-        apiRequest<{ success: boolean; agents: Agent[] }>('/users/agents'),
+    getAgents: async (teamId?: number) =>
+        apiRequest<{ success: boolean; agents: Agent[] }>(`/users/agents${teamId != null ? `?teamId=${teamId}` : ''}`),
 
     getById: async (id: string) =>
         apiRequest<{ success: boolean; user: User }>(`/users/${id}`),

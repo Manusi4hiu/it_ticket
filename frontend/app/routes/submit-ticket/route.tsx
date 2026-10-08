@@ -18,6 +18,7 @@ import {
     Phone,
     Building2,
     Flag,
+    Tag,
     FileText,
     MessageSquare,
     Image as ImageIcon,
@@ -26,7 +27,7 @@ import {
 import styles from "./style.module.css";
 
 import { createTicket } from "~/services/ticket.service";
-import { settingsApi, type Category, type Priority, type Department } from "~/services/settings.service";
+import { settingsApi, type Category, type Priority, type Department, type Team } from "~/services/settings.service";
 import { getUserSession } from "~/services/session.service";
 import { compressImage } from "~/utils/image-compression";
 
@@ -37,10 +38,11 @@ export async function loader({ request }: Route.LoaderArgs) {
     //   - sudah login -> kembali ke dashboard "/dashboard"
     const session = await getUserSession(request);
 
-    const [categoriesRes, prioritiesRes, departmentsRes] = await Promise.all([
+    const [categoriesRes, prioritiesRes, departmentsRes, teamsRes] = await Promise.all([
         settingsApi.getCategories(),
         settingsApi.getPriorities(),
-        settingsApi.getDepartments()
+        settingsApi.getDepartments(),
+        settingsApi.getTeams()
     ]);
 
     return {
@@ -48,7 +50,8 @@ export async function loader({ request }: Route.LoaderArgs) {
         homePath: session ? "/dashboard" : "/",
         categories: (categoriesRes.data?.data || []) as Category[],
         priorities: (prioritiesRes.data?.data || []) as Priority[],
-        departments: (departmentsRes.data?.data || []) as Department[]
+        departments: (departmentsRes.data?.data || []) as Department[],
+        teams: (teamsRes.data?.data || []) as Team[],
     };
 }
 
@@ -59,7 +62,8 @@ export async function action({ request }: Route.ActionArgs) {
     const phone = (formData.get("phone") as string || "").trim();
     const department = (formData.get("department") as string || "").trim();
     const priority = (formData.get("priority") as string || 'medium').trim();
-    const category = "Uncategorized";
+    const category = (formData.get("category") as string || "Uncategorized").trim();
+    const teamId = (formData.get("teamId") as string || "").trim();
     const subject = (formData.get("subject") as string || "").trim();
     const description = (formData.get("description") as string || "").trim();
     const receiveUpdates = formData.get("receiveUpdates") === "true" || formData.get("receiveUpdates") === "on";
@@ -108,6 +112,7 @@ export async function action({ request }: Route.ActionArgs) {
             submitterPhone: phone || undefined,
             submitterDepartment: department,
             receiveUpdates: receiveUpdates,
+            teamId: teamId || undefined,
         }, validImage, idempotencyKey);
 
         if (!newTicket) {
@@ -123,15 +128,25 @@ export async function action({ request }: Route.ActionArgs) {
 }
 
 export default function SubmitTicket({ actionData, loaderData }: Route.ComponentProps) {
-    const { priorities, departments, homePath } = loaderData;
+    const { priorities, departments, homePath, teams, categories } = loaderData;
     const navigate = useNavigate();
     const navigation = useNavigation();
     const isSubmitting = navigation.state !== "idle";
     const [imagePreview, setImagePreview] = React.useState<string | null>(null);
     const [fileError, setFileError] = React.useState<string | null>(null);
+    const [selectedTeamId, setSelectedTeamId] = React.useState<string>(() => {
+        // Default: team IT (code IT), fallback team pertama.
+        const it = teams.find(t => t.code === 'IT') ?? teams[0];
+        return it ? String(it.id) : "";
+    });
     const idempotencyKey = React.useMemo(() => uuidv4(), []);
     const submit = useSubmit();
     const [compressedFile, setCompressedFile] = React.useState<File | null>(null);
+
+    // Kategori difilter berdasarkan team yang dipilih:
+    // - teamId NULL = global (tampil semua team)
+    // - teamId terpilih = global + kategori team tsb
+    const filteredCategories = categories.filter(c => c.isActive && (!c.teamId || String(c.teamId) === selectedTeamId));
 
     // "Back to Home" context-aware:
     // - sesi tanpa login (dari landing page)  -> "/" (landing page)
@@ -328,6 +343,45 @@ export default function SubmitTicket({ actionData, loaderData }: Route.Component
                                         <FileText size={18} />
                                         Ticket Details
                                     </h3>
+
+                                    <div className={styles.formGroup}>
+                                        <Label htmlFor="teamId" className={styles.label}>
+                                            <Building2 size={14} />
+                                            Ticket For *
+                                        </Label>
+                                        <Select name="teamId" value={selectedTeamId} onValueChange={setSelectedTeamId} required>
+                                            <SelectTrigger className={styles.select}>
+                                                <SelectValue placeholder="Select Team" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {teams.filter(t => t.isActive).map((t) => (
+                                                    <SelectItem key={t.id} value={String(t.id)}>
+                                                        {t.name}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        <input type="hidden" name="teamId" value={selectedTeamId} />
+                                    </div>
+
+                                    <div className={styles.formGroup}>
+                                        <Label htmlFor="category" className={styles.label}>
+                                            <Tag size={14} />
+                                            Category *
+                                        </Label>
+                                        <Select name="category" defaultValue="Uncategorized" required>
+                                            <SelectTrigger className={styles.select}>
+                                                <SelectValue placeholder="Select Category" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {filteredCategories.map((c) => (
+                                                    <SelectItem key={c.id} value={c.name}>
+                                                        {c.name}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
 
                                     <div className={styles.formGroup}>
                                         <Label htmlFor="priority" className={styles.label}>

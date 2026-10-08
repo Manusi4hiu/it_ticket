@@ -34,6 +34,7 @@ interface NewUserForm {
   phone: string;
   password: string;
   role: UserRole;
+  teamIds: string[];
 }
 
 interface EditUserForm {
@@ -77,6 +78,7 @@ export function useRoleManagement(
     phone: "",
     password: "",
     role: "Staff",
+    teamIds: [],
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
@@ -188,6 +190,7 @@ export function useRoleManagement(
         phone: newUserForm.phone || null,
         password: newUserForm.password,
         role: newUserForm.role,
+        teamIds: newUserForm.teamIds,
       });
 
       if (response.success && response.data) {
@@ -225,6 +228,7 @@ export function useRoleManagement(
           phone: "",
           password: "",
           role: "Staff",
+          teamIds: [],
         });
         setFormErrors({});
       } else {

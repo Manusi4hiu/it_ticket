@@ -27,6 +27,8 @@ export async function createUserSession(user: AuthUser, redirectTo: string, toke
     session.set('userEmail', user.email);
     session.set('userRole', user.role);
     session.set('userName', user.full_name);
+    session.set('teams', user.teams || []);
+    session.set('lastActiveTeamId', user.lastActiveTeamId ?? null);
     
     if (token) {
       console.log('[Session Service] Setting authToken in session');
@@ -53,6 +55,8 @@ export async function getUserSession(request: Request) {
   const userRole = session.get('userRole');
   const userName = session.get('userName');
   const authToken = session.get('authToken');
+  const teams = session.get('teams');
+  const lastActiveTeamId = session.get('lastActiveTeamId');
 
   if (!userId || (typeof userId !== 'string' && typeof userId !== 'number')) {
     return null;
@@ -69,6 +73,8 @@ export async function getUserSession(request: Request) {
     userRole,
     userName,
     authToken,
+    teams,
+    lastActiveTeamId,
   };
 }
 

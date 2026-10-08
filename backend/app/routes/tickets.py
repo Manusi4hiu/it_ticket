@@ -13,9 +13,12 @@ from app.utils.permissions import (
     is_administrator,
     assign_permission_required,
     status_change_permission_required,
+    scoped_ticket_query,
+    can_access_ticket,
 )
 
 tickets_bp = Blueprint('tickets', __name__)
+
 
 def get_ticket_or_404(ticket_id):
     """Helper to handle both numeric ID and Ticket Code"""
@@ -52,6 +55,10 @@ def get_tickets():
         joinedload(Ticket.assigned_user),
         selectinload(Ticket.collaborators)
     )
+
+    # ── Team scoping: non-admin hanya lihat ticket team membership-nya ──
+    current_user = get_current_user()
+    query = scoped_ticket_query(current_user, query)
     
     if status:
         if ',' in status:
@@ -216,6 +223,11 @@ def get_ticket(ticket_id):
    
     if not ticket:
         return jsonify({'success': False, 'error': 'Ticket tidak ditemukan'}), 404
+
+    # ── Team scoping ──
+    user = get_current_user()
+    if not can_access_ticket(user, ticket):
+        return jsonify({'success': False, 'error': 'Forbidden. Anda tidak punya akses ke ticket ini.'}), 403
     
     ticket_data = ticket.to_dict()
     return jsonify({
@@ -295,6 +307,10 @@ def update_ticket(ticket_id):
     if not ticket:
         return jsonify({'success': False, 'error': 'Ticket tidak ditemukan'}), 404
 
+    # ── Team scoping (update) ──
+    if not can_access_ticket(current_user, ticket):
+        return jsonify({'success': False, 'error': 'Forbidden. Anda tidak punya akses ke ticket ini.'}), 403
+
     # Validate requiresReason for status change
     if 'status' in data:
         from app.models.master_data import Status
@@ -365,11 +381,16 @@ def assign_ticket(ticket_id):
     ticket = get_ticket_or_404(ticket_id)
     if not ticket:
         return jsonify({'success': False, 'error': 'Ticket tidak ditemukan'}), 404
+
+    # ── Team scoping (assign) ──
+    actor = get_current_user()
+    if not can_access_ticket(actor, ticket):
+        return jsonify({'success': False, 'error': 'Forbidden. Anda tidak punya akses ke ticket ini.'}), 403
+
     try:
         ticket, error = TicketService.assign_ticket(ticket.id, user_id, transfer_reason=transfer_reason, transferred_by_id=current_user_id)
     except ValueError as ve:
         return jsonify({'success': False, 'error': str(ve)}), 409
-
     if error:
         # 409 Conflict: aksi tidak valid untuk state ticket saat ini
         # (mis. oper tanpa alasan, unassign tiket yang pernah diambil, resolved)
@@ -428,6 +449,12 @@ def update_ticket_status(ticket_id):
     ticket = get_ticket_or_404(ticket_id)
     if not ticket:
         return jsonify({'success': False, 'error': 'Ticket tidak ditemukan'}), 404
+
+    # ── Team scoping (status) ──
+    actor = get_current_user()
+    if not can_access_ticket(actor, ticket):
+        return jsonify({'success': False, 'error': 'Forbidden. Anda tidak punya akses ke ticket ini.'}), 403
+
     try:
         ticket = TicketService.update_ticket_status(ticket.id, status, resolution_summary, resolved_at_str, reason, user_id, resolution_image_url)
     except ValueError as ve:
@@ -468,6 +495,12 @@ def add_ticket_note(ticket_id):
     ticket = get_ticket_or_404(ticket_id)
     if not ticket:
         return jsonify({'success': False, 'error': 'Ticket tidak ditemukan'}), 404
+
+    # ── Team scoping (notes) ──
+    actor = get_current_user()
+    if not can_access_ticket(actor, ticket):
+        return jsonify({'success': False, 'error': 'Forbidden. Anda tidak punya akses ke ticket ini.'}), 403
+
     note = TicketService.add_note(ticket.id, content, user_id, is_internal, image_url)
     
     if not note:
@@ -485,6 +518,7 @@ def add_ticket_note(ticket_id):
 def get_ticket_stats():
     """Get ticket statistics for dashboard"""
     user_id = get_jwt_identity()
+    current_user = get_current_user()
     # Check if we should filter by user (e.g. if not admin)
     # For now, let's allow a query param 'personal' to toggle
     personal = request.args.get('personal', type=lambda v: v.lower() == 'true')
@@ -497,10 +531,20 @@ def get_ticket_stats():
     start = request.args.get('start')
     end = request.args.get('end')
 
+    # ── Team scoping: non-admin hanya boleh stats team membership-nya ──
+    team_id = request.args.get('teamId', type=int)
+    if not is_administrator(current_user):
+        from app.utils.permissions import get_user_team_ids
+        ids = get_user_team_ids(current_user)
+        if team_id is not None and team_id not in ids:
+            return jsonify({'success': False, 'error': 'Forbidden. Anda tidak punya akses ke team ini.'}), 403
+        if team_id is None:
+            team_id = next(iter(ids), None) if ids else None
+
     if personal:
-        stats = TicketService.get_stats(user_id=user_id, days=days, start=start, end=end)
+        stats = TicketService.get_stats(user_id=user_id, days=days, start=start, end=end, team_id=team_id)
     else:
-        stats = TicketService.get_stats(days=days, start=start, end=end)
+        stats = TicketService.get_stats(days=days, start=start, end=end, team_id=team_id)
     
     return jsonify({
         'success': True,

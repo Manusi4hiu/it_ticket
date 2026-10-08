@@ -31,8 +31,9 @@ def get_users():
 @users_bp.route('/agents', methods=['GET'])
 @jwt_required()
 def get_agents():
-    """Get users who can be assigned to tickets (all staff)"""
-    users = UserService.get_agents()
+    """Get users who can be assigned to tickets (all staff), optional team scope"""
+    team_id = request.args.get('teamId', type=int)
+    users = UserService.get_agents(team_id=team_id)
     
     return jsonify({
         'success': True,

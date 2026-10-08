@@ -34,6 +34,7 @@ import {
 } from "~/components/ui/dialog/dialog";
 import { Card, CardContent } from "~/components/ui/card/card";
 import { usersApi } from "~/services/api.service";
+import { settingsApi, type Team } from "~/services/settings.service";
 import type { Route } from "./+types/route";
 import { useToast } from "~/hooks/use-toast";
 import styles from "./style.module.css";
@@ -49,11 +50,15 @@ import { useRoleManagement, type UserRole, type ManagedUser } from "./hooks/use-
 export async function loader({ request }: Route.LoaderArgs) {
   const session = await requireRole(request, ["Administrator"]);
 
-  const response = await usersApi.getAll();
+  const [response, teamsRes] = await Promise.all([
+    usersApi.getAll(),
+    settingsApi.getTeams(),
+  ]);
   const users = response.success && response.data ? response.data.users : [];
 
   return Response.json({
     session,
+    teams: (teamsRes.data?.data || []) as Team[],
     users: users.map((u) => ({
       id: u.id,
       email: u.email,
@@ -72,7 +77,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 export default function RoleManagementSettings({
   loaderData,
 }: Route.ComponentProps) {
-  const { session, users: initialUsers } = loaderData;
+  const { session, users: initialUsers, teams } = loaderData;
 
   const currentUser = {
     id: session.userId,
@@ -392,6 +397,48 @@ export default function RoleManagementSettings({
                     <SelectItem value="Staff">Staff</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+              {/* Team membership (multi-select) */}
+              <div className="space-y-2" style={{ gridColumn: "1 / -1" }}>
+                <Label htmlFor="teams">Teams</Label>
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                  {teams.map((t) => {
+                    const checked = rm.newUserForm.teamIds.includes(String(t.id));
+                    return (
+                      <label
+                        key={t.id}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "6px",
+                          padding: "6px 12px",
+                          borderRadius: "8px",
+                          border: "1px solid rgba(255,255,255,0.2)",
+                          background: checked ? "rgba(59,130,246,0.25)" : "rgba(255,255,255,0.05)",
+                          cursor: "pointer",
+                          fontSize: "0.85rem",
+                          color: "white",
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) => {
+                            const id = String(t.id);
+                            rm.setNewUserForm((p) => ({
+                              ...p,
+                              teamIds: e.target.checked
+                                ? [...p.teamIds, id]
+                                : p.teamIds.filter((x) => x !== id),
+                            }));
+                          }}
+                          style={{ width: "14px", height: "14px", cursor: "pointer" }}
+                        />
+                        {t.name}
+                      </label>
+                    );
+                  })}
+                </div>
               </div>
               <FormField
                 id="email"

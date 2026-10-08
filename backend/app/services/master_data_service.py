@@ -51,7 +51,8 @@ class MasterDataService:
         category = Category(
             name=data['name'],
             description=data.get('description'),
-            is_active=data.get('isActive', True)
+            is_active=data.get('isActive', True),
+            team_id=data.get('teamId') or None
         )
         db.session.add(category)
         db.session.commit()
@@ -71,6 +72,7 @@ class MasterDataService:
             
         if 'description' in data: category.description = data['description']
         if 'isActive' in data: category.is_active = data['isActive']
+        if 'teamId' in data: category.team_id = data.get('teamId') or None
         
         db.session.commit()
         return category, None
@@ -286,7 +288,8 @@ class MasterDataService:
             requires_reason=data.get('requiresReason', True),
             pauses_sla=data.get('pausesSla', False),
             show_on_devboard=data.get('showOnDevboard', False),
-            show_on_it_helpdesk=data.get('showOnItHelpdesk', False)
+            show_on_it_helpdesk=data.get('showOnItHelpdesk', False),
+            team_id=data.get('teamId') or None
         )
         db.session.add(status)
         db.session.commit()
@@ -311,6 +314,7 @@ class MasterDataService:
         if 'pausesSla' in data: status.pauses_sla = data['pausesSla']
         if 'showOnDevboard' in data: status.show_on_devboard = data['showOnDevboard']
         if 'showOnItHelpdesk' in data: status.show_on_it_helpdesk = data['showOnItHelpdesk']
+        if 'teamId' in data: status.team_id = data.get('teamId') or None
 
         if 'isDefault' in data and data['isDefault']:
             Status.query.update({Status.is_default: False})

@@ -38,6 +38,9 @@ export interface Ticket {
     status: TicketStatus;
     priority: TicketPriority;
     category: TicketCategory;
+    teamId?: number;
+    teamCode?: string;
+    teamName?: string;
     submitterName: string;
     submitterEmail: string;
     submitterPhone?: string;
@@ -108,4 +111,6 @@ export interface CreateTicketPayload {
     submitterPhone?: string;
     submitterDepartment?: string;
     receiveUpdates?: boolean;
+    teamId?: number | string;
+    teamCode?: string;
 }

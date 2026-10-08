@@ -27,6 +27,9 @@ function mapApiTicket(apiTicket: Record<string, unknown>): Ticket {
         status: apiTicket.status as string,
         priority: apiTicket.priority as string,
         category: apiTicket.category as string,
+        teamId: apiTicket.teamId as number | undefined,
+        teamCode: apiTicket.teamCode as string | undefined,
+        teamName: apiTicket.teamName as string | undefined,
         submitterName: apiTicket.submitterName as string,
         submitterEmail: apiTicket.submitterEmail as string,
         submitterPhone: apiTicket.submitterPhone as string | undefined,
@@ -111,6 +114,8 @@ export async function createTicket(ticket: {
     submitterPhone?: string;
     submitterDepartment?: string;
     receiveUpdates?: boolean;
+    teamId?: number | string;
+    teamCode?: string;
 }, image?: File, idempotencyKey?: string): Promise<Ticket | null> {
     const response = await ticketsApi.create(ticket, image, idempotencyKey);
 
@@ -263,8 +268,8 @@ export async function getTicketStats(personal: boolean = false, days?: number, o
     };
 }
 
-export async function getAgents(): Promise<Agent[]> {
-    const response = await usersApi.getAgents();
+export async function getAgents(teamId?: number): Promise<Agent[]> {
+    const response = await usersApi.getAgents(teamId);
 
     if (!response.success || !response.data) {
         console.error('Failed to fetch agents:', response.error);

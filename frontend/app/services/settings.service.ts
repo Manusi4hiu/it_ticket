@@ -5,6 +5,8 @@ export interface Category {
     name: string;
     description?: string;
     isActive: boolean;
+    teamId?: number | null;
+    teamCode?: string | null;
 }
 
 export interface Priority {
@@ -29,6 +31,8 @@ export interface Status {
     pausesSla: boolean;
     showOnDevboard: boolean;
     showOnItHelpdesk: boolean;
+    teamId?: number | null;
+    teamCode?: string | null;
 }
 
 export interface SLAPolicy {
@@ -119,6 +123,10 @@ export const settingsApi = {
             : '/settings/departments';
         return apiRequest<{ success: boolean; data: Department[] }>(url);
     },
+    // Teams
+    getTeams: async () => {
+        return apiRequest<{ success: boolean; data: Team[] }>('/settings/teams');
+    },
     createDepartment: async (data: Partial<Department>) => {
         return apiRequest<{ success: boolean; data: Department }>('/settings/departments', {
             method: 'POST',
@@ -192,5 +200,14 @@ export interface Department {
     name: string;
     code?: string;
     description?: string;
+    isActive: boolean;
+}
+
+export interface Team {
+    id: string | number;
+    name: string;
+    code: string;
+    slug?: string | null;
+    description?: string | null;
     isActive: boolean;
 }

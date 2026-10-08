@@ -1,9 +1,68 @@
 from flask import Blueprint, request, jsonify
 from app.models.system_log import SystemLog
+from app.models.team import Team
 from app.utils.decorators import admin_required
 from app.services.master_data_service import MasterDataService
 
 settings_bp = Blueprint('settings', __name__)
+
+# --- TEAMS ---
+
+@settings_bp.route('/teams', methods=['GET'])
+def get_teams():
+    teams = Team.query.order_by(Team.name).all()
+    return jsonify({'success': True, 'data': [t.to_dict() for t in teams]})
+
+@settings_bp.route('/teams', methods=['POST'])
+@admin_required
+def create_team():
+    data = request.get_json()
+    if not data:
+        return jsonify({'success': False, 'error': 'No data provided'}), 400
+    if not data.get('name') or not data.get('code'):
+        return jsonify({'success': False, 'error': 'name dan code diperlukan'}), 400
+    if Team.query.filter_by(code=data['code']).first():
+        return jsonify({'success': False, 'error': 'Team code sudah ada'}), 400
+    team = Team(
+        name=data['name'],
+        code=data['code'],
+        slug=data.get('slug'),
+        description=data.get('description'),
+        is_active=data.get('isActive', True),
+    )
+    from app import db
+    db.session.add(team)
+    db.session.commit()
+    return jsonify({'success': True, 'data': team.to_dict()})
+
+@settings_bp.route('/teams/<int:id>', methods=['PUT'])
+@admin_required
+def update_team(id):
+    data = request.get_json()
+    if not data:
+        return jsonify({'success': False, 'error': 'No data provided'}), 400
+    team = Team.query.get(id)
+    if not team:
+        return jsonify({'success': False, 'error': 'Team not found'}), 404
+    if 'name' in data: team.name = data['name']
+    if 'code' in data: team.code = data['code']
+    if 'slug' in data: team.slug = data['slug']
+    if 'description' in data: team.description = data['description']
+    if 'isActive' in data: team.is_active = data['isActive']
+    from app import db
+    db.session.commit()
+    return jsonify({'success': True, 'data': team.to_dict()})
+
+@settings_bp.route('/teams/<int:id>', methods=['DELETE'])
+@admin_required
+def delete_team(id):
+    team = Team.query.get(id)
+    if not team:
+        return jsonify({'success': False, 'error': 'Team not found'}), 404
+    from app import db
+    db.session.delete(team)
+    db.session.commit()
+    return jsonify({'success': True})
 
 # --- CATEGORIES ---
 

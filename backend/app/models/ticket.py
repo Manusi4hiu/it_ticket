@@ -34,6 +34,11 @@ class Ticket(db.Model):
     category = db.Column(db.String(50), nullable=False, index=True)  # Hardware, Software, Network, Other
     image_url = db.Column(db.Text, nullable=True)
     idempotency_key = db.Column(db.String(36), unique=True, nullable=True)
+
+    # Team pemilik ticket (workspace/board tujuan request). Penanda pemisah
+    # ticket masuk: IT vs Design (COC). BUKAN department submitter.
+    team_id = db.Column(db.Integer, db.ForeignKey('teams.id'), nullable=True, index=True)
+    team = db.relationship('Team', backref=db.backref('tickets', lazy='dynamic'))
     
     # Submitter info
     submitter_name = db.Column(db.String(255), nullable=False)
@@ -80,6 +85,9 @@ class Ticket(db.Model):
             'status': self.status,
             'priority': self.priority,
             'category': self.category,
+            'teamId': self.team_id,
+            'teamCode': self.team.code if self.team else None,
+            'teamName': self.team.name if self.team else None,
             'submitterName': self.submitter_name,
             'submitterEmail': self.submitter_email,
             'submitterPhone': self.submitter_phone,

@@ -9,13 +9,18 @@ class Category(db.Model):
     name = db.Column(db.String(50), unique=True, nullable=False)
     description = db.Column(db.String(255), nullable=True)
     is_active = db.Column(db.Boolean, default=True, server_default=db.true(), nullable=False)
+    # Scoping team: NULL = global (tampil di semua team), selain itu hanya team tsb.
+    team_id = db.Column(db.Integer, db.ForeignKey('teams.id'), nullable=True, index=True)
+    team = db.relationship('Team')
 
     def to_dict(self):
         return {
             'id': self.id,
             'name': self.name,
             'description': self.description,
-            'isActive': self.is_active if self.is_active is not None else True
+            'isActive': self.is_active if self.is_active is not None else True,
+            'teamId': self.team_id,
+            'teamCode': self.team.code if self.team else None,
         }
 
 class Priority(db.Model):
@@ -101,6 +106,9 @@ class Status(db.Model):
     pauses_sla = db.Column(db.Boolean, default=False)
     show_on_devboard = db.Column(db.Boolean, default=False)
     show_on_it_helpdesk = db.Column(db.Boolean, default=True)
+    # Scoping team: NULL = global, selain itu hanya team tsb.
+    team_id = db.Column(db.Integer, db.ForeignKey('teams.id'), nullable=True, index=True)
+    team = db.relationship('Team')
 
     def to_dict(self):
         return {
@@ -113,7 +121,9 @@ class Status(db.Model):
             'requiresReason': self.requires_reason,
             'pausesSla': self.pauses_sla,
             'showOnDevboard': self.show_on_devboard,
-            'showOnItHelpdesk': self.show_on_it_helpdesk
+            'showOnItHelpdesk': self.show_on_it_helpdesk,
+            'teamId': self.team_id,
+            'teamCode': self.team.code if self.team else None,
         }
 
 class BreakSetting(db.Model):

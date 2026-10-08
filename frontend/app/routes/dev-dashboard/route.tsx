@@ -74,8 +74,17 @@ const STATUS_ICONS_MAP: Record<string, React.ReactNode> = {
 };
 
 export async function loader({ request }: Route.LoaderArgs) {
-  // Management boleh akses Dev Board (view-only); Admin & Staff full access
+  // Dev Board HANYA untuk anggota team IT (role Staff/Admin/Management).
   const session = await requireRole(request, ["Administrator", "Staff", "Management"]);
+
+  // Administrator lintas team boleh akses; non-admin wajib anggota team IT.
+  const isAdmin = session.userRole === "Administrator";
+  const teams = (session as any).teams || [];
+  const inIT = teams.some((t: any) => t.code === "IT");
+  if (!isAdmin && !inIT) {
+    const { redirect } = await import("react-router");
+    throw redirect("/forbidden");
+  }
 
   const [ticketsRes, agents, statusesRes, categoriesRes, prioritiesRes] = await Promise.all([
     getTickets({ category: "Development", per_page: 150 }), // Only show Development-scoped tracking tasks
