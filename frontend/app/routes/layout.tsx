@@ -46,8 +46,24 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
   const location = useLocation();
   const isAdministrator = session?.userRole === 'Administrator';
 
-  // Role yang boleh melihat Dev Board (Management view-only)
-  const canAccessDevBoard = isAdministrator || session?.userRole === 'Staff' || session?.userRole === 'Management';
+  // ── Team branding: staff team Graphic Design (COC) pakai label CORCOM ──
+  // User yang HANYA anggota COC -> branding COC. User IT / admin (IT atau
+  // lintas team) -> branding IT. (Refine saat team switcher ditambahkan.)
+  const teams = (session?.teams || []) as { id: string | number; name: string; code: string }[];
+  const isCoc = teams.some(t => t.code === 'COC') && !teams.some(t => t.code === 'IT');
+
+  const L = {
+    headerSupport: isCoc ? "CORCOM" : "IT Aero Support",
+    headerDev: isCoc ? "CORCOM" : "IT Aero Dev",
+    helpdeskToggle: isCoc ? "Ticket" : "Helpdesk",
+    devToggle: isCoc ? "Board" : "Dev Team",
+    devBoardNav: isCoc ? "Board" : "Dev Board",
+  };
+
+  // Role yang boleh melihat Dev Board (Management view-only) — HANYA anggota
+  // team IT (atau admin lintas team). User COC tidak lihat toggle Dev/Board.
+  const isInIT = teams.some(t => t.code === 'IT');
+  const canAccessDevBoard = isAdministrator || ((session?.userRole === 'Staff' || session?.userRole === 'Management') && isInIT);
 
   const [isDevMode, setIsDevMode] = useState(false);
 
@@ -186,7 +202,7 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
               <img src="/logo/logo itani.png" alt="Logo" className={styles.headerIcon} />
             </div>
             <h1 className={styles.headerTitle}>
-              {isDevMode ? "IT Aero Dev" : "IT Aero Support"}
+              {isDevMode ? L.headerDev : L.headerSupport}
             </h1>
           </div>
 
@@ -200,14 +216,14 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
                     className={`${styles.toggleBtn} ${!isDevMode ? styles.toggleBtnActive : ''}`}
                     onClick={() => handleToggleMode(false)}
                   >
-                    Helpdesk
+                    {L.helpdeskToggle}
                   </button>
                   <button
                     type="button"
                     className={`${styles.toggleBtn} ${isDevMode ? styles.toggleBtnActive : ''}`}
                     onClick={() => handleToggleMode(true)}
                   >
-                    Dev Team
+                    {L.devToggle}
                   </button>
                 </div>
               )}
@@ -262,7 +278,7 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
                       className={({ isActive }) => `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`}
                     >
                       <Kanban className={styles.navIcon} />
-                      <span className={styles.navLabel}>Dev Board</span>
+                      <span className={styles.navLabel}>{L.devBoardNav}</span>
                     </NavLink>
                     <NavLink
                       to="/staff-performance"
