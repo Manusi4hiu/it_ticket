@@ -161,32 +161,47 @@ class TicketService:
     @staticmethod
     def calculate_sla_status(sla_deadline, resolved_at=None, sla_paused_at=None, assigned_user=None):
         """Calculate SLA status based on deadline and resolution time.
-        
-        SLA is frozen (paused) while the assigned staff is on break.
+
+        SLA clock is frozen while ticket is in a paused state (pending/hold/wait)
+        or while assigned staff is on break. Breach can only happen at the moment
+        the SLA clock was frozen (i.e. if deadline was already missed before pause),
+        never during the frozen period itself.
         """
         if not sla_deadline:
             return 'good'
-            
+
         # Ensure sla_deadline is timezone-aware
         if sla_deadline.tzinfo is None:
             sla_deadline = sla_deadline.replace(tzinfo=timezone.utc)
-        
+
         # Pause SLA bila staff break — gunakan break_started_at sebagai comparison time
         if assigned_user and assigned_user.is_on_break and assigned_user.break_started_at:
             comparison_time = assigned_user.break_started_at
         elif resolved_at:
             comparison_time = resolved_at
         elif sla_paused_at:
-            comparison_time = sla_paused_at
+            # Tiket dalam status pending/paused: SLA clock beku.
+            # Gunakan sla_paused_at untuk memeriksa apakah deadline sudah terlewat
+            # SEBELUM tiket dipauskan. Jika belum terlewat saat dipauskan → 'good'
+            # (frozen). Jika sudah terlewat sebelum dipauskan → 'breached'.
+            paused_at_aware = sla_paused_at
+            if paused_at_aware.tzinfo is None:
+                paused_at_aware = paused_at_aware.replace(tzinfo=timezone.utc)
+            time_remaining_at_pause = sla_deadline - paused_at_aware
+            if time_remaining_at_pause.total_seconds() < 0:
+                return 'breached'
+            else:
+                # SLA masih valid saat dipauskan — bekukan di 'good'
+                return 'good'
         else:
             comparison_time = datetime.now(timezone.utc)
-        
+
         # Ensure comparison_time is timezone-aware
         if comparison_time.tzinfo is None:
             comparison_time = comparison_time.replace(tzinfo=timezone.utc)
-            
+
         time_remaining = sla_deadline - comparison_time
-        
+
         if time_remaining.total_seconds() < 0:
             return 'breached'
         elif not resolved_at and time_remaining.total_seconds() < 2 * 60 * 60:  # Warning only for active tickets
