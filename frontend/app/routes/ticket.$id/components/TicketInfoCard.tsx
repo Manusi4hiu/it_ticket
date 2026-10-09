@@ -117,7 +117,9 @@ export function TicketInfoCard({
       <div className={styles.sectionContent}>
         {/* Ticket Header: ID, Title, Status, Priority */}
         <div className={styles.ticketHeader}>
-          <div className={styles.ticketId}>{ticket.ticketCode || ticket.id}</div>
+          <div className={styles.ticketIdBadgeRow}>
+            <span className={styles.ticketId}>{ticket.ticketCode || ticket.id}</span>
+          </div>
           <h1 className={styles.ticketTitle}>{ticket.title}</h1>
 
           <div className={styles.ticketMeta}>
@@ -125,9 +127,9 @@ export function TicketInfoCard({
             <span
               className={styles.statusBadge}
               style={{
-                backgroundColor: `${statusColor}15`,
+                backgroundColor: `${statusColor}18`,
                 color: statusColor,
-                borderColor: `${statusColor}30`,
+                borderColor: `${statusColor}35`,
               }}
             >
               {getStatusIconDetail(ticket.status)}
@@ -176,7 +178,7 @@ export function TicketInfoCard({
           <InfoItem
             icon={<Tag />}
             label="Category"
-            value={<Badge variant="outline">{ticket.category}</Badge>}
+            value={<Badge variant="outline" className={styles.categoryBadge}>{ticket.category}</Badge>}
           />
           <InfoItem
             icon={<Clock />}
@@ -187,8 +189,11 @@ export function TicketInfoCard({
 
         {/* Description */}
         <div className={styles.description}>
-          <h3>Description</h3>
-          <p className={styles.descriptionText}>{ticket.description}</p>
+          <div className={styles.descriptionHeader}>
+            <FileText size={15} className={styles.descriptionIcon} />
+            <h3>Description</h3>
+          </div>
+          <p className={styles.descriptionText}>{ticket.description || "No description provided."}</p>
         </div>
 
         {/* Attachment Image */}
@@ -233,7 +238,9 @@ export function TicketInfoCard({
                   {ticket.assignedTo}
                 </span>
               ) : (
-                ticket.assignedTo || "Waiting for Assignment"
+                <span className={styles.infoValueMuted}>
+                  {ticket.assignedTo || "Waiting for Assignment"}
+                </span>
               )}
             </span>
           </div>
@@ -370,13 +377,25 @@ function InfoItem({
   label: string;
   value: React.ReactNode;
 }) {
+  const isValueEmpty =
+    value === undefined ||
+    value === null ||
+    value === "" ||
+    (typeof value === "string" && value.trim() === "");
+
   return (
     <div className={styles.infoItem}>
       <span className={styles.infoLabel}>
         {icon}
         {label}
       </span>
-      <span className={styles.infoValue}>{value}</span>
+      <span
+        className={`${styles.infoValue} ${
+          isValueEmpty ? styles.infoValueMuted : ""
+        }`}
+      >
+        {isValueEmpty ? "—" : value}
+      </span>
     </div>
   );
 }

@@ -915,55 +915,48 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
           1. Hero Banner Profile Header (Synced with Master Data)
           ───────────────────────────────────────────── */}
       <div className={styles.heroCard}>
-        <div className={styles.heroLeft}>
-          {/* Avatar + presence dot */}
-          <div style={{ position: 'relative', flexShrink: 0 }}>
-            {staff.avatarUrl ? (
-              <img
-                src={staff.avatarUrl}
-                alt={staff.name}
-                className={styles.avatarCircle}
-                style={{ objectFit: "cover" }}
-              />
-            ) : (
-              <div className={styles.avatarCircle}>
-                {staff.name ? staff.name.charAt(0).toUpperCase() : staff.username ? staff.username.charAt(0).toUpperCase() : "U"}
-              </div>
-            )}
-            {/* Presence status dot */}
-            {(() => {
-              const opt = PRESENCE_OPTIONS.find(o => o.value === presenceStatus) ?? PRESENCE_OPTIONS[0];
-              return (
-                <span
-                  title={opt.label}
-                  style={{
-                    position: 'absolute',
-                    bottom: 4,
-                    right: 4,
-                    width: 16,
-                    height: 16,
-                    borderRadius: '50%',
-                    background: opt.color,
-                    border: '2.5px solid #0a0f1e',
-                    boxShadow: `0 0 6px ${opt.color}99`,
-                    display: 'block',
-                    transition: 'background 0.3s',
-                  }}
+        <div className={styles.heroMain}>
+          <div className={styles.heroIdentityRow}>
+            {/* Avatar + presence dot */}
+            <div className={styles.avatarWrapper}>
+              {staff.avatarUrl ? (
+                <img
+                  src={staff.avatarUrl}
+                  alt={staff.name}
+                  className={styles.avatarCircle}
+                  style={{ objectFit: "cover" }}
                 />
-              );
-            })()}
-          </div>
-
-          <div className={styles.heroDetails}>
-            <div className={styles.nameRow}>
-              <h1 className={styles.profileName}>{staff.name || staff.username || "Staff User"}</h1>
-              <span className={styles.roleBadge}>
-                {staff.role === "Staff" ? "IT Support Staff" : staff.role || "IT Support Staff"}
-              </span>
+              ) : (
+                <div className={styles.avatarCircle}>
+                  {staff.name ? staff.name.charAt(0).toUpperCase() : staff.username ? staff.username.charAt(0).toUpperCase() : "U"}
+                </div>
+              )}
+              {/* Presence status dot */}
+              {(() => {
+                const opt = PRESENCE_OPTIONS.find(o => o.value === presenceStatus) ?? PRESENCE_OPTIONS[0];
+                return (
+                  <span
+                    title={opt.label}
+                    className={styles.presenceDotBadge}
+                    style={{
+                      background: opt.color,
+                      boxShadow: `0 0 6px ${opt.color}99`,
+                    }}
+                  />
+                );
+              })()}
             </div>
 
-            {/* Presence status & Custom status message */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', marginTop: '8px' }}>
+            <div className={styles.heroDetails}>
+              <div className={styles.nameRow}>
+                <h1 className={styles.profileName}>{staff.name || staff.username || "Staff User"}</h1>
+                <span className={styles.roleBadge}>
+                  {staff.role === "Staff" ? "IT Support Staff" : staff.role || "IT Support Staff"}
+                </span>
+              </div>
+
+              {/* Presence status & Custom status message */}
+              <div className={styles.presenceContainerRow}>
               {isSelf ? (() => {
               const current = PRESENCE_OPTIONS.find(o => o.value === presenceStatus) ?? PRESENCE_OPTIONS[0];
               const isBreakStatus = presenceStatus === 'break' || isOnBreak;
@@ -1168,26 +1161,26 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
                 </div>
               )}
             </div>
-
-
-
-            <div className={styles.contactRow}>
-              <div className={styles.contactItem}>
-                <Mail className={styles.contactIcon} />
-                <span>{staff.email || (staff.username ? `${staff.username.toLowerCase()}@itano.co.id` : "No email")}</span>
-              </div>
-              <div className={styles.contactItem}>
-                <AtSign className={styles.contactIcon} />
-                <span>@{staff.username || "user"}</span>
-              </div>
-              <div className={styles.contactItem}>
-                <Phone className={styles.contactIcon} />
-                <span>{staff.phone || "No phone registered"}</span>
-              </div>
-            </div>
           </div>
         </div>
 
+        <div className={styles.contactRow}>
+          <div className={styles.contactItem}>
+            <Mail className={styles.contactIcon} />
+            <span>{staff.email || (staff.username ? `${staff.username.toLowerCase()}@itano.co.id` : "No email")}</span>
+          </div>
+          <div className={styles.contactItem}>
+            <AtSign className={styles.contactIcon} />
+            <span>@{staff.username || "user"}</span>
+          </div>
+          <div className={styles.contactItem}>
+            <Phone className={styles.contactIcon} />
+            <span>{staff.phone || "No phone registered"}</span>
+          </div>
+        </div>
+      </div>
+
+      <div className={styles.heroSideActions}>
         <div className={styles.quoteBox}>
           <p className={styles.quoteText}>
             &ldquo;{quote.line1}
@@ -1198,80 +1191,39 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
 
         {/* Break Toggle — hanya tampil untuk profil sendiri (non-Management), dan hanya saat tidak break */}
         {canToggleBreak && !isOnBreak && (
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'flex-end',
-            gap: '8px',
-            marginTop: '16px',
-          }}>
+          <div className={styles.breakActionBox}>
             <button
               id="break-toggle-btn"
               onClick={handleToggleBreak}
               disabled={breakLoading}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '10px 20px',
-                borderRadius: '8px',
-                border: 'none',
-                cursor: breakLoading ? 'not-allowed' : 'pointer',
-                fontWeight: 600,
-                fontSize: '14px',
-                transition: 'all 0.2s ease',
-                background: isOnBreak
-                  ? 'linear-gradient(135deg, #10b981, #059669)'
-                  : 'linear-gradient(135deg, #f59e0b, #d97706)',
-                color: '#fff',
-                opacity: breakLoading ? 0.7 : 1,
-                boxShadow: isOnBreak
-                  ? '0 4px 12px rgba(16,185,129,0.35)'
-                  : '0 4px 12px rgba(245,158,11,0.35)',
-              }}
+              className={`${styles.breakToggleBtn} ${isOnBreak ? styles.breakToggleBtnOnBreak : ""}`}
             >
-              <Coffee style={{ width: 16, height: 16 }} />
-              {breakLoading ? 'Memproses...' : isOnBreak ? 'Selesai Break' : 'Mulai Break'}
+              <Coffee style={{ width: 15, height: 15 }} />
+              <span>{breakLoading ? 'Memproses...' : isOnBreak ? 'Selesai Break' : 'Mulai Break'}</span>
             </button>
-            <div style={{
-              fontSize: '12px',
-              color: 'rgba(255,255,255,0.65)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-            }}>
-              <Clock style={{ width: 12, height: 12 }} />
-              Total Break Hari Ini: <strong style={{ color: 'rgba(255,255,255,0.9)' }}>{formatBreakDuration(liveTotalSeconds)}</strong>
-            </div>
-            <div style={{
-              fontSize: '12px',
-              color: overtimeSeconds > 0 ? '#fca5a5' : 'rgba(255,255,255,0.65)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-            }}>
-              <Hourglass style={{ width: 12, height: 12 }} />
-              {overtimeSeconds > 0 ? (
-                <>Sisa: <strong>Habis</strong><span>• Lebih {formatRemainingDuration(overtimeSeconds)} (batas {maxBreakMinutes ?? 60} mnt)</span></>
-              ) : (
-                <>Sisa Waktu Break: <strong style={{ color: 'rgba(255,255,255,0.9)' }}>{formatRemainingDuration(remainingSeconds)}</strong><span>(batas {maxBreakMinutes ?? 60} mnt)</span></>
+            <div className={styles.breakMetaInfo}>
+              <div className={styles.breakMetaLine}>
+                <Clock style={{ width: 12, height: 12 }} />
+                <span>Total Break: <strong>{formatBreakDuration(liveTotalSeconds)}</strong></span>
+              </div>
+              <div className={styles.breakMetaLine}>
+                <Hourglass style={{ width: 12, height: 12 }} />
+                {overtimeSeconds > 0 ? (
+                  <span style={{ color: '#fca5a5' }}>Lebih: <strong>{formatRemainingDuration(overtimeSeconds)}</strong></span>
+                ) : (
+                  <span>Sisa: <strong>{formatRemainingDuration(remainingSeconds)}</strong></span>
+                )}
+              </div>
+              {isOnBreak && breakStartedAt && (
+                <div className={styles.breakMetaLine} style={{ color: '#6ee7b7' }}>
+                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#10b981', display: 'inline-block' }} />
+                  <span>Berjalan: <strong>{formatLiveElapsed(liveElapsedSeconds)}</strong></span>
+                </div>
               )}
             </div>
-            {isOnBreak && breakStartedAt && (
-              <div style={{
-                fontSize: '12px',
-                color: '#6ee7b7',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                fontVariantNumeric: 'tabular-nums',
-              }}>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#10b981', display: 'inline-block' }} />
-                Berjalan: <strong>{formatLiveElapsed(liveElapsedSeconds)}</strong>
-              </div>
-            )}
           </div>
         )}
+      </div>
 
         {/* Konfirmasi END break — durasi sesi tampil live (berdetak) supaya
             disadari sebelum disimpan; tanpa klik "Ya, Akhiri" sesi tidak berhenti. */}
@@ -1454,7 +1406,7 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
                       <span>{slice.label}</span>
                     </div>
                     <span className={styles.legendCount}>
-                      {slice.count} ({pct}%)
+                      {slice.count}&nbsp;({pct}%)
                     </span>
                   </div>
                 );

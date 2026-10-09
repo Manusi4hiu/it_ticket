@@ -159,6 +159,10 @@
   color: #ffffff;
 }
 
+.mobileColumnTabs {
+  display: none;
+}
+
 /* Kanban Layout — all columns expand to fill space evenly, horizontal scroll when narrow */
 .kanbanBoard {
   display: flex;
@@ -743,4 +747,100 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 16px;
+}
+
+@media (max-width: 768px) {
+  .container {
+    padding: 14px 14px 96px;
+    height: auto;
+    overflow: visible;
+    gap: 14px;
+  }
+  .metricsBanner {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    padding: 14px 16px;
+  }
+  .statsGrid {
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .actionRow {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .searchContainer {
+    max-width: 100%;
+  }
+  .mobileColumnTabs {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    padding: 2px 0 10px;
+    flex-wrap: nowrap;
+    width: 100%;
+  }
+  .mobileColumnTabs::-webkit-scrollbar {
+    display: none;
+  }
+  .mobileColTabBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #94a3b8;
+    font-size: 0.78rem;
+    font-weight: 600;
+    white-space: nowrap;
+    flex-shrink: 0;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .mobileColTabActive {
+    background: rgba(59, 130, 246, 0.2) !important;
+    border-color: rgba(59, 130, 246, 0.6) !important;
+    color: #ffffff !important;
+    box-shadow: 0 0 12px rgba(59, 130, 246, 0.35);
+  }
+  .mobileColTabDot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .mobileColTabCount {
+    font-size: 0.7rem;
+    padding: 1px 6px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    font-variant-numeric: tabular-nums;
+  }
+  .kanbanBoard {
+    min-height: 520px;
+    padding-bottom: 8px;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+    gap: 12px;
+  }
+  .kanbanColumn {
+    scroll-snap-align: center;
+    flex: 0 0 calc(100vw - 32px);
+    width: calc(100vw - 32px);
+    max-width: calc(100vw - 32px);
+    min-width: 0;
+  }
+  .cardTitle {
+    word-break: break-word;
+    overflow-wrap: break-word;
+    white-space: normal;
+  }
 }

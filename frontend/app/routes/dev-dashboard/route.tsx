@@ -142,6 +142,13 @@ export default function DevDashboard() {
   const [editTaskAssigneeId, setEditTaskAssigneeId] = useState("unassigned");
   const [isTaskUpdating, setIsTaskUpdating] = useState(false);
   const [editTaskErrors, setEditTaskErrors] = useState<Record<string, string>>({});
+  const [activeMobileCol, setActiveMobileCol] = useState<string>("");
+
+  const devboardStatuses = useMemo(() => {
+    return (statuses as any[])
+      .filter((s: any) => s.showOnDevboard)
+      .sort((a: any, b: any) => a.order - b.order);
+  }, [statuses]);
 
   // Delete Task Modal State
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -690,12 +697,46 @@ export default function DevDashboard() {
         </div>
       </div>
 
+      {/* Mobile Column Tabs Bar */}
+      <div className={styles.mobileColumnTabs} role="tablist" aria-label="Kanban Columns">
+        {devboardStatuses.map((s: any) => {
+          const iconKey = s.name.toLowerCase();
+          const count = filteredTickets.filter((t) => {
+            const st = t.status.toLowerCase();
+            if (iconKey === "resolved") return st === "resolved" || st === "closed";
+            return st === iconKey;
+          }).length;
+          const isSelected = (activeMobileCol || devboardStatuses[0]?.name) === s.name;
+          return (
+            <button
+              key={s.name}
+              type="button"
+              role="tab"
+              aria-selected={isSelected}
+              className={`${styles.mobileColTabBtn} ${isSelected ? styles.mobileColTabActive : ""}`}
+              style={{
+                borderColor: isSelected ? s.color || "#3b82f6" : undefined,
+                color: isSelected ? "#ffffff" : undefined,
+              }}
+              onClick={() => {
+                setActiveMobileCol(s.name);
+                const colEl = document.getElementById(`kanban-col-${s.name.toLowerCase().replace(/\s+/g, "-")}`);
+                if (colEl) {
+                  colEl.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+                }
+              }}
+            >
+              <span className={styles.mobileColTabDot} style={{ background: s.color || "#3b82f6" }} />
+              <span>{s.name}</span>
+              <span className={styles.mobileColTabCount}>{count}</span>
+            </button>
+          );
+        })}
+      </div>
+
       {/* Kanban Board Layout */}
       <div className={styles.kanbanBoard}>
-        {(statuses as any[])
-          .filter((s: any) => s.showOnDevboard)
-          .sort((a: any, b: any) => a.order - b.order)
-          .map((statusDef: any) => {
+        {devboardStatuses.map((statusDef: any) => {
           const colName = statusDef.name;
           const color = statusDef.color || "#6B7280";
           const iconKey = colName.toLowerCase();
@@ -715,6 +756,7 @@ export default function DevDashboard() {
           return (
             <div
               key={colName}
+              id={`kanban-col-${colName.toLowerCase().replace(/\s+/g, "-")}`}
               className={`${styles.kanbanColumn} ${isColumnOver ? styles.columnDragOver : ""}`}
               onDragOver={(e) => handleDragOver(e, colName)}
               onDrop={(e) => handleDrop(e, colName)}

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Users, Search, RefreshCw, X } from "lucide-react";
 import { usersApi } from "~/services/api.service";
 import type { Agent } from "~/types/user.types";
+import styles from "./staff-status-widget.module.css";
 
 const PRESENCE_COLORS: Record<string, string> = {
   online: '#22c55e',
@@ -82,49 +83,24 @@ export function StaffStatusWidget() {
   return (
     <div
       ref={wrapperRef}
-      style={{ position: 'fixed', bottom: '24px', right: '24px', zIndex: 9000 }}
+      className={styles.widgetWrapper}
     >
       {/* Floating Button */}
       <button
         onClick={() => setOpen(!open)}
         title="Staff List"
+        className={styles.floatingBtn}
         style={{
-          width: '56px',
-          height: '56px',
-          borderRadius: '50%',
-          background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
-          color: 'white',
-          border: 'none',
-          boxShadow: '0 4px 16px rgba(37, 99, 235, 0.4)',
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          transition: 'transform 0.2s, box-shadow 0.2s',
           transform: open ? 'scale(1.05)' : 'scale(1)',
         }}
       >
-        <Users size={24} />
+        <Users size={22} />
       </button>
 
       {/* Popup Panel */}
       {open && (
         <div
-          style={{
-            position: 'absolute',
-            bottom: '70px', // above the button
-            right: '0',
-            width: '280px',
-            background: 'rgba(10, 15, 30, 0.95)',
-            backdropFilter: 'blur(10px)',
-            border: '1px solid rgba(59,130,246,0.3)',
-            borderRadius: '12px',
-            overflow: 'hidden',
-            boxShadow: '0 10px 40px rgba(0,0,0,0.5)',
-            display: 'flex',
-            flexDirection: 'column',
-            animation: 'fadeInUp 0.2s ease-out'
-          }}
+          className={styles.popupPanel}
         >
           {/* Header */}
           <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

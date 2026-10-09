@@ -81,131 +81,102 @@ export default function BreakSettings() {
                 </Alert>
             )}
 
-            <Card>
+            <Card className={styles.mainCard}>
                 <CardContent>
                     <Form
                         method="post"
                         key={`${setting?.maxBreakMinutes ?? 60}-${setting?.dailyMaxMinutes ?? 60}-${setting?.weeklyMaxMinutes ?? 300}-${setting?.monthlyMaxMinutes ?? 1200}`}
                     >
-                        <div className={styles.formGrid} style={{ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
-                            <div style={{
-                                background: "rgba(255,255,255,0.03)",
-                                border: "1px solid rgba(255,255,255,0.08)",
-                                borderRadius: 12,
-                                padding: 14,
-                                display: "flex",
-                                flexDirection: "column",
-                                gap: 8,
-                            }}>
-                                <Label htmlFor="maxBreakMinutes">Maks. per sesi (menit)</Label>
-                                <Input
-                                    id="maxBreakMinutes"
-                                    name="maxBreakMinutes"
-                                    type="number"
-                                    min={1}
-                                    max={1440}
-                                    defaultValue={setting?.maxBreakMinutes ?? 60}
-                                    required
-                                    style={{ height: 44 }}
-                                />
-                                <span style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>
-                                    Batas 1x break · picu notifikasi overtime + live sisa di profil.
-                                </span>
+                        <div className={styles.breakGrid}>
+                            <div className={styles.breakMetricCard}>
+                                <div className={styles.breakMetricHeader}>
+                                    <Label htmlFor="maxBreakMinutes" className={styles.breakMetricLabel}>Maks. Sesi</Label>
+                                </div>
+                                <div className={styles.breakInputWrap}>
+                                    <Input
+                                        id="maxBreakMinutes"
+                                        name="maxBreakMinutes"
+                                        type="number"
+                                        min={1}
+                                        max={1440}
+                                        defaultValue={setting?.maxBreakMinutes ?? 60}
+                                        required
+                                    />
+                                    <span className={styles.breakUnitTag}>mnt</span>
+                                </div>
+                                <span className={styles.breakMetricSubtext}>Batas 1x break staff</span>
                             </div>
-                            <div style={{
-                                background: "rgba(255,255,255,0.03)",
-                                border: "1px solid rgba(255,255,255,0.08)",
-                                borderRadius: 12,
-                                padding: 14,
-                                display: "flex",
-                                flexDirection: "column",
-                                gap: 8,
-                            }}>
-                                <Label htmlFor="dailyMaxMinutes">Batas harian (menit)</Label>
-                                <Input
-                                    id="dailyMaxMinutes"
-                                    name="dailyMaxMinutes"
-                                    type="number"
-                                    min={1}
-                                    max={1440}
-                                    defaultValue={setting?.dailyMaxMinutes ?? 60}
-                                    required
-                                    style={{ height: 44 }}
-                                />
-                                <span style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>
-                                    Batas periode Harian di tab Break Performance.
-                                </span>
+
+                            <div className={styles.breakMetricCard}>
+                                <div className={styles.breakMetricHeader}>
+                                    <Label htmlFor="dailyMaxMinutes" className={styles.breakMetricLabel}>Batas Harian</Label>
+                                </div>
+                                <div className={styles.breakInputWrap}>
+                                    <Input
+                                        id="dailyMaxMinutes"
+                                        name="dailyMaxMinutes"
+                                        type="number"
+                                        min={1}
+                                        max={1440}
+                                        defaultValue={setting?.dailyMaxMinutes ?? 60}
+                                        required
+                                    />
+                                    <span className={styles.breakUnitTag}>mnt</span>
+                                </div>
+                                <span className={styles.breakMetricSubtext}>Periode 1 hari (WIB)</span>
                             </div>
-                            <div style={{
-                                background: "rgba(255,255,255,0.03)",
-                                border: "1px solid rgba(255,255,255,0.08)",
-                                borderRadius: 12,
-                                padding: 14,
-                                display: "flex",
-                                flexDirection: "column",
-                                gap: 8,
-                            }}>
-                                <Label htmlFor="weeklyMaxMinutes">Batas mingguan (menit)</Label>
-                                <Input
-                                    id="weeklyMaxMinutes"
-                                    name="weeklyMaxMinutes"
-                                    type="number"
-                                    min={1}
-                                    max={10080}
-                                    defaultValue={setting?.weeklyMaxMinutes ?? 300}
-                                    required
-                                    style={{ height: 44 }}
-                                />
-                                <span style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>
-                                    Batas periode Mingguan (Senin–Minggu).
-                                </span>
+
+                            <div className={styles.breakMetricCard}>
+                                <div className={styles.breakMetricHeader}>
+                                    <Label htmlFor="weeklyMaxMinutes" className={styles.breakMetricLabel}>Batas Mingguan</Label>
+                                </div>
+                                <div className={styles.breakInputWrap}>
+                                    <Input
+                                        id="weeklyMaxMinutes"
+                                        name="weeklyMaxMinutes"
+                                        type="number"
+                                        min={1}
+                                        max={10080}
+                                        defaultValue={setting?.weeklyMaxMinutes ?? 300}
+                                        required
+                                    />
+                                    <span className={styles.breakUnitTag}>mnt</span>
+                                </div>
+                                <span className={styles.breakMetricSubtext}>Senin – Minggu</span>
                             </div>
-                            <div style={{
-                                background: "rgba(255,255,255,0.03)",
-                                border: "1px solid rgba(255,255,255,0.08)",
-                                borderRadius: 12,
-                                padding: 14,
-                                display: "flex",
-                                flexDirection: "column",
-                                gap: 8,
-                            }}>
-                                <Label htmlFor="monthlyMaxMinutes">Batas bulanan (menit)</Label>
-                                <Input
-                                    id="monthlyMaxMinutes"
-                                    name="monthlyMaxMinutes"
-                                    type="number"
-                                    min={1}
-                                    max={43200}
-                                    defaultValue={setting?.monthlyMaxMinutes ?? 1200}
-                                    required
-                                    style={{ height: 44 }}
-                                />
-                                <span style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>
-                                    Batas periode Bulanan (tgl 1–akhir).
-                                </span>
+
+                            <div className={styles.breakMetricCard}>
+                                <div className={styles.breakMetricHeader}>
+                                    <Label htmlFor="monthlyMaxMinutes" className={styles.breakMetricLabel}>Batas Bulanan</Label>
+                                </div>
+                                <div className={styles.breakInputWrap}>
+                                    <Input
+                                        id="monthlyMaxMinutes"
+                                        name="monthlyMaxMinutes"
+                                        type="number"
+                                        min={1}
+                                        max={43200}
+                                        defaultValue={setting?.monthlyMaxMinutes ?? 1200}
+                                        required
+                                    />
+                                    <span className={styles.breakUnitTag}>mnt</span>
+                                </div>
+                                <span className={styles.breakMetricSubtext}>Tgl 1 – akhir bulan</span>
                             </div>
                         </div>
-                        <div style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                            gap: 16,
-                            flexWrap: "wrap",
-                            marginTop: 20,
-                            paddingTop: 16,
-                            borderTop: "1px solid rgba(255,255,255,0.08)",
-                        }}>
-                            <p className={styles.pageDescription} style={{ fontSize: "0.9rem", flex: "1 1 280px", margin: 0 }}>
-                                Berlaku saat ini: sesi {setting?.maxBreakMinutes ?? 60} mnt · harian {setting?.dailyMaxMinutes ?? 60} mnt · mingguan {setting?.weeklyMaxMinutes ?? 300} mnt · bulanan {setting?.monthlyMaxMinutes ?? 1200} mnt.
-                                Total harian tiap staff reset otomatis tiap hari (WIB).
-                            </p>
+
+                        <div className={styles.breakInfoBox}>
+                            Berlaku saat ini: sesi {setting?.maxBreakMinutes ?? 60} mnt · harian {setting?.dailyMaxMinutes ?? 60} mnt · mingguan {setting?.weeklyMaxMinutes ?? 300} mnt · bulanan {setting?.monthlyMaxMinutes ?? 1200} mnt. Total harian tiap staff reset otomatis tiap hari (00:00 WIB).
+                        </div>
+
+                        <div style={{ marginTop: 14 }}>
                             <Button
                                 type="submit"
                                 size="lg"
-                                style={{ minWidth: 180, height: 46, fontSize: "0.95rem", flexShrink: 0 }}
+                                className={styles.breakFooterBtn}
                             >
                                 <Coffee size={16} style={{ marginRight: 8 }} />
-                                Simpan
+                                Simpan Pengaturan Break
                             </Button>
                         </div>
                     </Form>
