@@ -132,7 +132,7 @@ export function StaffStatusWidget() {
                   borderRadius: '6px',
                   color: '#fff',
                   outline: 'none',
-                  fontSize: '12px'
+                  fontSize: '13px'
                 }}
               />
             </div>

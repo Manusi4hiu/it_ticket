@@ -957,13 +957,17 @@
   }
 
   .main {
-    padding: 0 16px;
+    padding: 0 16px 96px;
   }
 
   .section {
     padding: 20px 16px;
     border-radius: 16px;
     margin-bottom: 20px;
+  }
+
+  .section:last-child {
+    margin-bottom: 96px;
   }
 
   .ticketTitle {
