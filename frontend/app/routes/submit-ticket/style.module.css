@@ -373,3 +373,49 @@
             0 0 60px rgba(16, 185, 129, 0.4);
     }
 }
+
+/* ── Mobile Responsive Refinements ── */
+@media (max-width: 768px) {
+    .container {
+        padding: 16px 14px 60px;
+    }
+
+    .formCard {
+        border-radius: 18px !important;
+    }
+
+    .cardHeader {
+        padding: 20px 18px !important;
+    }
+
+    .cardTitle {
+        font-size: 1.25rem !important;
+    }
+
+    .form {
+        padding: 20px 18px;
+        gap: 24px;
+    }
+
+    .formGrid {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+
+    .input,
+    .select,
+    .textarea {
+        font-size: 16px !important; /* Prevents iOS Safari auto-zoom */
+        padding: 12px 14px !important;
+    }
+
+    .formActions {
+        flex-direction: column-reverse;
+        gap: 12px;
+    }
+
+    .formActions button {
+        width: 100%;
+        justify-content: center;
+    }
+}

@@ -114,195 +114,339 @@ export default function RoleManagementSettings({
         </Button>
       </div>
 
-      {/* User Table */}
-      <div className={settingsStyles.tableContainer} style={{ marginBottom: "var(--space-8)" }}>
-        <div className={settingsStyles.scrollableArea}>
-          <table className={styles.customTable}>
-            <thead>
-              <tr>
-                <th style={{ minWidth: "160px" }}>User Information</th>
-                <th style={{ minWidth: "90px" }}>Username</th>
-                <th style={{ minWidth: "140px" }}>Email</th>
-                <th style={{ minWidth: "90px" }}>Status</th>
-                <th style={{ minWidth: "110px" }}>Current Role</th>
-                <th style={{ minWidth: "140px" }}>Change Role</th>
-                <th style={{ minWidth: "120px" }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rm.userList.map((user) => (
-                <tr key={user.id}>
-                  {/* Name + "Logged In" indicator */}
-                  <td>
-                    <div className={styles.userCell}>
-                      <div className={styles.userAvatar}>
-                        <User size={18} />
+      {/* User Table (Desktop) */}
+      <div className={settingsStyles.desktopTable}>
+        <div className={settingsStyles.tableContainer} style={{ marginBottom: "var(--space-8)" }}>
+          <div className={settingsStyles.scrollableArea}>
+            <table className={styles.customTable}>
+              <thead>
+                <tr>
+                  <th style={{ minWidth: "160px" }}>User Information</th>
+                  <th style={{ minWidth: "90px" }}>Username</th>
+                  <th style={{ minWidth: "140px" }}>Email</th>
+                  <th style={{ minWidth: "90px" }}>Status</th>
+                  <th style={{ minWidth: "110px" }}>Current Role</th>
+                  <th style={{ minWidth: "140px" }}>Change Role</th>
+                  <th style={{ minWidth: "120px" }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rm.userList.map((user) => (
+                  <tr key={user.id}>
+                    {/* Name + "Logged In" indicator */}
+                    <td>
+                      <div className={styles.userCell}>
+                        <div className={styles.userAvatar}>
+                          <User size={18} />
+                        </div>
+                        <div
+                          style={{ display: "flex", flexDirection: "column", minWidth: 0 }}
+                        >
+                          <span className={styles.userName}>{user.name}</span>
+                          {user.id === currentUser.id && (
+                            <span
+                              style={{
+                                fontSize: "0.65rem",
+                                color: "#93c5fd",
+                                fontWeight: 800,
+                                textTransform: "uppercase",
+                                marginTop: "2px",
+                              }}
+                            >
+                              Logged In
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <div
-                        style={{ display: "flex", flexDirection: "column", minWidth: 0 }}
-                      >
-                        <span className={styles.userName}>{user.name}</span>
-                        {user.id === currentUser.id && (
-                          <span
+                    </td>
+
+                    {/* Username */}
+                    <td>
+                      <span className={`${settingsStyles.code} ${styles.usernameBadge}`}>
+                        {user.username}
+                      </span>
+                    </td>
+
+                    {/* Email */}
+                    <td>
+                      <span className={styles.userEmail}>{user.email}</span>
+                    </td>
+
+                    {/* Status badge only */}
+                    <td>
+                      <div className={user.isActive ? styles.statusActive : styles.statusInactive}>
+                        {user.isActive ? "Active" : "Inactive"}
+                      </div>
+                    </td>
+
+                    {/* Current Role badge */}
+                    <td>
+                      <div className={`${styles.roleBadge} ${getRoleBadgeClass(user.role)}`}>
+                        {user.role}
+                      </div>
+                    </td>
+
+                    {/* Change Role dropdown */}
+                    <td>
+                      {user.id === currentUser.id ? (
+                        <span
+                          style={{
+                            opacity: 0.5,
+                            fontStyle: "italic",
+                            fontSize: "0.8rem",
+                            color: "rgba(255,255,255,0.6)",
+                          }}
+                        >
+                          Self transformation disabled
+                        </span>
+                      ) : (
+                        <Select
+                          value={user.role}
+                          onValueChange={(value) =>
+                            rm.handleRoleChange(user.id, value as UserRole)
+                          }
+                        >
+                          <SelectTrigger
                             style={{
-                              fontSize: "0.65rem",
-                              color: "#93c5fd",
-                              fontWeight: 800,
-                              textTransform: "uppercase",
-                              marginTop: "2px",
+                              width: "130px",
+                              background: "rgba(255, 255, 255, 0.05)",
+                              border: "1px solid rgba(255, 255, 255, 0.1)",
+                              color: "white",
+                              height: "32px",
+                              borderRadius: "8px",
+                              fontSize: "0.8rem",
                             }}
                           >
-                            Logged In
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </td>
-
-                  {/* Username */}
-                  <td>
-                    <span className={`${settingsStyles.code} ${styles.usernameBadge}`}>
-                      {user.username}
-                    </span>
-                  </td>
-
-                  {/* Email */}
-                  <td>
-                    <span className={styles.userEmail}>{user.email}</span>
-                  </td>
-
-                  {/* Status badge only */}
-                  <td>
-                    <div className={user.isActive ? styles.statusActive : styles.statusInactive}>
-                      {user.isActive ? "Active" : "Inactive"}
-                    </div>
-                  </td>
-
-                  {/* Current Role badge */}
-                  <td>
-                    <div className={`${styles.roleBadge} ${getRoleBadgeClass(user.role)}`}>
-                      {user.role}
-                    </div>
-                  </td>
-
-                  {/* Change Role dropdown */}
-                  <td>
-                    {user.id === currentUser.id ? (
-                      <span
-                        style={{
-                          opacity: 0.5,
-                          fontStyle: "italic",
-                          fontSize: "0.8rem",
-                          color: "rgba(255,255,255,0.6)",
-                        }}
-                      >
-                        Self transformation disabled
-                      </span>
-                    ) : (
-                      <Select
-                        value={user.role}
-                        onValueChange={(value) =>
-                          rm.handleRoleChange(user.id, value as UserRole)
-                        }
-                      >
-                        <SelectTrigger
-                          style={{
-                            width: "130px",
-                            background: "rgba(255, 255, 255, 0.05)",
-                            border: "1px solid rgba(255, 255, 255, 0.1)",
-                            color: "white",
-                            height: "32px",
-                            borderRadius: "8px",
-                            fontSize: "0.8rem",
-                          }}
-                        >
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent
-                          style={{
-                            background: "#1e1b4b",
-                            border: "1px solid rgba(255, 255, 255, 0.2)",
-                            color: "white",
-                          }}
-                        >
-                          <SelectItem value="Administrator">Administrator</SelectItem>
-                          <SelectItem value="Management">Management</SelectItem>
-                          <SelectItem value="Staff">Staff</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    )}
-                  </td>
-
-                  {/* Actions: Toggle Active + Edit + Delete */}
-                  <td>
-                    <div style={{ display: "flex", gap: "6px", flexWrap: "nowrap" }}>
-                      {user.id !== currentUser.id && (
-                        <button
-                          onClick={() => rm.handleToggleActive(user.id)}
-                          disabled={rm.togglingActiveId === user.id}
-                          title={user.isActive ? "Deactivate user" : "Activate user"}
-                          style={{
-                            background: user.isActive
-                              ? "rgba(239,68,68,0.1)"
-                              : "rgba(34,197,94,0.1)",
-                            border: user.isActive
-                              ? "1px solid rgba(239,68,68,0.3)"
-                              : "1px solid rgba(34,197,94,0.3)",
-                            color: user.isActive ? "#f87171" : "#4ade80",
-                            borderRadius: "6px",
-                            width: "32px",
-                            height: "32px",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            cursor: rm.togglingActiveId === user.id ? "not-allowed" : "pointer",
-                            opacity: rm.togglingActiveId === user.id ? 0.5 : 1,
-                            transition: "all 0.2s",
-                            flexShrink: 0,
-                          }}
-                        >
-                          <Power size={14} />
-                        </button>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent
+                            style={{
+                              background: "#1e1b4b",
+                              border: "1px solid rgba(255, 255, 255, 0.2)",
+                              color: "white",
+                            }}
+                          >
+                            <SelectItem value="Administrator">Administrator</SelectItem>
+                            <SelectItem value="Management">Management</SelectItem>
+                            <SelectItem value="Staff">Staff</SelectItem>
+                          </SelectContent>
+                        </Select>
                       )}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => rm.openEditDialog(user)}
-                        style={{
-                          background: "rgba(255,255,255,0.05)",
-                          border: "1px solid rgba(255,255,255,0.1)",
-                          color: "white",
-                          width: "32px",
-                          height: "32px",
-                          padding: 0,
-                        }}
-                      >
-                        <Pencil size={14} />
-                      </Button>
-                      {user.id !== currentUser.id && (
+                    </td>
+
+                    {/* Actions: Toggle Active + Edit + Delete */}
+                    <td>
+                      <div style={{ display: "flex", gap: "6px", flexWrap: "nowrap" }}>
+                        {user.id !== currentUser.id && (
+                          <button
+                            onClick={() => rm.handleToggleActive(user.id)}
+                            disabled={rm.togglingActiveId === user.id}
+                            title={user.isActive ? "Deactivate user" : "Activate user"}
+                            style={{
+                              background: user.isActive
+                                ? "rgba(239,68,68,0.1)"
+                                : "rgba(34,197,94,0.1)",
+                              border: user.isActive
+                                ? "1px solid rgba(239,68,68,0.3)"
+                                : "1px solid rgba(34,197,94,0.3)",
+                              color: user.isActive ? "#f87171" : "#4ade80",
+                              borderRadius: "6px",
+                              width: "32px",
+                              height: "32px",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              cursor: rm.togglingActiveId === user.id ? "not-allowed" : "pointer",
+                              opacity: rm.togglingActiveId === user.id ? 0.5 : 1,
+                              transition: "all 0.2s",
+                              flexShrink: 0,
+                            }}
+                          >
+                            <Power size={14} />
+                          </button>
+                        )}
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => rm.openDeleteDialog(user)}
+                          onClick={() => rm.openEditDialog(user)}
                           style={{
-                            color: "#f87171",
-                            background: "rgba(239, 68, 68, 0.1)",
-                            border: "1px solid rgba(239, 68, 68, 0.2)",
+                            background: "rgba(255,255,255,0.05)",
+                            border: "1px solid rgba(255,255,255,0.1)",
+                            color: "white",
                             width: "32px",
                             height: "32px",
                             padding: 0,
                           }}
                         >
-                          <Trash2 size={14} />
+                          <Pencil size={14} />
                         </Button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                        {user.id !== currentUser.id && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => rm.openDeleteDialog(user)}
+                            style={{
+                              color: "#f87171",
+                              background: "rgba(239, 68, 68, 0.1)",
+                              border: "1px solid rgba(239, 68, 68, 0.2)",
+                              width: "32px",
+                              height: "32px",
+                              padding: 0,
+                            }}
+                          >
+                            <Trash2 size={14} />
+                          </Button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
+      </div>
+
+      {/* User Cards (Mobile) */}
+      <div className={settingsStyles.mobileCardList} style={{ marginBottom: "var(--space-6)" }}>
+        {rm.userList.map((user) => (
+          <div key={user.id} className={settingsStyles.settingCard}>
+            <div className={settingsStyles.settingCardHeader}>
+              <div className={settingsStyles.settingCardTitleGroup}>
+                <div className={styles.userAvatar} style={{ flexShrink: 0 }}>
+                  <User size={18} />
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+                  <span className={styles.userName}>{user.name}</span>
+                  {user.id === currentUser.id && (
+                    <span
+                      style={{
+                        fontSize: "0.65rem",
+                        color: "#93c5fd",
+                        fontWeight: 800,
+                        textTransform: "uppercase",
+                        marginTop: "2px",
+                      }}
+                    >
+                      Logged In
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className={settingsStyles.settingCardActions}>
+                {user.id !== currentUser.id && (
+                  <button
+                    type="button"
+                    onClick={() => rm.handleToggleActive(user.id)}
+                    disabled={rm.togglingActiveId === user.id}
+                    title={user.isActive ? "Deactivate user" : "Activate user"}
+                    className={settingsStyles.settingCardActionBtn}
+                    style={{
+                      color: user.isActive ? "#f87171" : "#4ade80",
+                      background: user.isActive ? "rgba(239,68,68,0.1)" : "rgba(34,197,94,0.1)",
+                      borderColor: user.isActive ? "rgba(239,68,68,0.3)" : "rgba(34,197,94,0.3)",
+                      cursor: rm.togglingActiveId === user.id ? "not-allowed" : "pointer",
+                      opacity: rm.togglingActiveId === user.id ? 0.5 : 1,
+                    }}
+                  >
+                    <Power size={13} />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className={settingsStyles.settingCardActionBtn}
+                  onClick={() => rm.openEditDialog(user)}
+                  title="Edit user"
+                >
+                  <Pencil size={13} />
+                </button>
+                {user.id !== currentUser.id && (
+                  <button
+                    type="button"
+                    className={settingsStyles.settingCardActionBtnDanger}
+                    onClick={() => rm.openDeleteDialog(user)}
+                    title="Delete user"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className={settingsStyles.settingCardBody}>
+              <div className={settingsStyles.settingCardMetaRow}>
+                <span className={settingsStyles.settingCardMetaLabel}>Username</span>
+                <span className={settingsStyles.code}>
+                  {user.username}
+                </span>
+              </div>
+              <div className={settingsStyles.settingCardMetaRow}>
+                <span className={settingsStyles.settingCardMetaLabel}>Email</span>
+                <span className={styles.userEmail} style={{ textAlign: "right", maxWidth: "65%", color: user.email ? undefined : "rgba(255,255,255,0.4)" }}>
+                  {user.email || "—"}
+                </span>
+              </div>
+              <div className={settingsStyles.settingCardMetaRow}>
+                <span className={settingsStyles.settingCardMetaLabel}>Status & Role</span>
+                <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                  <div className={user.isActive ? styles.statusActive : styles.statusInactive}>
+                    {user.isActive ? "Active" : "Inactive"}
+                  </div>
+                  <div className={`${styles.roleBadge} ${getRoleBadgeClass(user.role)}`}>
+                    {user.role}
+                  </div>
+                </div>
+              </div>
+              <div className={settingsStyles.settingCardMetaRow} style={{ paddingTop: "6px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                <span className={settingsStyles.settingCardMetaLabel}>Change Role</span>
+                {user.id === currentUser.id ? (
+                  <span
+                    style={{
+                      opacity: 0.5,
+                      fontStyle: "italic",
+                      fontSize: "0.78rem",
+                      color: "rgba(255,255,255,0.6)",
+                    }}
+                  >
+                    Current user disabled
+                  </span>
+                ) : (
+                  <Select
+                    value={user.role}
+                    onValueChange={(value) =>
+                      rm.handleRoleChange(user.id, value as UserRole)
+                    }
+                  >
+                    <SelectTrigger
+                      style={{
+                        width: "140px",
+                        background: "rgba(255, 255, 255, 0.05)",
+                        border: "1px solid rgba(255, 255, 255, 0.1)",
+                        color: "white",
+                        height: "32px",
+                        borderRadius: "8px",
+                        fontSize: "0.8rem",
+                      }}
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent
+                      style={{
+                        background: "#1e1b4b",
+                        border: "1px solid rgba(255, 255, 255, 0.2)",
+                        color: "white",
+                      }}
+                    >
+                      <SelectItem value="Administrator">Administrator</SelectItem>
+                      <SelectItem value="Management">Management</SelectItem>
+                      <SelectItem value="Staff">Staff</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* Role Permissions Info */}

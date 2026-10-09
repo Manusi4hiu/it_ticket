@@ -1,4 +1,4 @@
-﻿.container {
+.container {
   display: flex;
   flex-direction: column;
   padding: 24px;
@@ -69,6 +69,28 @@
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+}
+
+.filterDropdownsRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.selectTriggerCompact {
+  width: 140px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  height: 36px;
+  color: #fff;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  transition: all 0.2s ease;
+}
+
+.selectTriggerCompact:hover {
+  border-color: rgba(59, 130, 246, 0.4);
+  background: rgba(0, 0, 0, 0.35);
 }
 
 .filterLabel {
@@ -549,5 +571,82 @@
 @media (max-width: 900px) {
   .modalGrid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .container {
+    padding: 14px 14px 96px;
+    gap: 14px;
+  }
+
+  .banner {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    padding: 14px 16px;
+  }
+
+  .filterBar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 12px 14px;
+  }
+
+  .filtersGroup {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    width: 100%;
+  }
+
+  .filterDropdownsRow {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    width: 100%;
+  }
+
+  .selectTriggerCompact {
+    width: 100% !important;
+    min-width: 0 !important;
+    font-size: 0.76rem !important;
+    padding: 0 8px !important;
+    height: 36px !important;
+  }
+
+  .dateFieldToggle {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+  }
+
+  .calendarNav {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .calendarWrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    width: 100%;
+    border-radius: 12px;
+  }
+
+  .daysHeader,
+  .daysGrid {
+    min-width: 680px;
+  }
+}
+
+@media (max-width: 440px) {
+  .filterDropdownsRow {
+    gap: 6px;
+  }
+
+  .selectTriggerCompact {
+    font-size: 0.72rem !important;
+    padding: 0 4px !important;
   }
 }

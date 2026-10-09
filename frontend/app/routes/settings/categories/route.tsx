@@ -102,63 +102,132 @@ export default function CategoriesSettings() {
                 </Alert>
             )}
 
-            <Card>
+            <Card className={styles.mainCard}>
                 <CardContent>
                     {categories.length === 0 ? (
                         <div style={{ padding: 32, textAlign: 'center', color: 'var(--color-neutral-10)' }}>
                             No categories found. Create one to get started.
                         </div>
                     ) : (
-                        <div className={styles.tableContainer}>
-                            <div className={styles.scrollableArea}>
-                                <table className={styles.dataTable}>
-                                    <thead>
-                                        <tr>
-                                            <th>Name</th>
-                                            <th>Description</th>
-                                            <th>Status</th>
-                                            <th>Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {categories.map((category) => (
-                                            <tr key={category.id}>
-                                                <td style={{ fontWeight: 500 }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                        <Tag size={14} />
-                                                        {category.name}
-                                                    </div>
-                                                </td>
-                                                <td>{category.description || '-'}</td>
-                                                <td>
-                                                    <span className={category.isActive !== false ? styles.statusActive : styles.statusInactive}>
-                                                        {category.isActive !== false ? 'Active' : 'Inactive'}
-                                                    </span>
-                                                </td>
-                                                <td>
-                                                    <div style={{ display: 'flex', gap: 8 }}>
-                                                        <Button variant="outline" size="sm" onClick={() => openEditDialog(category)}>
-                                                            <Pencil size={14} />
-                                                        </Button>
-                                                        <Form method="post" onSubmit={(e) => {
-                                                            if (!confirm('Are you sure you want to delete this category?')) {
-                                                                e.preventDefault();
-                                                            }
-                                                        }}>
-                                                            <input type="hidden" name="intent" value="delete" />
-                                                            <input type="hidden" name="id" value={category.id} />
-                                                            <Button variant="outline" size="sm" style={{ color: 'var(--color-critical-9)' }}>
-                                                                <Trash2 size={14} />
-                                                            </Button>
-                                                        </Form>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                        <>
+                            {/* Desktop Table View */}
+                            <div className={styles.desktopTable}>
+                                <div className={styles.tableContainer}>
+                                    <div className={styles.scrollableArea}>
+                                        <table className={styles.dataTable}>
+                                            <thead>
+                                                <tr>
+                                                    <th>Name</th>
+                                                    <th>Description</th>
+                                                    <th>Status</th>
+                                                    <th>Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {categories.map((category) => (
+                                                    <tr key={category.id}>
+                                                        <td style={{ fontWeight: 500 }}>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                                <Tag size={14} />
+                                                                {category.name}
+                                                            </div>
+                                                        </td>
+                                                        <td>{category.description || '-'}</td>
+                                                        <td>
+                                                            <span className={category.isActive !== false ? styles.statusActive : styles.statusInactive}>
+                                                                {category.isActive !== false ? 'Active' : 'Inactive'}
+                                                            </span>
+                                                        </td>
+                                                        <td>
+                                                            <div style={{ display: 'flex', gap: 8 }}>
+                                                                <Button variant="outline" size="sm" onClick={() => openEditDialog(category)}>
+                                                                    <Pencil size={14} />
+                                                                </Button>
+                                                                <Form method="post" onSubmit={(e) => {
+                                                                    if (!confirm('Are you sure you want to delete this category?')) {
+                                                                        e.preventDefault();
+                                                                    }
+                                                                }}>
+                                                                    <input type="hidden" name="intent" value="delete" />
+                                                                    <input type="hidden" name="id" value={category.id} />
+                                                                    <Button variant="outline" size="sm" style={{ color: 'var(--color-critical-9)' }}>
+                                                                        <Trash2 size={14} />
+                                                                    </Button>
+                                                                </Form>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
+
+                            {/* Mobile Card List View */}
+                            <div className={styles.mobileCardList}>
+                                {categories.map((category) => (
+                                    <div key={category.id} className={styles.settingCard}>
+                                        <div className={styles.settingCardHeader}>
+                                            <div className={styles.settingCardTitleGroup}>
+                                                <div style={{
+                                                    width: 32,
+                                                    height: 32,
+                                                    borderRadius: 8,
+                                                    background: "rgba(59, 130, 246, 0.12)",
+                                                    border: "1px solid rgba(59, 130, 246, 0.25)",
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    justifyContent: "center",
+                                                    flexShrink: 0,
+                                                }}>
+                                                    <Tag size={15} style={{ color: "#60a5fa" }} />
+                                                </div>
+                                                <div style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
+                                                    <span className={styles.settingCardTitle}>{category.name}</span>
+                                                    <span className={category.isActive !== false ? styles.statusActive : styles.statusInactive} style={{ fontSize: "0.72rem" }}>
+                                                        ● {category.isActive !== false ? 'Active' : 'Inactive'}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <div className={styles.settingCardActions}>
+                                                <button
+                                                    type="button"
+                                                    className={styles.settingCardActionBtn}
+                                                    onClick={() => openEditDialog(category)}
+                                                    title="Edit category"
+                                                >
+                                                    <Pencil size={13} />
+                                                </button>
+                                                <Form method="post" onSubmit={(e) => {
+                                                    if (!confirm('Are you sure you want to delete this category?')) {
+                                                        e.preventDefault();
+                                                    }
+                                                }}>
+                                                    <input type="hidden" name="intent" value="delete" />
+                                                    <input type="hidden" name="id" value={category.id} />
+                                                    <button
+                                                        type="submit"
+                                                        className={styles.settingCardActionBtnDanger}
+                                                        title="Delete category"
+                                                    >
+                                                        <Trash2 size={13} />
+                                                    </button>
+                                                </Form>
+                                            </div>
+                                        </div>
+
+                                        {category.description && (
+                                            <div className={styles.settingCardBody} style={{ paddingTop: 2 }}>
+                                                <p className={styles.settingCardDesc}>
+                                                    {category.description}
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </>
                     )}
                 </CardContent>
             </Card>

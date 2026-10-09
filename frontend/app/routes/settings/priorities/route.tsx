@@ -116,116 +116,220 @@ export default function PrioritiesSettings() {
                 </Alert>
             )}
 
-            <Card>
+            <Card className={styles.mainCard}>
                 <CardContent>
                     {priorities.length === 0 ? (
                         <div style={{ padding: 32, textAlign: 'center', color: 'var(--color-neutral-10)' }}>
                             No priorities found.
                         </div>
                     ) : (
-                        <div className={styles.tableContainer}>
-                            <div className={styles.scrollableArea}>
-                                <table className={styles.dataTable}>
-                                    <thead>
-                                        <tr>
-                                            <th style={{ width: 50 }}>Lvl</th>
-                                            <th>Name</th>
-                                            <th>SLA (Hours)</th>
-                                            <th>Resp. (Minutes)</th>
-                                            <th>Color</th>
-                                            <th>Description</th>
-                                            <th>Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {priorities.map((priority) => (
-                                            <tr key={priority.id}>
-                                                <td>{priority.level}</td>
-                                                <td style={{ fontWeight: 600, color: 'white' }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                                        <div style={{ 
-                                                            display: 'flex', 
-                                                            alignItems: 'center', 
-                                                            justifyContent: 'center',
-                                                            width: 36, 
-                                                            height: 36, 
-                                                            borderRadius: 10, 
-                                                            background: `${priority.color}20`, 
-                                                            border: `1px solid ${priority.color}40`,
-                                                            boxShadow: `0 0 15px ${priority.color}15`
-                                                        }}>
-                                                            <Flag size={18} color={priority.color} fill={`${priority.color}40`} />
-                                                        </div>
-                                                        {priority.name}
-                                                    </div>
-                                                </td>
-                                                <td>
-                                                    <span className={styles.badge} style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#93c5fd' }}>
-                                                        {priority.slaHours}h
-                                                    </span>
-                                                </td>
-                                                <td>
-                                                    <span className={styles.badge} style={{ background: 'rgba(29, 78, 216, 0.1)', color: '#c4b5fd' }}>
-                                                        {priority.responseTimeMinutes}m
-                                                    </span>
-                                                </td>
-                                                <td>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                                        <div style={{
-                                                            width: 24,
-                                                            height: 24,
-                                                            backgroundColor: priority.color,
-                                                            borderRadius: 6,
-                                                            border: '2px solid rgba(255, 255, 255, 0.1)',
-                                                            boxShadow: `0 0 10px ${priority.color}40`
-                                                        }} />
-                                                        <code className={styles.code} style={{ fontSize: '0.75rem' }}>{priority.color.toUpperCase()}</code>
-                                                    </div>
-                                                </td>
-                                                <td>{priority.description || '-'}</td>
-                                                <td>
-                                                    <div style={{ display: 'flex', gap: 10 }}>
-                                                        <Button 
-                                                            variant="outline" 
-                                                            size="sm" 
-                                                            onClick={() => openEditDialog(priority)}
-                                                            style={{ 
-                                                                borderColor: 'rgba(59, 130, 246, 0.3)',
-                                                                background: 'rgba(59, 130, 246, 0.05)',
-                                                                color: '#93c5fd',
-                                                                padding: '8px'
-                                                            }}
-                                                        >
-                                                            <Pencil size={16} />
-                                                        </Button>
-                                                        <Form method="post" onSubmit={(e) => {
-                                                            if (!confirm('Are you sure you want to delete this priority?')) {
-                                                                e.preventDefault();
-                                                            }
-                                                        }}>
-                                                            <input type="hidden" name="intent" value="delete" />
-                                                            <input type="hidden" name="id" value={priority.id} />
-                                                            <Button 
-                                                                variant="outline" 
-                                                                size="sm" 
-                                                                style={{ 
-                                                                    borderColor: 'rgba(239, 68, 68, 0.3)',
-                                                                    background: 'rgba(239, 68, 68, 0.05)',
-                                                                    color: '#f87171',
-                                                                    padding: '8px'
-                                                                }}
-                                                            >
-                                                                <Trash2 size={16} />
-                                                            </Button>
-                                                        </Form>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                        <>
+                            {/* Desktop Table View */}
+                            <div className={styles.desktopTable}>
+                                <div className={styles.tableContainer}>
+                                    <div className={styles.scrollableArea}>
+                                        <table className={styles.dataTable}>
+                                            <thead>
+                                                <tr>
+                                                    <th style={{ width: 50 }}>Lvl</th>
+                                                    <th>Name</th>
+                                                    <th>SLA (Hours)</th>
+                                                    <th>Resp. (Minutes)</th>
+                                                    <th>Color</th>
+                                                    <th>Description</th>
+                                                    <th>Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {priorities.map((priority) => (
+                                                    <tr key={priority.id}>
+                                                        <td>{priority.level}</td>
+                                                        <td style={{ fontWeight: 600, color: 'white' }}>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                                                <div style={{ 
+                                                                    display: 'flex', 
+                                                                    alignItems: 'center', 
+                                                                    justifyContent: 'center',
+                                                                    width: 36, 
+                                                                    height: 36, 
+                                                                    borderRadius: 10, 
+                                                                    background: `${priority.color}20`, 
+                                                                    border: `1px solid ${priority.color}40`,
+                                                                    boxShadow: `0 0 15px ${priority.color}15`
+                                                                }}>
+                                                                    <Flag size={18} color={priority.color} fill={`${priority.color}40`} />
+                                                                </div>
+                                                                {priority.name}
+                                                            </div>
+                                                        </td>
+                                                        <td>
+                                                            <span className={styles.badge} style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#93c5fd' }}>
+                                                                {priority.slaHours}h
+                                                            </span>
+                                                        </td>
+                                                        <td>
+                                                            <span className={styles.badge} style={{ background: 'rgba(29, 78, 216, 0.1)', color: '#c4b5fd' }}>
+                                                                {priority.responseTimeMinutes}m
+                                                            </span>
+                                                        </td>
+                                                        <td>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                                                <div style={{
+                                                                    width: 24,
+                                                                    height: 24,
+                                                                    backgroundColor: priority.color,
+                                                                    borderRadius: 6,
+                                                                    border: '2px solid rgba(255, 255, 255, 0.1)',
+                                                                    boxShadow: `0 0 10px ${priority.color}40`
+                                                                }} />
+                                                                <code className={styles.code} style={{ fontSize: '0.75rem' }}>{priority.color.toUpperCase()}</code>
+                                                            </div>
+                                                        </td>
+                                                        <td>{priority.description || '-'}</td>
+                                                        <td>
+                                                            <div style={{ display: 'flex', gap: 10 }}>
+                                                                <Button 
+                                                                    variant="outline" 
+                                                                    size="sm" 
+                                                                    onClick={() => openEditDialog(priority)}
+                                                                    style={{ 
+                                                                        borderColor: 'rgba(59, 130, 246, 0.3)',
+                                                                        background: 'rgba(59, 130, 246, 0.05)',
+                                                                        color: '#93c5fd',
+                                                                        padding: '8px'
+                                                                    }}
+                                                                >
+                                                                    <Pencil size={16} />
+                                                                </Button>
+                                                                <Form method="post" onSubmit={(e) => {
+                                                                    if (!confirm('Are you sure you want to delete this priority?')) {
+                                                                        e.preventDefault();
+                                                                    }
+                                                                }}>
+                                                                    <input type="hidden" name="intent" value="delete" />
+                                                                    <input type="hidden" name="id" value={priority.id} />
+                                                                    <Button 
+                                                                        variant="outline" 
+                                                                        size="sm" 
+                                                                        style={{ 
+                                                                            borderColor: 'rgba(239, 68, 68, 0.3)',
+                                                                            background: 'rgba(239, 68, 68, 0.05)',
+                                                                            color: '#f87171',
+                                                                            padding: '8px'
+                                                                        }}
+                                                                    >
+                                                                        <Trash2 size={16} />
+                                                                    </Button>
+                                                                </Form>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
+
+                            {/* Mobile Card List View */}
+                            <div className={styles.mobileCardList}>
+                                {priorities.map((priority) => (
+                                    <div key={priority.id} className={styles.settingCard}>
+                                        <div className={styles.settingCardHeader}>
+                                            <div className={styles.settingCardTitleGroup}>
+                                                <div style={{ 
+                                                    display: 'flex', 
+                                                    alignItems: 'center', 
+                                                    justifyContent: 'center',
+                                                    width: 32, 
+                                                    height: 32, 
+                                                    borderRadius: 8, 
+                                                    background: `${priority.color}20`, 
+                                                    border: `1px solid ${priority.color}40`,
+                                                    flexShrink: 0
+                                                }}>
+                                                    <Flag size={15} color={priority.color} fill={`${priority.color}40`} />
+                                                </div>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                                                    <span className={styles.settingCardTitle}>{priority.name}</span>
+                                                    <span style={{ fontSize: '0.72rem', color: '#94a3b8', background: 'rgba(255,255,255,0.06)', padding: '1px 6px', borderRadius: 4 }}>
+                                                        Lvl {priority.level}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <div className={styles.settingCardActions}>
+                                                <button 
+                                                    type="button"
+                                                    className={styles.settingCardActionBtn}
+                                                    onClick={() => openEditDialog(priority)}
+                                                    title="Edit priority"
+                                                >
+                                                    <Pencil size={13} />
+                                                </button>
+                                                <Form method="post" onSubmit={(e) => {
+                                                    if (!confirm('Are you sure you want to delete this priority?')) {
+                                                        e.preventDefault();
+                                                    }
+                                                }}>
+                                                    <input type="hidden" name="intent" value="delete" />
+                                                    <input type="hidden" name="id" value={priority.id} />
+                                                    <button 
+                                                        type="submit"
+                                                        className={styles.settingCardActionBtnDanger}
+                                                        title="Delete priority"
+                                                    >
+                                                        <Trash2 size={13} />
+                                                    </button>
+                                                </Form>
+                                            </div>
+                                        </div>
+
+                                        <div className={styles.settingCardBody}>
+                                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                                                <div style={{
+                                                    background: "rgba(59, 130, 246, 0.08)",
+                                                    border: "1px solid rgba(59, 130, 246, 0.2)",
+                                                    borderRadius: 8,
+                                                    padding: "8px 10px",
+                                                    display: "flex",
+                                                    flexDirection: "column",
+                                                    gap: 2
+                                                }}>
+                                                    <span style={{ fontSize: "0.68rem", color: "#94a3b8", textTransform: "uppercase", fontWeight: 700 }}>
+                                                        SLA Target
+                                                    </span>
+                                                    <span style={{ fontSize: "0.92rem", fontWeight: 700, color: "#93c5fd" }}>
+                                                        {priority.slaHours} Jam
+                                                    </span>
+                                                </div>
+                                                <div style={{
+                                                    background: "rgba(129, 140, 248, 0.08)",
+                                                    border: "1px solid rgba(129, 140, 248, 0.2)",
+                                                    borderRadius: 8,
+                                                    padding: "8px 10px",
+                                                    display: "flex",
+                                                    flexDirection: "column",
+                                                    gap: 2
+                                                }}>
+                                                    <span style={{ fontSize: "0.68rem", color: "#94a3b8", textTransform: "uppercase", fontWeight: 700 }}>
+                                                        Target Respon
+                                                    </span>
+                                                    <span style={{ fontSize: "0.92rem", fontWeight: 700, color: "#c4b5fd" }}>
+                                                        {priority.responseTimeMinutes} Menit
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            {priority.description && (
+                                                <p className={styles.settingCardDesc} style={{ margin: "2px 0 0" }}>
+                                                    {priority.description}
+                                                </p>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </>
                     )}
                 </CardContent>
             </Card>
