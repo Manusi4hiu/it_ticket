@@ -373,6 +373,24 @@
   box-shadow: 0 0 10px rgba(59, 130, 246, 0.55);
 }
 
+/* SLA Warning: aksen kuning amber */
+.notificationItem.unread.slaWarning {
+  background: rgba(245, 158, 11, 0.08);
+}
+.notificationItem.unread.slaWarning::before {
+  background: #f59e0b;
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.6);
+}
+
+/* SLA Breached: aksen merah alert */
+.notificationItem.unread.slaBreached {
+  background: rgba(239, 68, 68, 0.08);
+}
+.notificationItem.unread.slaBreached::before {
+  background: #ef4444;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.6);
+}
+
 /* Sudah dibaca: bar redup, tidak menyala */
 .notificationItem:not(.unread)::before {
   content: '';

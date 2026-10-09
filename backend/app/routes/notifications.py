@@ -8,8 +8,19 @@ notifications_bp = Blueprint('notifications', __name__)
 @notifications_bp.route('', methods=['GET'])
 @jwt_required()
 def list_notifications():
-    """List notifikasi milik user login (unread_only optional)."""
+    """List notifikasi milik user login (unread_only optional).
+    Otomatis menyinkronkan status SLA tiket aktif dan memicu notifikasi jika ada
+    tiket mendekati (< 2 jam) atau melewati batas SLA.
+    """
     user_id = int(get_jwt_identity())
+
+    # Auto-evaluasi SLA tiket aktif secara real-time
+    try:
+        NotificationService.check_and_generate_sla_notifications(user_id=user_id)
+    except Exception as exc:
+        # Logging error tanpa menghentikan pemuatan notifikasi eksisting
+        print(f"[WARN] check_and_generate_sla_notifications error: {exc}")
+
     unread_only = request.args.get('unread_only', default=False, type=lambda v: v.lower() == 'true')
     limit = request.args.get('limit', default=50, type=int)
     limit = max(1, min(limit, 200))

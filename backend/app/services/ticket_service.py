@@ -679,6 +679,16 @@ class TicketService:
                 was_done = str(old_status_name).strip().lower() in ('resolved', 'closed')
                 if not (was_done and ticket.resolved_at):
                     ticket.resolved_at = datetime.now(timezone.utc)
+                # Auto-mark unread SLA notifications as read saat tiket selesai
+                try:
+                    from app.models.notification import Notification
+                    Notification.query.filter(
+                        Notification.ticket_id == ticket.id,
+                        Notification.type.in_(['sla_warning', 'sla_breached']),
+                        Notification.is_read == False
+                    ).update({'is_read': True}, synchronize_session=False)
+                except Exception:
+                    pass
             # Auto-assign: tiap perubahan status ke non-New berarti aktor
             # mengambil alih tiket — unassigned -> assignee = aktor.
             # (Status New = pool, boleh unassigned.)
@@ -1275,6 +1285,18 @@ class TicketService:
                     EmailService.send_ticket_resolved(ticket)
                 except Exception as e:
                     print(f"Failed to send resolved email: {e}")
+
+        if str(status).strip().lower() in ('resolved', 'closed', 'completed'):
+            try:
+                from app.models.notification import Notification
+                Notification.query.filter(
+                    Notification.ticket_id == ticket.id,
+                    Notification.type.in_(['sla_warning', 'sla_breached']),
+                    Notification.is_read == False
+                ).update({'is_read': True}, synchronize_session=False)
+                db.session.commit()
+            except Exception:
+                pass
 
         # ── Notifikasi Admin Override (via endpoint /status):
         # Admin mengubah status tiket milik staff -> alasan dikirim ke PEMILIK tiket.
