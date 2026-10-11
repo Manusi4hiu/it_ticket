@@ -143,6 +143,22 @@ class TicketService:
     # Removed get_next_ticket_id as IDs are now auto-incrementing integers
 
     @staticmethod
+    def _status_pauses_sla(status_obj):
+        """True bila status menghentikan SLA: flag pauses_sla ATAU grup 'pending'.
+
+        Status pending (hold/wait/pending) otomatis pause walau checkbox
+        'Pause SLA' belum dicentang di Settings, agar tiket yang di-resolve
+        langsung dari pending tidak terkena breach akibat waktu pending.
+        """
+        if not status_obj:
+            return False
+        if getattr(status_obj, 'pauses_sla', False):
+            return True
+        from app.services.master_data_service import _infer_filter_group
+        group = status_obj.filter_group or _infer_filter_group(status_obj.name, status_obj.is_default)
+        return group == 'pending'
+
+    @staticmethod
     def calculate_sla_status(sla_deadline, resolved_at=None, sla_paused_at=None, assigned_user=None):
         """Calculate SLA status based on deadline and resolution time.
         
@@ -616,7 +632,7 @@ class TicketService:
                         raise ValueError("Reason is required for this status")
 
                 # SLA Logic
-                if old_status and getattr(old_status, 'pauses_sla', False) and ticket.sla_paused_at and ticket.sla_deadline:
+                if old_status and TicketService._status_pauses_sla(old_status) and ticket.sla_paused_at and ticket.sla_deadline:
                     paused_at_aware = ticket.sla_paused_at
                     if paused_at_aware.tzinfo is None:
                         paused_at_aware = paused_at_aware.replace(tzinfo=timezone.utc)
@@ -628,7 +644,7 @@ class TicketService:
                         
                     ticket.sla_deadline = sla_deadline_aware + time_paused
                     
-                if new_status and getattr(new_status, 'pauses_sla', False):
+                if new_status and TicketService._status_pauses_sla(new_status):
                     ticket.sla_paused_at = datetime.now(timezone.utc)
                 else:
                     ticket.sla_paused_at = None
@@ -1132,7 +1148,7 @@ class TicketService:
         new_status = Status.query.filter(Status.name.ilike(status)).first()
         
         # If moving out of a paused state
-        if old_status and getattr(old_status, 'pauses_sla', False) and ticket.sla_paused_at and ticket.sla_deadline:
+        if old_status and TicketService._status_pauses_sla(old_status) and ticket.sla_paused_at and ticket.sla_deadline:
             paused_at_aware = ticket.sla_paused_at
             if paused_at_aware.tzinfo is None:
                 paused_at_aware = paused_at_aware.replace(tzinfo=timezone.utc)
@@ -1145,7 +1161,7 @@ class TicketService:
             ticket.sla_deadline = sla_deadline_aware + time_paused
             
         # If moving into a paused state
-        if new_status and getattr(new_status, 'pauses_sla', False):
+        if new_status and TicketService._status_pauses_sla(new_status):
             ticket.sla_paused_at = datetime.now(timezone.utc)
         else:
             ticket.sla_paused_at = None
@@ -1206,30 +1222,34 @@ class TicketService:
             _entering_group = _infer_group(status, False)
         _is_done_status = _entering_group == 'done'
 
-        # Check if status is resolved (case-insensitive)
-        if status.lower() == 'resolved':
+        # Status lama masuk grup done? (resolved_at hanya di-stamp saat TRANSISI
+        # non-done -> done; Resolved->Closed / Resolved->Resolved tidak menimpa).
+        _old_master = Status.query.filter(db.func.lower(Status.name) == str(old_status_name_snap).lower()).first()
+        if _old_master is not None:
+            _old_group = _old_master.filter_group or _infer_group(_old_master.name, _old_master.is_default)
+        else:
+            _old_group = _infer_group(old_status_name_snap, False)
+        _was_done = _old_group == 'done'
+
+        if _is_done_status and (not _was_done or not ticket.resolved_at):
+            # Masuk (atau re-enter setelah reopen) grup done: stamp waktu selesai.
+            # Custom resolvedAt dari UI dipakai bila ada, selain itu now (UTC naive).
+            _stamp = None
             if resolved_at_str:
                 try:
-                    # Handle Z suffix for UTC
-                    clean_str = resolved_at_str.replace('Z', '+00:00')
-                    dt_parsed = datetime.fromisoformat(clean_str)
-                    if dt_parsed.tzinfo is not None:
-                        ticket.resolved_at = dt_parsed.astimezone(timezone.utc).replace(tzinfo=None)
-                    else:
-                        ticket.resolved_at = dt_parsed
+                    dt_parsed = datetime.fromisoformat(str(resolved_at_str).replace('Z', '+00:00'))
+                    _stamp = (dt_parsed.astimezone(timezone.utc).replace(tzinfo=None)
+                              if dt_parsed.tzinfo is not None else dt_parsed)
                 except ValueError:
-                    ticket.resolved_at = datetime.now(timezone.utc).replace(tzinfo=None)
-            else:
-                ticket.resolved_at = datetime.now(timezone.utc).replace(tzinfo=None)
-                
+                    _stamp = None
+            ticket.resolved_at = _stamp or datetime.now(timezone.utc).replace(tzinfo=None)
+
+        if status.lower() == 'resolved':
             if resolution_summary:
                 ticket.resolution_summary = resolution_summary
             if resolution_image_url:
                 ticket.resolution_image_url = resolution_image_url
-        elif _is_done_status and not ticket.resolved_at:
-            # Masuk grup done via status selain 'resolved' (Closed/done custom):
-            # tetap catat waktu selesai agar statistik sinkron.
-            ticket.resolved_at = datetime.now(timezone.utc).replace(tzinfo=None)
+
 
         # Auto-assign: tiap perubahan status ke non-New berarti aktor mengambil
         # alih tiket — unassigned -> assignee = aktor. (Status New = pool.)
