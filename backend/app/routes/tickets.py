@@ -58,7 +58,19 @@ def get_tickets():
 
     # ── Team scoping: non-admin hanya lihat ticket team membership-nya ──
     current_user = get_current_user()
-    query = scoped_ticket_query(current_user, query)
+    team_id = request.args.get('teamId', type=int)
+    if is_administrator(current_user):
+        if team_id is not None:
+            query = query.filter(Ticket.team_id == team_id)
+    else:
+        from app.utils.permissions import get_user_team_ids
+        ids = get_user_team_ids(current_user)
+        if team_id is not None:
+            if team_id not in ids:
+                return jsonify({'success': False, 'error': 'Forbidden. Anda tidak punya akses ke team ini.'}), 403
+            query = query.filter(Ticket.team_id == team_id)
+        else:
+            query = scoped_ticket_query(current_user, query)
     
     if status:
         if ',' in status:
@@ -533,18 +545,19 @@ def get_ticket_stats():
 
     # ── Team scoping: non-admin hanya boleh stats team membership-nya ──
     team_id = request.args.get('teamId', type=int)
+    team_ids = None
     if not is_administrator(current_user):
         from app.utils.permissions import get_user_team_ids
         ids = get_user_team_ids(current_user)
         if team_id is not None and team_id not in ids:
             return jsonify({'success': False, 'error': 'Forbidden. Anda tidak punya akses ke team ini.'}), 403
         if team_id is None:
-            team_id = next(iter(ids), None) if ids else None
+            team_ids = ids
 
     if personal:
-        stats = TicketService.get_stats(user_id=user_id, days=days, start=start, end=end, team_id=team_id)
+        stats = TicketService.get_stats(user_id=user_id, days=days, start=start, end=end, team_id=team_id, team_ids=team_ids)
     else:
-        stats = TicketService.get_stats(days=days, start=start, end=end, team_id=team_id)
+        stats = TicketService.get_stats(days=days, start=start, end=end, team_id=team_id, team_ids=team_ids)
     
     return jsonify({
         'success': True,

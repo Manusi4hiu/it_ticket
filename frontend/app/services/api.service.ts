@@ -211,6 +211,7 @@ export const ticketsApi = {
         date?: string;
         page?: number;
         per_page?: number;
+        teamId?: number | string;
     }) => {
         const params = new URLSearchParams();
         if (filters) {

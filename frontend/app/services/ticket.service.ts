@@ -79,6 +79,7 @@ export async function getTickets(filters?: {
     date?: string;
     page?: number;
     per_page?: number;
+    teamId?: number | string;
 }): Promise<{ tickets: Ticket[]; total: number }> {
     const response = await ticketsApi.getAll(filters);
 

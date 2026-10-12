@@ -1360,11 +1360,13 @@ class TicketService:
         return note
 
     @staticmethod
-    def get_stats(user_id=None, days=7, start=None, end=None, team_id=None):
+    def get_stats(user_id=None, days=7, start=None, end=None, team_id=None, team_ids=None):
         """Get ticket statistics for dashboard, optionally filtered by user/team."""
         base_query = Ticket.query.filter(Ticket.category != DEV_CATEGORY)
         if team_id is not None:
             base_query = base_query.filter(Ticket.team_id == team_id)
+        elif team_ids is not None:
+            base_query = base_query.filter(Ticket.team_id.in_(team_ids))
         if user_id:
             base_query = base_query.filter(Ticket.assigned_to_id == user_id)
             
