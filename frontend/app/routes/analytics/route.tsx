@@ -94,7 +94,7 @@ function customBounds(startRaw: string | null, endRaw: string | null, now: Date)
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
-  const session = await requireRole(request, ["Administrator", "Management", "Staff"]);
+  const session = await requireRole(request, ["Administrator", "Management"]);
 
   const params = new URL(request.url).searchParams;
   const raw = params.get("range") || "7d";

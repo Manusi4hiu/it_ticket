@@ -276,7 +276,7 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
                       <Users className={styles.navIcon} />
                       <span className={styles.navLabel}>Performance</span>
                     </NavLink>
-                    {(isAdministrator || session.userRole === 'Management' || session.userRole === 'Staff') && (
+                    {(isAdministrator || session.userRole === 'Management') && (
                       <NavLink
                         to="/analytics"
                         className={({ isActive }) => `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`}
