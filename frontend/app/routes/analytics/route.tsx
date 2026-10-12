@@ -31,9 +31,10 @@ const autoColor = (index: number) =>
 // Periode tren: "7d" = 7 hari terakhir dari hari ini (rolling),
 // "30d" = 30 hari terakhir dari hari ini (rolling), atau quarter
 // tahun berjalan (jangkar kalender — jangan diubah, sudah benar).
+// "custom" dipilih lewat input tanggal di kanan, bukan tombol di grup preset.
 const RANGES = ["7d", "30d", "q1", "q2", "q3", "q4", "custom"] as const;
 type TrendRange = (typeof RANGES)[number];
-const PRESET_RANGES = ["7d", "30d", "q1", "q2", "q3", "q4"] as const;
+const PRESETS = RANGES.filter((r) => r !== "custom") as readonly TrendRange[];
 
 // Rentang custom maksimal 365 hari (inklusif).
 const CUSTOM_MAX_DAYS = 365;
@@ -266,9 +267,6 @@ function AnalyticsBody({
       setCustomEnd(rangeEnd);
     }
   }, [range, rangeStart, rangeEnd]);
-  const customValid =
-    !!customStart && !!customEnd && customStart <= customEnd && customEnd <= todayIso;
-
   // Panjang jendela efektif (hari, inklusif). Custom ≤14 hari digambar harian
   // seperti 7d; selebihnya diagregasi per minggu seperti 30d/quarter.
   const spanDays = useMemo(() => {
@@ -461,17 +459,6 @@ function AnalyticsBody({
     { created: 0, resolved: 0 }
   ), [trendData]);
   const statusTotal = statusData.reduce((s, d) => s + d.value, 0);
-  // Terapkan rentang custom. Bila input tak valid, kembalikan ke jendela
-  // efektif terakhir lalu terapkan itu (tak pernah navigasi buta).
-  const applyCustom = () => {
-    if (customValid) {
-      onRangeChange("custom", { start: customStart, end: customEnd });
-    } else {
-      setCustomStart(rangeStart);
-      setCustomEnd(rangeEnd);
-      onRangeChange("custom", { start: rangeStart, end: rangeEnd });
-    }
-  };
   const categoryTotal = categoryData.reduce((s, d) => s + (d.value as number), 0);
 
   return (
@@ -528,74 +515,61 @@ function AnalyticsBody({
           </section>
 
           <div className={styles.rangeRow}>
-            <div className={styles.rangeHeaderGroup}>
-              <span className={styles.rangeLbl}>Period</span>
-              <div className={styles.seg} role="tablist" aria-label="Trend period">
-                {PRESET_RANGES.map((r) => {
-                  const label = r === "7d" ? "7D" : r === "30d" ? "1M" : r.toUpperCase();
+            <span className={styles.rangeLbl}>Period</span>
+            <div className={styles.seg} role="tablist" aria-label="Trend period">
+              {PRESETS.map((r) => {
+                const label = r === "7d" ? "7D" : r === "30d" ? "1M" : r.toUpperCase();
                   const hint =
                     r === "7d" ? "7 hari terakhir dari hari ini"
                     : r === "30d" ? "30 hari terakhir dari hari ini"
                     : `Quarter ${r.slice(1)}, this year`;
-                  return (
-                    <button
-                      key={r}
-                      type="button"
-                      role="tab"
-                      aria-selected={range === r}
-                      title={hint}
-                      className={range === r ? styles.segOn : styles.segBtn}
-                      onClick={() => onRangeChange(r)}
-                    >
-                      {label}
-                    </button>
-                  );
-                })}
-              </div>
+                return (
+                  <button
+                    key={r}
+                    role="tab"
+                    aria-selected={range === r}
+                    title={hint}
+                    className={range === r ? styles.segOn : styles.segBtn}
+                    onClick={() => onRangeChange(r)}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
             </div>
-
-            <div className={styles.rangeDivider} />
-
             <div className={styles.customRow}>
-              <div className={styles.customDateInputs}>
-                <label className={styles.dateField}>
-                  <span className={styles.dateFieldLabel}>Dari</span>
-                  <input
-                    type="date"
-                    value={customStart}
-                    max={customEnd || todayIso}
-                    onChange={(e) => setCustomStart(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter" && customValid) applyCustom(); }}
-                  />
-                </label>
-                <label className={styles.dateField}>
-                  <span className={styles.dateFieldLabel}>Sampai</span>
-                  <input
-                    type="date"
-                    value={customEnd}
-                    min={customStart}
-                    max={todayIso}
-                    onChange={(e) => setCustomEnd(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter" && customValid) applyCustom(); }}
-                  />
-                </label>
-              </div>
-              <button
-                type="button"
-                className={`${styles.applyBtn} ${range === "custom" ? styles.applyBtnActive : ""}`}
-                disabled={!customValid || (range === "custom" && customStart === rangeStart && customEnd === rangeEnd)}
-                onClick={applyCustom}
-                title="Terapkan rentang tanggal kustom"
-              >
-                Terapkan
-              </button>
+              <label className={styles.dateField}>
+                Dari
+                <input
+                  type="date"
+                  value={customStart}
+                  max={customEnd || todayIso}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setCustomStart(v);
+                    if (v && customEnd && v <= customEnd && customEnd <= todayIso) {
+                      onRangeChange("custom", { start: v, end: customEnd });
+                    }
+                  }}
+                />
+              </label>
+              <label className={styles.dateField}>
+                Sampai
+                <input
+                  type="date"
+                  value={customEnd}
+                  min={customStart}
+                  max={todayIso}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setCustomEnd(v);
+                    if (customStart && v && customStart <= v && v <= todayIso) {
+                      onRangeChange("custom", { start: customStart, end: v });
+                    }
+                  }}
+                />
+              </label>
             </div>
-
-            {customStart && customEnd && !customValid && (
-              <span className={styles.dateHint}>
-                Tanggal &ldquo;Sampai&rdquo; harus &ge; &ldquo;Dari&rdquo; dan tidak melewati hari ini.
-              </span>
-            )}
           </div>
 
           <section className={styles.panel}>
