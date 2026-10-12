@@ -66,6 +66,7 @@ export async function loader({ request }: Route.LoaderArgs) {
       name: u.full_name,
       role: u.role as UserRole,
       isActive: u.is_active !== false,
+      teamIds: ((u as unknown as { teamIds?: (string | number)[] }).teamIds ?? []).map(String),
     })) as ManagedUser[],
   });
 }
@@ -533,6 +534,48 @@ export default function RoleManagementSettings({
                 onChange={(v) => rm.setEditUserForm((p) => ({ ...p, phone: v }))}
                 placeholder="+62..."
               />
+              {/* Team membership (multi-select) */}
+              <div className="space-y-2" style={{ gridColumn: "1 / -1" }}>
+                <Label htmlFor="editTeams">Teams</Label>
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                  {teams.map((t) => {
+                    const checked = rm.editUserForm.teamIds.includes(String(t.id));
+                    return (
+                      <label
+                        key={t.id}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "6px",
+                          padding: "6px 12px",
+                          borderRadius: "8px",
+                          border: "1px solid rgba(255,255,255,0.2)",
+                          background: checked ? "rgba(59,130,246,0.25)" : "rgba(255,255,255,0.05)",
+                          cursor: "pointer",
+                          fontSize: "0.85rem",
+                          color: "white",
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) => {
+                            const id = String(t.id);
+                            rm.setEditUserForm((p) => ({
+                              ...p,
+                              teamIds: e.target.checked
+                                ? [...p.teamIds, id]
+                                : p.teamIds.filter((x) => x !== id),
+                            }));
+                          }}
+                          style={{ width: "14px", height: "14px", cursor: "pointer" }}
+                        />
+                        {t.name}
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
               <FormField
                 id="editPassword"
                 label="New Password (Optional)"

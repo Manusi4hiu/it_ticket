@@ -25,6 +25,7 @@ export interface ManagedUser {
   name: string;
   role: UserRole;
   isActive: boolean;
+  teamIds?: string[];
 }
 
 interface NewUserForm {
@@ -43,6 +44,7 @@ interface EditUserForm {
   email: string;
   phone: string;
   password: string;
+  teamIds: string[];
 }
 
 // ─────────────────────────────────────────────
@@ -92,6 +94,7 @@ export function useRoleManagement(
     email: "",
     phone: "",
     password: "",
+    teamIds: [],
   });
   const [editFormErrors, setEditFormErrors] = useState<Record<string, string>>({});
 
@@ -262,6 +265,7 @@ export function useRoleManagement(
       email: user.email || "",
       phone: (user as ManagedUser & { phone?: string }).phone || "",
       password: "",
+      teamIds: user.teamIds ?? [],
     });
     setEditFormErrors({});
     setShowEditDialog(true);
@@ -299,11 +303,13 @@ export function useRoleManagement(
         email?: string | null;
         phone?: string | null;
         password?: string;
+        teamIds?: string[];
       } = {
         full_name: editUserForm.full_name,
         username: editUserForm.username,
         email: editUserForm.email || null,
         phone: editUserForm.phone || null,
+        teamIds: editUserForm.teamIds,
       };
 
       // Password hanya disertakan jika diisi
