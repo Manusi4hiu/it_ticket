@@ -732,20 +732,106 @@
   outline-offset: 2px;
 }
 
-/* ── Layar sempit: kecilkan tombol, judul mengecil duluan ─────────────── */
-@media (max-width: 430px) {
+/* ── Mobile compact: panel dipadatkan agar tidak memakan layar ──────────
+   Aturan: hanya di ≤480px. Desktop tidak berubah sama sekali.
+   - Lebar 420 → 336px (tetap clamp ke viewport).
+   - Tinggi maks 600 → 430px (clamp ke dynamic viewport).
+   - Header, item, ikon, dan teks semua dipadatkan satu tingkat.
+   - Pesan dibatasi 2 baris (clamp) supaya satu notif tidak setinggi layar. */
+@media (max-width: 480px) {
+  .notificationPopover {
+    --nt-radius: 14px;
+    width: min(336px, calc(100vw - 32px));
+    max-height: min(430px, calc(100vh - 132px));
+    max-height: min(430px, calc(100dvh - 132px));
+    margin-top: 6px !important;
+    border-radius: var(--nt-radius) !important;
+    /* Radix menempelkan tepi kanan panel ke tepi kanan lonceng; di mobile
+       lonceng tidak di ujung layar (ada tombol Logout setelahnya, ±56px),
+       sehingga panel terlihat menjorok ke kiri. Geser panel ke kanan agar
+       dominan di kanan, tepat di bawah lonceng, dengan margin ±10px dari
+       tepi kanan layar di semua lebar:
+       - ≥394px : panel tak ter-clamp, geser 44px (sisa gap lonceng-Logout).
+       - <394px : panel sudah mentok kiri (ter-clamp Radix), geser maksimal
+                  22px agar tepi kanan tetap ±10px dari layar, tak meluber.
+       `translate` menyatu dengan transform popper (tidak menimpa animasi
+       dan tidak merusak collision handling Radix). */
+    translate: min(44px, max(22px, calc(100vw - 346px))) 0;
+  }
+
   .notificationHeader {
-    padding: 10px 8px 10px 14px;
+    min-height: 48px;
+    padding: 8px 8px 8px 12px;
     gap: 6px;
   }
 
   .notificationTitle {
-    font-size: 13.5px;
+    font-size: 13px;
   }
 
   .markReadBtn {
     padding: 4px 6px !important;
-    font-size: 10.5px !important;
+    font-size: 10px !important;
+  }
+
+  /* Satu baris notif: lebih ramping */
+  .notificationItem {
+    gap: 10px;
+    padding: 10px 12px 10px 14px;
+  }
+
+  .notificationItem.unread::before,
+  .notificationItem:not(.unread)::before,
+  .notificationItem.selected::before {
+    top: 8px;
+    bottom: 8px;
+  }
+
+  .notificationIcon {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+  }
+
+  .notificationItemTitle {
+    font-size: 12.5px;
+  }
+
+  .notificationTime {
+    font-size: 10px;
+  }
+
+  .notificationMessage {
+    font-size: 11.5px;
+    line-height: 1.45;
+    /* maksimal 2 baris di mobile: hemat tinggi, tetap terbaca */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .notificationFooter {
+    margin-top: 2px;
+    min-height: 12px;
+  }
+
+  .emptyState {
+    padding: 28px 20px 32px;
+  }
+
+  .emptyIconContainer {
+    width: 44px;
+    height: 44px;
+  }
+
+  .confirmOverlay {
+    padding: 12px;
+  }
+
+  .confirmCard {
+    max-width: 280px;
+    padding: 16px 14px 14px;
   }
 }
 
