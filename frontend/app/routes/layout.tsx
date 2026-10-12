@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Outlet, useNavigate, Form, redirect, NavLink, useLocation } from "react-router";
 import {
   User,
@@ -46,11 +46,36 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
   const location = useLocation();
   const isAdministrator = session?.userRole === 'Administrator';
 
-  // ── Team branding: staff team Graphic Design (COC) pakai label CORCOM ──
-  // User yang HANYA anggota COC -> branding COC. User IT / admin (IT atau
-  // lintas team) -> branding IT. (Refine saat team switcher ditambahkan.)
+  // ── Team branding: ikuti team yang aktif dipilih (IT -> IT Aero Support, COC -> CORCOM) ──
   const teams = (session?.teams || []) as { id: string | number; name: string; code: string }[];
-  const isCoc = teams.some(t => t.code === 'COC') && !teams.some(t => t.code === 'IT');
+  const [storedTeamId, setStoredTeamId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("app_active_team_id");
+    if (saved) setStoredTeamId(saved);
+  }, []);
+
+  const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const urlTeamId = searchParams.get('teamId');
+
+  useEffect(() => {
+    if (urlTeamId) {
+      localStorage.setItem("app_active_team_id", urlTeamId);
+      setStoredTeamId(urlTeamId);
+    }
+  }, [urlTeamId]);
+
+  const activeTeamId = urlTeamId || storedTeamId;
+  const activeTeam = useMemo(() => {
+    if (activeTeamId) {
+      return teams.find(t => String(t.id) === String(activeTeamId));
+    }
+    return null;
+  }, [teams, activeTeamId]);
+
+  const isCoc = activeTeam
+    ? activeTeam.code === 'COC'
+    : (teams.some(t => t.code === 'COC') && !teams.some(t => t.code === 'IT'));
 
   const L = {
     headerSupport: isCoc ? "CORCOM" : "IT Aero Support",
@@ -60,10 +85,9 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
     devBoardNav: isCoc ? "Board" : "Dev Board",
   };
 
-  // Role yang boleh melihat Dev Board (Management view-only) — HANYA anggota
-  // team IT (atau admin lintas team). User COC tidak lihat toggle Dev/Board.
-  const isInIT = teams.some(t => t.code === 'IT');
-  const canAccessDevBoard = isAdministrator || ((session?.userRole === 'Staff' || session?.userRole === 'Management') && isInIT);
+  // Role yang boleh melihat Dev Board (Management view-only) — HANYA jika workspace IT aktif
+  const isInIT = activeTeam ? activeTeam.code === 'IT' : teams.some(t => t.code === 'IT');
+  const canAccessDevBoard = isAdministrator || ((session?.userRole === 'Staff' || session?.userRole === 'Management') && isInIT && !isCoc);
 
   const [isDevMode, setIsDevMode] = useState(false);
 
