@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.services.user_service import UserService
 from app.models.user import User
-from app.utils.permissions import admin_required, role_required, get_current_user
+from app.utils.permissions import admin_required, role_required, get_current_user, is_administrator
 from datetime import datetime, timezone, timedelta, date
 import calendar
 import re
@@ -32,7 +32,34 @@ def get_users():
 @jwt_required()
 def get_agents():
     """Get users who can be assigned to tickets (all staff), optional team scope"""
+    current_user = get_current_user()
     team_id = request.args.get('teamId', type=int)
+
+    # Scoping team: Non-admin HANYA boleh melihat rekan di team-nya sendiri
+    if not is_administrator(current_user):
+        from app.utils.permissions import get_user_team_ids
+        ids = get_user_team_ids(current_user)
+        if team_id is not None and team_id not in ids:
+            return jsonify({'success': False, 'error': 'Forbidden. Anda tidak punya akses ke team ini.'}), 403
+        if team_id is None:
+            users = UserService.get_agents()
+            users = [u for u in users if any(t.id in ids for t in u.teams)]
+            return jsonify({
+                'success': True,
+                'agents': [{
+                    'id': u.id,
+                    'name': u.full_name,
+                    'username': u.username,
+                    'email': u.email,
+                    'phone': u.phone,
+                    'isActive': u.is_active if u.is_active is not None else True,
+                    'isOnBreak': u.is_on_break or False,
+                    'presenceStatus': u.to_dict().get('presenceStatus', 'online'),
+                    'customStatusMessage': u.to_dict().get('customStatusMessage'),
+                    'teams': [{'id': t.id, 'name': t.name, 'code': t.code} for t in u.teams],
+                } for u in users]
+            }), 200
+
     users = UserService.get_agents(team_id=team_id)
     
     return jsonify({
@@ -47,6 +74,7 @@ def get_agents():
             'isOnBreak': u.is_on_break or False,
             'presenceStatus': u.to_dict().get('presenceStatus', 'online'),
             'customStatusMessage': u.to_dict().get('customStatusMessage'),
+            'teams': [{'id': t.id, 'name': t.name, 'code': t.code} for t in u.teams],
         } for u in users]
     }), 200
 
@@ -169,9 +197,24 @@ def get_user_performance(user_id):
 def get_all_performance():
     """Get performance statistics for all staff members (reports/analytics: Admin/Management/Staff)"""
     from flask import request
+    current_user = get_current_user()
+    team_id = request.args.get('teamId', type=int)
+
+    # Scoping team untuk non-admin
+    if not is_administrator(current_user):
+        from app.utils.permissions import get_user_team_ids
+        ids = get_user_team_ids(current_user)
+        if team_id is not None and team_id not in ids:
+            return jsonify({'success': False, 'error': 'Forbidden. Anda tidak punya akses ke team ini.'}), 403
+        if team_id is None:
+            team_id = next(iter(ids), None) if ids else None
+
     # Jendela opsional (ISO YYYY-MM-DD) untuk ranking periode Analytics.
     results = UserService.get_all_performance(
-        start=request.args.get('start'), end=request.args.get('end'))
+        start=request.args.get('start'),
+        end=request.args.get('end'),
+        team_id=team_id
+    )
 
     return jsonify({
         'success': True,

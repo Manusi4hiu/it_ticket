@@ -47,6 +47,7 @@ export interface Agent {
     presenceStatus?: 'online' | 'idle' | 'dnd' | 'offline' | 'break';
     customStatusMessage?: string | null;
     customStatusExpiresAt?: string | null;
+    teams?: { id: number; name: string; code: string }[];
 }
 
 export interface UserPerformanceSummary {

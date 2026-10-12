@@ -211,7 +211,7 @@ export async function addTicketNote(
     };
 }
 
-export async function getTicketStats(personal: boolean = false, days?: number, opts?: { start?: string; end?: string }): Promise<{
+export async function getTicketStats(personal: boolean = false, days?: number, opts?: { start?: string; end?: string; teamId?: string | number }): Promise<{
     total: number;
     open: number;
     new: number;
@@ -279,7 +279,7 @@ export async function getAgents(teamId?: number): Promise<Agent[]> {
     return response.data.agents;
 }
 
-export async function getAllAgentsPerformance(opts?: { start?: string; end?: string }) {
+export async function getAllAgentsPerformance(opts?: { start?: string; end?: string; teamId?: string | number }) {
     const response = await usersApi.getAllPerformance(opts);
 
     if (!response.success || !response.data) {

@@ -55,11 +55,21 @@ export interface ProfileStaff {
   phone?: string | null;
   role?: string;
   department?: string | null;
+  teams?: { id: number | string; name: string; code?: string }[];
   avatarUrl?: string | null;
   isActive?: boolean;
   updatedAt?: string | null;
   presenceStatus?: 'online' | 'idle' | 'dnd' | 'offline';
   customStatusMessage?: string | null;
+}
+
+function getStaffRoleLabel(staff: ProfileStaff): string {
+  const teamNames = staff.teams?.map((t) => t.name).filter(Boolean);
+  const role = staff.role || "Staff";
+  if (teamNames && teamNames.length > 0) {
+    return `${teamNames.join(" / ")} ${role}`;
+  }
+  return role === "Staff" ? "Staff" : role;
 }
 
 export type ProfileLoaderData = {
@@ -117,6 +127,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
       phone: u.phone,
       role: u.role,
       department: u.department,
+      teams: (u as any).teams || [],
       avatarUrl: u.avatar_url,
       isActive: (u as any).is_active ?? true,
       updatedAt: (u as any).updated_at,
@@ -137,7 +148,8 @@ export async function loader({ request, params }: Route.LoaderArgs) {
         username: a.username,
         email: a.email,
         phone: a.phone,
-        role: "IT Support Staff",
+        role: (a as any).role || "Staff",
+        teams: (a as any).teams || [],
         isActive: true,
         presenceStatus: (a as any).presenceStatus ?? 'online',
         customStatusMessage: (a as any).customStatusMessage ?? null,
@@ -961,7 +973,7 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
             <div className={styles.nameRow}>
               <h1 className={styles.profileName}>{staff.name || staff.username || "Staff User"}</h1>
               <span className={styles.roleBadge}>
-                {staff.role === "Staff" ? "IT Support Staff" : staff.role || "IT Support Staff"}
+                {getStaffRoleLabel(staff)}
               </span>
             </div>
 

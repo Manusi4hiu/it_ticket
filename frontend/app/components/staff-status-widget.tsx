@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Users, Search, RefreshCw, X } from "lucide-react";
 import { usersApi } from "~/services/api.service";
 import type { Agent } from "~/types/user.types";
@@ -78,6 +78,30 @@ export function StaffStatusWidget() {
       a.username.toLowerCase().includes(search.toLowerCase())
     )
   );
+
+  const groupedAgents = useMemo(() => {
+    const teamMap = new Map<string, Agent[]>();
+
+    filteredAgents.forEach((agent) => {
+      const teamNames = agent.teams && agent.teams.length > 0
+        ? agent.teams.map((t) => t.name)
+        : ["Other"];
+
+      teamNames.forEach((tName) => {
+        if (!teamMap.has(tName)) {
+          teamMap.set(tName, []);
+        }
+        teamMap.get(tName)!.push(agent);
+      });
+    });
+
+    const groups: { teamName: string; members: Agent[] }[] = [];
+    teamMap.forEach((members, teamName) => {
+      groups.push({ teamName, members });
+    });
+
+    return groups;
+  }, [filteredAgents]);
 
   return (
     <div
@@ -163,41 +187,67 @@ export function StaffStatusWidget() {
           </div>
 
           {/* List */}
-          <div style={{ maxHeight: '300px', overflowY: 'auto', padding: '8px 12px' }}>
+          <div style={{ maxHeight: '320px', overflowY: 'auto', padding: '8px 12px' }}>
             {loading && agents.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '16px', color: '#94a3b8', fontSize: '13px' }}>Loading...</div>
             ) : filteredAgents.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '16px', color: '#94a3b8', fontSize: '13px' }}>No staff found.</div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {filteredAgents.map(agent => {
-                  const status = agent.presenceStatus || 'online';
-                  const color = PRESENCE_COLORS[status] || PRESENCE_COLORS.online;
-                  return (
-                    <div key={agent.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '4px 0' }}>
-                      <div style={{ position: 'relative' }}>
-                        <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(59,130,246,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#93c5fd', fontWeight: 600, fontSize: '14px' }}>
-                          {agent.name.charAt(0).toUpperCase()}
-                        </div>
-                        <span style={{ position: 'absolute', bottom: 0, right: 0, width: 10, height: 10, borderRadius: '50%', background: color, border: '2px solid #0a0f1e' }} />
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 600, fontSize: '13px', color: '#f1f5f9', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {agent.name}
-                        </div>
-                        {agent.customStatusMessage ? (
-                          <div style={{ fontSize: '11px', color: '#cbd5e1', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            💬 {agent.customStatusMessage}
-                          </div>
-                        ) : (
-                          <div style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'capitalize' }}>
-                            {status}
-                          </div>
-                        )}
-                      </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {groupedAgents.map(({ teamName, members }) => (
+                  <div key={teamName}>
+                    {/* Team Section Divider Header */}
+                    <div
+                      style={{
+                        fontSize: '10px',
+                        fontWeight: 700,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.08em',
+                        color: '#60a5fa',
+                        padding: '4px 0',
+                        marginBottom: '4px',
+                        borderBottom: '1px solid rgba(255,255,255,0.08)',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <span>{teamName}</span>
+                      <span style={{ color: '#94a3b8', fontWeight: 500, fontSize: '10px' }}>{members.length}</span>
                     </div>
-                  );
-                })}
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {members.map(agent => {
+                        const status = agent.presenceStatus || 'online';
+                        const color = PRESENCE_COLORS[status] || PRESENCE_COLORS.online;
+                        return (
+                          <div key={agent.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '2px 0' }}>
+                            <div style={{ position: 'relative' }}>
+                              <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(59,130,246,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#93c5fd', fontWeight: 600, fontSize: '14px' }}>
+                                {agent.name.charAt(0).toUpperCase()}
+                              </div>
+                              <span style={{ position: 'absolute', bottom: 0, right: 0, width: 10, height: 10, borderRadius: '50%', background: color, border: '2px solid #0a0f1e' }} />
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontWeight: 600, fontSize: '13px', color: '#f1f5f9', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {agent.name}
+                              </div>
+                              {agent.customStatusMessage ? (
+                                <div style={{ fontSize: '11px', color: '#cbd5e1', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                  💬 {agent.customStatusMessage}
+                                </div>
+                              ) : (
+                                <div style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'capitalize' }}>
+                                  {status}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>

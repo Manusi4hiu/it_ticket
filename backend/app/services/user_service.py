@@ -291,7 +291,7 @@ class UserService:
         }
 
     @staticmethod
-    def get_all_performance(start=None, end=None):
+    def get_all_performance(start=None, end=None, team_id=None):
         """Performansi user yang bisa mengerjakan tiket: Staff/Administrator saja.
 
         Role Management view-only (tak bisa di-assign, tak ada di get_agents)
@@ -305,10 +305,14 @@ class UserService:
         jendela, resolved = tiket SELESAI (resolved_at fallback updated_at) dalam
         jendela — untuk ranking periode Analytics. Tanpa jendela = all-time.
         """
-        users = User.query.filter(
+        user_query = User.query.filter(
             User.role.in_(['Staff', 'Administrator']),
             User.is_active == True
-        ).all()
+        )
+        if team_id is not None:
+            from app.models.team import Team
+            user_query = user_query.filter(User.teams.any(Team.id == team_id))
+        users = user_query.all()
 
         w_lo, w_hi = UserService._window_bounds(start, end)
         windowed = w_lo is not None
@@ -321,7 +325,10 @@ class UserService:
         for user in users:
             # Get ticket stats for this user (Assigned or Collaborator)
             # — definisi sama dengan get_user_performance (halaman Team/Profile).
-            involved_tickets = Ticket.query.filter(Ticket.category != DEV_CATEGORY).filter(
+            t_query = Ticket.query.filter(Ticket.category != DEV_CATEGORY)
+            if team_id is not None:
+                t_query = t_query.filter(Ticket.team_id == team_id)
+            involved_tickets = t_query.filter(
                 (Ticket.assigned_to_id == user.id) |
                 (Ticket.collaborators.any(User.id == user.id))
             ).all()

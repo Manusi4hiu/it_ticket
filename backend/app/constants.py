@@ -50,9 +50,7 @@ TEAM_COC_CODE = "COC"   # graphic design team
 TEAM_DEFAULT_CODE = TEAM_IT_CODE
 
 # ---------------------------------------------------------------------------
-# Ticket Code — SATU master counter global untuk semua team.
-# Format: TCK-000001 (prefix tetap + counter global 6 digit).
-# Kode lama ({dept_code}-{counter}) dibiarkan historis, tidak dinormalisasi.
+# Ticket Code — Menggunakan prefix kode department pemohon ({dept_code}-{counter}).
 # ---------------------------------------------------------------------------
-TICKET_CODE_PREFIX = "TCK"
-TICKET_CODE_PADDING = 6
+TICKET_CODE_FALLBACK_PREFIX = "TKT"
+TICKET_CODE_PADDING = 3

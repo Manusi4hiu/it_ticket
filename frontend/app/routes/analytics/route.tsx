@@ -16,7 +16,7 @@ import {
   LabelList,
 } from "recharts";
 import { getTicketStats, getAllAgentsPerformance } from "~/services/ticket.service";
-import { settingsApi, type Category, type Priority, type Status, type Department } from "~/services/settings.service";
+import { settingsApi, type Category, type Priority, type Status, type Department, type Team } from "~/services/settings.service";
 import { requireRole } from "~/services/session.service";
 import type { Route } from "./+types/route";
 import styles from "./style.module.css";
@@ -118,14 +118,33 @@ export async function loader({ request }: Route.LoaderArgs) {
       : quarterBounds(Number(range.slice(1)), now);
   }
 
-  const [stats, statsAll, agentsPerformance, categoriesRes, prioritiesRes, statusesRes, departmentsRes] = await Promise.all([
-    getTicketStats(false, undefined, window),
-    getTicketStats(),
-    getAllAgentsPerformance(),
+  // Fetch teams & master data
+  const [teamsRes, categoriesRes, prioritiesRes, statusesRes, departmentsRes] = await Promise.all([
+    settingsApi.getTeams(),
     settingsApi.getCategories(),
     settingsApi.getPriorities(),
     settingsApi.getStatuses(),
     settingsApi.getDepartments(),
+  ]);
+
+  const teams = ((teamsRes.data?.data || []) as Team[]).filter((t) => t.isActive !== false);
+
+  const isAdmin = session.userRole === "Administrator";
+  const userTeams = ((session as any)?.teams || []) as Team[];
+  const userFirstTeam = userTeams[0]?.id ? String(userTeams[0].id) : undefined;
+
+  // Team scoping: admin bebas pilih dari query param, non-admin terkunci ke team miliknya
+  const paramTeamId = params.get("teamId");
+  let selectedTeamId = isAdmin ? paramTeamId : userFirstTeam;
+  if (!selectedTeamId || !teams.some((t) => String(t.id) === selectedTeamId)) {
+    const itTeam = teams.find((t) => t.code === "IT");
+    selectedTeamId = itTeam ? String(itTeam.id) : teams[0] ? String(teams[0].id) : "";
+  }
+
+  const [stats, statsAll, agentsPerformance] = await Promise.all([
+    getTicketStats(false, undefined, { ...window, teamId: selectedTeamId || undefined }),
+    getTicketStats(false, undefined, { teamId: selectedTeamId || undefined }),
+    getAllAgentsPerformance({ teamId: selectedTeamId || undefined }),
   ]);
 
   // Master hanya yang aktif (isActive !== false) — sama dengan aturan dropdown Tickets.
@@ -146,7 +165,10 @@ export async function loader({ request }: Route.LoaderArgs) {
     categories,
     priorities,
     statuses,
-    departments
+    departments,
+    teams,
+    selectedTeamId,
+    isAdmin,
   });
 }
 
@@ -197,9 +219,9 @@ function Ledger({ rows, total }: { rows: { name: string; value: number; color: s
 }
 
 export default function Analytics({ loaderData }: Route.ComponentProps) {
-  const { stats, statsAll, agentsPerformance, categories, priorities, statuses, departments, range, start, end } = loaderData;
+  const { stats, statsAll, agentsPerformance, categories, priorities, statuses, departments, range, start, end, teams, selectedTeamId, isAdmin } = loaderData;
   const [activeTab, setActiveTab] = useState<"overview" | "distribution" | "staff">("overview");
-  const [, setParams] = useSearchParams();
+  const [params, setParams] = useSearchParams();
 
   if (!stats) return <div className="p-12 text-center text-slate-400">Loading analytics...</div>;
 
@@ -217,15 +239,37 @@ export default function Analytics({ loaderData }: Route.ComponentProps) {
       range={range as TrendRange}
       rangeStart={start}
       rangeEnd={end}
-      onRangeChange={(r, custom) =>
-        setParams(r === "7d" ? {} : custom ? { range: r, start: custom.start, end: custom.end } : { range: r })
-      }
+      teams={teams}
+      selectedTeamId={selectedTeamId}
+      isAdmin={isAdmin}
+      onTeamChange={(tId) => {
+        const next = new URLSearchParams(params);
+        next.set("teamId", tId);
+        setParams(next);
+      }}
+      onRangeChange={(r, custom) => {
+        const next = new URLSearchParams(params);
+        if (r === "7d") {
+          next.delete("range");
+          next.delete("start");
+          next.delete("end");
+        } else if (custom) {
+          next.set("range", r);
+          next.set("start", custom.start);
+          next.set("end", custom.end);
+        } else {
+          next.set("range", r);
+          next.delete("start");
+          next.delete("end");
+        }
+        setParams(next);
+      }}
     />
   );
 }
 
 function AnalyticsBody({
-  stats, statsAll, agentsPerformance, categories, priorities, statuses, departments, activeTab, setActiveTab, range, rangeStart, rangeEnd, onRangeChange,
+  stats, statsAll, agentsPerformance, categories, priorities, statuses, departments, activeTab, setActiveTab, range, rangeStart, rangeEnd, onRangeChange, teams, selectedTeamId, onTeamChange, isAdmin,
 }: {
   stats: any;
   statsAll: any;
@@ -240,6 +284,10 @@ function AnalyticsBody({
   rangeStart: string;
   rangeEnd: string;
   onRangeChange: (r: TrendRange, custom?: { start: string; end: string }) => void;
+  teams: Team[];
+  selectedTeamId: string;
+  onTeamChange: (teamId: string) => void;
+  isAdmin: boolean;
 }) {
   const resolvedTickets = stats.resolved;
   const avgResolutionTime = `${stats.avgResolutionTime}h`;
@@ -479,20 +527,39 @@ function AnalyticsBody({
         <div>
           <p className={styles.kicker}>{activeTab === "overview" ? rangeKicker : "Helpdesk · All time"}</p>
           <h1 className={styles.title}>System analytics</h1>
-          <p className={styles.sub}>Throughput, backlog shape and SLA health across IT support.</p>
+          <p className={styles.sub}>
+            Throughput, backlog shape and SLA health for {teams.find((t) => String(t.id) === String(selectedTeamId))?.name || "Team"}.
+          </p>
         </div>
-        <div className={styles.seg} role="tablist" aria-label="Analytics views">
-          {(["overview", "distribution", "staff"] as const).map((t) => (
-            <button
-              key={t}
-              role="tab"
-              aria-selected={activeTab === t}
-              className={activeTab === t ? styles.segOn : styles.segBtn}
-              onClick={() => setActiveTab(t)}
-            >
-              {t === "overview" ? "Overview" : t === "distribution" ? "Distribution" : "Staff"}
-            </button>
-          ))}
+        <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "center" }}>
+          {isAdmin && teams.length > 1 && (
+            <div className={styles.seg} role="tablist" aria-label="Team workspace">
+              {teams.map((t) => (
+                <button
+                  key={t.id}
+                  role="tab"
+                  aria-selected={String(t.id) === String(selectedTeamId)}
+                  className={String(t.id) === String(selectedTeamId) ? styles.segOn : styles.segBtn}
+                  onClick={() => onTeamChange(String(t.id))}
+                >
+                  {t.name}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className={styles.seg} role="tablist" aria-label="Analytics views">
+            {(["overview", "distribution", "staff"] as const).map((t) => (
+              <button
+                key={t}
+                role="tab"
+                aria-selected={activeTab === t}
+                className={activeTab === t ? styles.segOn : styles.segBtn}
+                onClick={() => setActiveTab(t)}
+              >
+                {t === "overview" ? "Overview" : t === "distribution" ? "Distribution" : "Staff"}
+              </button>
+            ))}
+          </div>
         </div>
       </header>
 

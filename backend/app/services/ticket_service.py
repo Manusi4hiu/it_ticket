@@ -1,14 +1,14 @@
 from app import db
 from app.models.ticket import Ticket, TicketNote
 from app.models.user import User
-from app.models.master_data import Status, Priority, Category, SLAPolicy
+from app.models.master_data import Department, Status, Priority, Category, SLAPolicy
 from app.models.team import Team
 from app.utils.logging import log_activity
 from app.utils.security import sanitize_html, NOTE_ALLOWED_TAGS
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 from flask import current_app, has_app_context
-from app.constants import DEV_CATEGORY, TICKET_CODE_PREFIX, TICKET_CODE_PADDING
+from app.constants import DEV_CATEGORY
 
 def _report_tz():
     """Zona waktu pelaporan (batas hari grafik/analytics).
@@ -372,13 +372,16 @@ class TicketService:
             else:
                 sla_taken_at = None
             
-            # Fetch department info (identitas PEMOHON — tetap, bukan team tujuan)
+            # Fetch department info (identitas PEMOHON — penentu prefix kode tiket)
+            dept_code = "TKT"
             dept_name = data.get('submitterDepartment')
+            if dept_name:
+                dept = Department.query.filter(Department.name.ilike(str(dept_name).strip())).first()
+                if dept and dept.code:
+                    dept_code = dept.code.strip().upper()
 
-            # Generate ticket code — SATU master counter global untuk semua team.
-            # Format: TCK-000001. Kode lama ({dept}-{counter}) dibiarkan historis.
-            # FOR UPDATE mencegah race condition pada counter.
-            last_ticket = Ticket.query\
+            # Generate ticket code (per department counter) — FOR UPDATE mencegah race condition
+            last_ticket = Ticket.query.filter(Ticket.ticket_code.like(f"{dept_code}-%"))\
                 .order_by(Ticket.code_counter.desc())\
                 .with_for_update()\
                 .first()
@@ -387,7 +390,12 @@ class TicketService:
             if last_ticket and last_ticket.code_counter:
                 new_counter = last_ticket.code_counter + 1
 
-            ticket_code = f"{TICKET_CODE_PREFIX}-{str(new_counter).zfill(TICKET_CODE_PADDING)}"
+            ticket_code = f"{dept_code}-{str(new_counter).zfill(3)}"
+
+            # Cegah collision bila kode sudah pernah terpakai
+            while Ticket.query.filter_by(ticket_code=ticket_code).first():
+                new_counter += 1
+                ticket_code = f"{dept_code}-{str(new_counter).zfill(3)}"
 
             # Fetch default status from master data
             default_status = Status.query.filter_by(is_default=True).first()
