@@ -127,6 +127,8 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
       department: user.department,
       phone: user.phone,
       avatar_url: user.avatar_url,
+      teams: user.teams || [],
+      lastActiveTeamId: user.teams?.[0]?.id ?? null,
     };
   } catch (error) {
     console.error('Get current user error:', error);
@@ -159,6 +161,8 @@ export async function getUserById(userId: string): Promise<AuthUser | null> {
       department: user.department,
       phone: user.phone,
       avatar_url: user.avatar_url,
+      teams: user.teams || [],
+      lastActiveTeamId: user.teams?.[0]?.id ?? null,
     };
   } catch (error) {
     console.error('Get user error:', error);

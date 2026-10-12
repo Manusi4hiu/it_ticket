@@ -16,6 +16,7 @@ import {
   LabelList,
 } from "recharts";
 import { getTicketStats, getAllAgentsPerformance } from "~/services/ticket.service";
+import { usersApi } from "~/services/api.service";
 import { settingsApi, type Category, type Priority, type Status, type Department, type Team } from "~/services/settings.service";
 import { requireRole } from "~/services/session.service";
 import type { Route } from "./+types/route";
@@ -93,7 +94,7 @@ function customBounds(startRaw: string | null, endRaw: string | null, now: Date)
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
-  const session = await requireRole(request, ["Administrator", "Management"]);
+  const session = await requireRole(request, ["Administrator", "Management", "Staff"]);
 
   const params = new URL(request.url).searchParams;
   const raw = params.get("range") || "7d";
@@ -127,15 +128,29 @@ export async function loader({ request }: Route.LoaderArgs) {
     settingsApi.getDepartments(),
   ]);
 
-  const teams = ((teamsRes.data?.data || []) as Team[]).filter((t) => t.isActive !== false);
+  const allTeams = ((teamsRes.data?.data || []) as Team[]).filter((t) => t.isActive !== false);
 
   const isAdmin = session.userRole === "Administrator";
-  const userTeams = ((session as any)?.teams || []) as Team[];
-  const userFirstTeam = userTeams[0]?.id ? String(userTeams[0].id) : undefined;
+  let userTeams = ((session as any)?.teams || []) as Team[];
+  if (!isAdmin && session.userId) {
+    try {
+      const userRes = await usersApi.getById(session.userId);
+      if (userRes.success && (userRes.data as any)?.user?.teams) {
+        userTeams = (userRes.data as any).user.teams;
+      }
+    } catch {
+      // fallback ke session teams
+    }
+  }
 
-  // Team scoping: admin bebas pilih dari query param, non-admin terkunci ke team miliknya
+  // Admin melihat semua tim. Non-admin hanya melihat tim yang diikutinya (misal IT & Graphic Design).
+  const teams = isAdmin
+    ? allTeams
+    : allTeams.filter((t) => userTeams.some((ut) => String(ut.id) === String(t.id)));
+
+  // Team scoping: dari query param, fallback ke team IT atau team pertama yang diizinkan
   const paramTeamId = params.get("teamId");
-  let selectedTeamId = isAdmin ? paramTeamId : userFirstTeam;
+  let selectedTeamId = paramTeamId;
   if (!selectedTeamId || !teams.some((t) => String(t.id) === selectedTeamId)) {
     const itTeam = teams.find((t) => t.code === "IT");
     selectedTeamId = itTeam ? String(itTeam.id) : teams[0] ? String(teams[0].id) : "";
@@ -532,7 +547,7 @@ function AnalyticsBody({
           </p>
         </div>
         <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "center" }}>
-          {isAdmin && teams.length > 1 && (
+          {teams.length > 1 && (
             <div className={styles.seg} role="tablist" aria-label="Team workspace">
               {teams.map((t) => (
                 <button
