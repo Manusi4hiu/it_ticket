@@ -438,25 +438,44 @@ export default function StaffPerformance({ loaderData }: Route.ComponentProps) {
                     const over = row.remainingSeconds < 0;
                     return (
                       <div key={row.userId} className={styles.breakRow}>
-                        <span className={styles.rank}>{String(index + 1).padStart(2, "0")}</span>
-                        <span className={styles.staffCell}>
-                          <span className={styles.avatar}>{(row.userName || "?").charAt(0)}</span>
-                          <span className={styles.staffMeta}>
-                            <span className={styles.staffName}>
-                              {row.userName}
-                              {row.isOnBreak && (
-                                <span style={{ marginLeft: 8, fontSize: 11, color: "#6ee7b7" }}>● on break</span>
-                              )}
+                        <div className={styles.breakRowHeader}>
+                          <span className={styles.rank}>{String(index + 1).padStart(2, "0")}</span>
+                          <span className={styles.staffCell}>
+                            <span className={styles.avatar}>{(row.userName || "?").charAt(0)}</span>
+                            <span className={styles.staffMeta}>
+                              <span className={styles.staffName}>
+                                {row.userName}
+                                {row.isOnBreak && (
+                                  <span style={{ marginLeft: 8, fontSize: 11, color: "#6ee7b7" }}>● on break</span>
+                                )}
+                              </span>
+                              <span className={styles.breakStaffEmail}>{row.username} · {row.role}</span>
                             </span>
-                            <span className={styles.staffEmail}>{row.username} · {row.role}</span>
                           </span>
-                        </span>
-                        <span className={`${styles.num} ${styles.big} ${styles.breakNum}`}>{row.sessionsCount}</span>
-                        <span className={`${styles.num} ${styles.breakNum}`}>{formatBreakHM(row.usedSeconds)}</span>
-                        <span className={`${styles.num} ${styles.breakSisa}`} style={{ color: over ? "#fca5a5" : undefined }}>
-                          {over ? `Habis (+${formatBreakHM(-row.remainingSeconds)})` : formatBreakHM(row.remainingSeconds)}
-                        </span>
-                        <span className={`${styles.num} ${styles.breakStatus}`}>
+                          <div className={styles.breakStatusBadge}>
+                            <span className={`${styles.pill} ${styles.breakPill} ${row.isOnBreak ? styles.toneMid : over ? styles.toneBad : styles.toneGood}`}>
+                              <span className={styles.pillDot} />
+                              {row.isOnBreak ? "Break" : over ? "Over" : "Aman"}
+                            </span>
+                          </div>
+                        </div>
+                        <div className={styles.breakStatsGrid}>
+                          <div className={styles.breakStatBox}>
+                            <span className={styles.breakStatLbl}>Sesi</span>
+                            <span className={`${styles.num} ${styles.big} ${styles.breakNum}`}>{row.sessionsCount}</span>
+                          </div>
+                          <div className={styles.breakStatBox}>
+                            <span className={styles.breakStatLbl}>Dipakai</span>
+                            <span className={`${styles.num} ${styles.breakNum}`}>{formatBreakHM(row.usedSeconds)}</span>
+                          </div>
+                          <div className={styles.breakStatBox}>
+                            <span className={styles.breakStatLbl}>Sisa</span>
+                            <span className={`${styles.num} ${styles.breakSisa}`} style={{ color: over ? "#fca5a5" : undefined }}>
+                              {over ? `Habis (+${formatBreakHM(-row.remainingSeconds)})` : formatBreakHM(row.remainingSeconds)}
+                            </span>
+                          </div>
+                        </div>
+                        <span className={`${styles.num} ${styles.breakStatus} ${styles.breakStatusDesktop}`}>
                           <span className={`${styles.pill} ${styles.breakPill} ${row.isOnBreak ? styles.toneMid : over ? styles.toneBad : styles.toneGood}`}>
                             <span className={styles.pillDot} />
                             {row.isOnBreak ? "Break" : over ? "Over" : "Aman"}

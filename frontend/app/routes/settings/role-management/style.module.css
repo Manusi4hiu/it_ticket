@@ -1,4 +1,4 @@
-﻿.section {
+.section {
   background: rgba(17, 24, 39, 0.6);
   backdrop-filter: blur(24px) saturate(180%);
   border: 1px solid rgba(59, 130, 246, 0.2);
@@ -361,4 +361,19 @@
 .customTable td:nth-child(5) button,
 .customTable td:last-child button {
   flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+  .infoSection {
+    padding: 16px !important;
+    border-radius: 16px !important;
+  }
+  .roleDescriptions {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+  .roleDescription {
+    padding: 16px !important;
+    border-radius: 14px !important;
+  }
 }
