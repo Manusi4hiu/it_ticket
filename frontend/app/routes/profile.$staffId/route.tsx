@@ -35,6 +35,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "~/components/ui/dialog/dialog";
+import { TicketPagination } from "~/components/ui/ticket-pagination/ticket-pagination";
 import { getTickets, getAgents, type Ticket } from "~/services/ticket.service";
 import { usersApi } from "~/services/api.service";
 import { settingsApi } from "~/services/settings.service";
@@ -776,6 +777,40 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
     }
   }, [activeTab, assignedTickets, inProgressTickets, newlyAssignedTickets, pendingTickets, resolvedTickets, breachedTickets]);
 
+  // ── Pagination list tiket — 20 tiket per halaman ──
+  // Loader tetap memuat per_page=200 satu kali untuk kebutuhan statistik
+  // (donut, tren bulanan, SLA compliance) yang butuh keseluruhan data.
+  // Yang dipaginasi hanya RENDERAN list: maksimum 20 kartu tampil dalam
+  // scroll viewport, jadi user tidak men-scroll semua tiket sekaligus
+  // dan tidak ada query tambahan per halaman.
+  const TICKETS_PER_PAGE = 20;
+  const [ticketPage, setTicketPage] = useState(1);
+  const ticketsScrollRef = useRef<HTMLDivElement>(null);
+
+  // Ganti tab → kembali ke halaman pertama.
+  useEffect(() => {
+    setTicketPage(1);
+  }, [activeTab]);
+
+  const totalTicketPages = Math.max(
+    1,
+    Math.ceil(displayedTickets.length / TICKETS_PER_PAGE)
+  );
+  // Clamp bila list menyusut (reload data / pindah profile) agar tetap valid.
+  const currentTicketPage = Math.min(ticketPage, totalTicketPages);
+  const ticketPageStart = (currentTicketPage - 1) * TICKETS_PER_PAGE;
+  const pageTickets = displayedTickets.slice(
+    ticketPageStart,
+    ticketPageStart + TICKETS_PER_PAGE
+  );
+
+  const goToTicketPage = (page: number) => {
+    if (page < 1 || page > totalTicketPages || page === currentTicketPage) return;
+    setTicketPage(page);
+    // Kembali ke atas viewport list supaya halaman baru terlihat dari awal.
+    ticketsScrollRef.current?.scrollTo({ top: 0 });
+  };
+
   const renderStatusBadge = (ticket: Ticket) => {
     const statusLower = (ticket.status || "").toLowerCase().trim();
 
@@ -1467,16 +1502,30 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
           </button>
         </div>
 
-        <div className={styles.ticketsGrid}>
-          {displayedTickets.length === 0 ? (
-            <div className={styles.emptyStateCard}>
-              <TicketIcon className={styles.emptyIcon} />
-              <p className={styles.emptyText}>Tidak ada tiket pada kategori ini</p>
-            </div>
-          ) : (
-            displayedTickets.map(renderTicketCard)
-          )}
+        {/* Scroll viewport — hanya 20 kartu dirender per halaman */}
+        <div className={styles.ticketsScroll} ref={ticketsScrollRef}>
+          <div className={styles.ticketsGrid}>
+            {displayedTickets.length === 0 ? (
+              <div className={styles.emptyStateCard}>
+                <TicketIcon className={styles.emptyIcon} />
+                <p className={styles.emptyText}>Tidak ada tiket pada kategori ini</p>
+              </div>
+            ) : (
+              pageTickets.map(renderTicketCard)
+            )}
+          </div>
         </div>
+
+        {/* Pagination — muncul hanya bila list lebih dari 1 halaman */}
+        {totalTicketPages > 1 && (
+          <TicketPagination
+            currentPage={currentTicketPage}
+            totalPages={totalTicketPages}
+            totalItems={displayedTickets.length}
+            pageSize={TICKETS_PER_PAGE}
+            onPageChange={goToTicketPage}
+          />
+        )}
       </div>
 
       {/* ─────────────────────────────────────────────

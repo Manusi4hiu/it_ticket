@@ -18,7 +18,6 @@ import {
   Clock,
   CheckCircle,
   AlertTriangle,
-  CircleDot,
   Plus,
 } from "lucide-react";
 import { Button } from "~/components/ui/button/button";
@@ -30,6 +29,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "~/components/ui/dialog/dialog";
+import { TicketPagination } from "~/components/ui/ticket-pagination/ticket-pagination";
 import {
   getTickets,
   getAgents,
@@ -54,9 +54,9 @@ export async function loader({ request }: Route.LoaderArgs) {
   // Fetch data personal secara paralel
   const [activeResponse, pendingResponse, completedResponse, agents, statusResponse, prioritiesResponse, stats] =
     await Promise.all([
-      getTickets({ assignedTo: session.userId, is_resolved: false, is_pending: false, page: 1, per_page: 5 }),
-      getTickets({ assignedTo: session.userId, is_resolved: false, is_pending: true, page: 1, per_page: 5 }),
-      getTickets({ assignedTo: session.userId, is_resolved: true, page: 1, per_page: 5 }),
+      getTickets({ assignedTo: session.userId, is_resolved: false, is_pending: false, page: 1, per_page: 15 }),
+      getTickets({ assignedTo: session.userId, is_resolved: false, is_pending: true, page: 1, per_page: 15 }),
+      getTickets({ assignedTo: session.userId, is_resolved: true, page: 1, per_page: 15 }),
       getAgents(),
       settingsApi.getStatuses(),
       settingsApi.getPriorities(),
@@ -102,11 +102,11 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
   const {
     session,
     activeTickets: initialActive,
-    activeTotal,
+    activeTotal: initialActiveTotal,
     pendingTickets: initialPending,
-    pendingTotal,
+    pendingTotal: initialPendingTotal,
     completedTickets: initialCompleted,
-    completedTotal,
+    completedTotal: initialCompletedTotal,
     agents,
     statuses,
     priorities,
@@ -116,29 +116,30 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
   const navigate = useNavigate();
   const tableWrapperRef = useRef<HTMLDivElement>(null);
 
+  // Jumlah tiket per halaman — disamakan dengan page Tickets.
+  // Semua 15 baris dirender penuh sekaligus; hemat query tetap lewat
+  // pagination (1 query per halaman, bukan per scroll).
+  const PER_PAGE = 15;
+
   // ── Tab State ──
   const [activeTab, setActiveTab] = useState<"active" | "pending" | "completed">("active");
 
-  // ── Ticket Lists ──
-  const [activeTickets, setActiveTickets] = useState(initialActive);
-  const [activePage, setActivePage] = useState(1);
-  const [hasMoreActive, setHasMoreActive] = useState(
-    initialActive.length < activeTotal
-  );
+  // ── Ticket Lists (HALAMAN aktif, bukan akumulasi infinite scroll) ──
+  // Anotasi generik eksplisit: typegen route kadang meng-infer loaderData
+  // sebagai `never`; anotasi ini menjaga state tetap ber-tipe benar.
+  const [activeTickets, setActiveTickets] = useState<Ticket[]>(initialActive);
+  const [activePage, setActivePage] = useState<number>(1);
+  const [activeTotal, setActiveTotal] = useState<number>(initialActiveTotal);
 
-  const [pendingTickets, setPendingTickets] = useState(initialPending);
-  const [pendingPage, setPendingPage] = useState(1);
-  const [hasMorePending, setHasMorePending] = useState(
-    initialPending.length < pendingTotal
-  );
+  const [pendingTickets, setPendingTickets] = useState<Ticket[]>(initialPending);
+  const [pendingPage, setPendingPage] = useState<number>(1);
+  const [pendingTotal, setPendingTotal] = useState<number>(initialPendingTotal);
 
-  const [completedTickets, setCompletedTickets] = useState(initialCompleted);
-  const [completedPage, setCompletedPage] = useState(1);
-  const [hasMoreCompleted, setHasMoreCompleted] = useState(
-    initialCompleted.length < completedTotal
-  );
+  const [completedTickets, setCompletedTickets] = useState<Ticket[]>(initialCompleted);
+  const [completedPage, setCompletedPage] = useState<number>(1);
+  const [completedTotal, setCompletedTotal] = useState<number>(initialCompletedTotal);
 
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [isLoadingPage, setIsLoadingPage] = useState(false);
 
   // ── Delete Confirmation Dialog State ──
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
@@ -157,76 +158,90 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
   // Derived state
   const tickets =
     activeTab === "active" ? activeTickets : activeTab === "pending" ? pendingTickets : completedTickets;
-  const hasMore =
-    activeTab === "active" ? hasMoreActive : activeTab === "pending" ? hasMorePending : hasMoreCompleted;
+  const totalForTab =
+    activeTab === "active" ? activeTotal : activeTab === "pending" ? pendingTotal : completedTotal;
+  const currentPage =
+    activeTab === "active" ? activePage : activeTab === "pending" ? pendingPage : completedPage;
+  const totalPages = Math.max(1, Math.ceil(totalForTab / PER_PAGE));
   const isAdministrator = session.userRole === "Administrator";
 
-  // ─────────────────────────────────────────────
-  // Infinite Scroll Observer
-  // ─────────────────────────────────────────────
+  // Persentase tiket SLA-breached terhadap total tiket user pada stats.
+  // (Menggantikan teks statis "Target 0%" — breach tak bisa diperbaiki,
+  // jadi kartu menampilkan kondisi riil, bukan target.)
+  const slaBreachRate =
+    stats && stats.total > 0
+      ? Math.round((stats.sla.breached / stats.total) * 1000) / 10
+      : 0;
 
+  // Area scroll diatur ke tepat 5 baris terlihat. Tinggi baris tiket
+  // bervariasi mengikuti isi data, jadi jangan hardcode — ukur dari
+  // baris nyata. Panel dibuat fit-content (tidak diregangkan) sehingga
+  // bar pagination duduk tepat di bawah tabel tanpa gap besar.
+  // Fallback CSS 346px dipakai sebelum pengukuran pertama.
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && hasMore && !isLoadingMore) {
-          loadMoreTickets();
-        }
-      },
-      { root: null, threshold: 0.1 }
-    );
-
-    const sentinel = document.getElementById("scroll-sentinel");
-    if (sentinel) observer.observe(sentinel);
-
-    return () => observer.disconnect();
-  }, [hasMore, isLoadingMore, activeTab, activeTickets.length, pendingTickets.length, completedTickets.length]);
-
-  /**
-   * Muat halaman berikutnya dari ticket list aktif.
-   * Append ke list yang sudah ada (infinite scroll pattern).
-   */
-  const loadMoreTickets = async () => {
-    setIsLoadingMore(true);
-    const tab = activeTab;
-    const nextPage =
-      tab === "active" ? activePage + 1 : tab === "pending" ? pendingPage + 1 : completedPage + 1;
-
-    const response = await getTickets({
-      assignedTo: session.userId,
-      is_resolved: tab === "completed",
-      ...(tab !== "completed" ? { is_pending: tab === "pending" } : {}),
-      page: nextPage,
-      per_page: 5,
-    });
-
-    if (response.tickets.length > 0) {
-      if (tab === "active") {
-        setActiveTickets((prev) => [...prev, ...response.tickets]);
-        setActivePage(nextPage);
-        setHasMoreActive(
-          activeTickets.length + response.tickets.length < activeTotal
-        );
-      } else if (tab === "pending") {
-        setPendingTickets((prev) => [...prev, ...response.tickets]);
-        setPendingPage(nextPage);
-        setHasMorePending(
-          pendingTickets.length + response.tickets.length < pendingTotal
-        );
-      } else {
-        setCompletedTickets((prev) => [...prev, ...response.tickets]);
-        setCompletedPage(nextPage);
-        setHasMoreCompleted(
-          completedTickets.length + response.tickets.length < completedTotal
-        );
-      }
-    } else {
-      if (tab === "active") setHasMoreActive(false);
-      else if (tab === "pending") setHasMorePending(false);
-      else setHasMoreCompleted(false);
+    const el = tableWrapperRef.current;
+    if (!el) return;
+    const row = el.querySelector("tbody tr");
+    const thead = el.querySelector("thead");
+    if (!row || !thead) return;
+    const rowH = row.getBoundingClientRect().height;
+    if (rowH > 0) {
+      el.style.minHeight = "";
+      el.style.maxHeight = `${Math.round(
+        thead.getBoundingClientRect().height + rowH * 5
+      )}px`;
     }
+  }, [tickets, activeTab, currentPage]);
 
-    setIsLoadingMore(false);
+  // ─────────────────────────────────────────────
+  // Pagination — SATU query server per klik halaman
+  // (menggantikan infinite scroll yang query tiap scroll)
+  // ─────────────────────────────────────────────
+
+  const goToPage = async (page: number) => {
+    if (isLoadingPage || page < 1 || page > totalPages || page === currentPage) return;
+
+    const tab = activeTab;
+    setIsLoadingPage(true);
+    try {
+      const response = await getTickets({
+        assignedTo: session.userId,
+        is_resolved: tab === "completed",
+        ...(tab !== "completed" ? { is_pending: tab === "pending" } : {}),
+        page,
+        per_page: PER_PAGE,
+      });
+
+      if (tab === "active") {
+        setActiveTickets(response.tickets);
+        setActiveTotal(response.total);
+        setActivePage(page);
+      } else if (tab === "pending") {
+        setPendingTickets(response.tickets);
+        setPendingTotal(response.total);
+        setPendingPage(page);
+      } else {
+        setCompletedTickets(response.tickets);
+        setCompletedTotal(response.total);
+        setCompletedPage(page);
+      }
+
+      // Kembali ke atas tabel/card list saat ganti halaman
+      tableWrapperRef.current?.scrollTo({ top: 0 });
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } finally {
+      setIsLoadingPage(false);
+    }
   };
+
+  // Jika halaman aktif kehabisan baris (tiket terakhir dihapus / pindah status),
+  // mundur satu halaman alih-alih menampilkan empty state yang menyesatkan.
+  useEffect(() => {
+    if (!isLoadingPage && tickets.length === 0 && totalForTab > 0 && currentPage > 1) {
+      goToPage(currentPage - 1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tickets.length, totalForTab, currentPage, isLoadingPage]);
 
   // ─────────────────────────────────────────────
   // Ticket State Updaters
@@ -241,6 +256,12 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
 
     // Ticket tidak lagi assigned ke user ini — hapus dari semua list
     if (updated.assignedToId !== parseInt(session.userId)) {
+      if (activeTickets.some((t) => t.id === updated.id))
+        setActiveTotal((v) => Math.max(0, v - 1));
+      if (pendingTickets.some((t) => t.id === updated.id))
+        setPendingTotal((v) => Math.max(0, v - 1));
+      if (completedTickets.some((t) => t.id === updated.id))
+        setCompletedTotal((v) => Math.max(0, v - 1));
       setActiveTickets(remove);
       setPendingTickets(remove);
       setCompletedTickets(remove);
@@ -255,9 +276,24 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
       !resolved &&
       (master?.filterGroup || inferFilterGroup(updated.status, master?.isDefault)) === "pending";
 
-    setActiveTickets(resolved || pending ? remove : upsert);
-    setPendingTickets(pending ? upsert : remove);
-    setCompletedTickets(resolved ? upsert : remove);
+    // Pindah antar grup — sesuaikan total per tab agar paginasi tetap akurat.
+    const wasActive = activeTickets.some((t) => t.id === updated.id);
+    const wasPending = pendingTickets.some((t) => t.id === updated.id);
+    const wasCompleted = completedTickets.some((t) => t.id === updated.id);
+    const goesActive = !resolved && !pending;
+    const goesPending = pending;
+    const goesCompleted = resolved;
+
+    if (wasActive && !goesActive) setActiveTotal((v) => Math.max(0, v - 1));
+    if (!wasActive && goesActive) setActiveTotal((v) => v + 1);
+    if (wasPending && !goesPending) setPendingTotal((v) => Math.max(0, v - 1));
+    if (!wasPending && goesPending) setPendingTotal((v) => v + 1);
+    if (wasCompleted && !goesCompleted) setCompletedTotal((v) => Math.max(0, v - 1));
+    if (!wasCompleted && goesCompleted) setCompletedTotal((v) => v + 1);
+
+    setActiveTickets(goesActive ? upsert : remove);
+    setPendingTickets(goesPending ? upsert : remove);
+    setCompletedTickets(goesCompleted ? upsert : remove);
   };
 
   // ─────────────────────────────────────────────
@@ -268,6 +304,12 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
     if (!deleteTargetId) return;
     const success = await deleteTicket(String(deleteTargetId));
     if (success) {
+      if (activeTickets.some((t) => t.id === deleteTargetId))
+        setActiveTotal((v) => Math.max(0, v - 1));
+      if (pendingTickets.some((t) => t.id === deleteTargetId))
+        setPendingTotal((v) => Math.max(0, v - 1));
+      if (completedTickets.some((t) => t.id === deleteTargetId))
+        setCompletedTotal((v) => Math.max(0, v - 1));
       setActiveTickets((prev) => prev.filter((t) => t.id !== deleteTargetId));
       setPendingTickets((prev) => prev.filter((t) => t.id !== deleteTargetId));
       setCompletedTickets((prev) =>
@@ -354,7 +396,7 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
               <div className={`${styles.metricValue} ${styles.valBreached}`}>
                 {stats?.sla?.breached || 0}
               </div>
-              <span className={styles.metricSubtextPill}>Target 0%</span>
+              <span className={styles.metricSubtextPill}>{slaBreachRate}%</span>
             </div>
           </div>
 
@@ -491,7 +533,12 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
           ) : (
             <>
               {/* Desktop Table View (> 768px) */}
-              <div className={styles.desktopTableContainer} ref={tableWrapperRef}>
+              <div
+                className={`${styles.desktopTableContainer} ${
+                  isLoadingPage ? styles.tableLoading : ""
+                }`}
+                ref={tableWrapperRef}
+              >
                 <table className={styles.table}>
                   <thead>
                     <tr>
@@ -526,7 +573,11 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
               </div>
 
               {/* Refined Mobile Card List (<= 768px) */}
-              <div className={styles.mobileCardList}>
+              <div
+                className={`${styles.mobileCardList} ${
+                  isLoadingPage ? styles.tableLoading : ""
+                }`}
+              >
                 {tickets.map((ticket) => (
                   <MobileTicketCard
                     key={ticket.id}
@@ -543,20 +594,15 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
                 ))}
               </div>
 
-              {/* Infinite Scroll Sentinel */}
-              <div id="scroll-sentinel" className={styles.sentinel}>
-                {isLoadingMore && (
-                  <div className={styles.loadingMore}>
-                    <CircleDot className={styles.loadingIcon} />
-                    <span>Loading more tickets...</span>
-                  </div>
-                )}
-                {!hasMore && tickets.length > 0 && (
-                  <div className={styles.noMore}>
-                    <span>No more tickets to load</span>
-                  </div>
-                )}
-              </div>
+              {/* Pagination — komponen bersama (sama dengan page Tickets) */}
+              <TicketPagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={totalForTab}
+                pageSize={PER_PAGE}
+                onPageChange={goToPage}
+                isLoading={isLoadingPage}
+              />
             </>
           )}
         </section>
