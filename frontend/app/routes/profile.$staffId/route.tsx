@@ -12,7 +12,6 @@ import {
   Hourglass,
   AlertTriangle,
   ChevronRight,
-  ChevronLeft,
   Calendar,
   Monitor,
   Layers,
@@ -36,6 +35,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "~/components/ui/dialog/dialog";
+import { TicketPagination } from "~/components/ui/ticket-pagination/ticket-pagination";
 import { getTickets, getAgents, type Ticket } from "~/services/ticket.service";
 import { usersApi } from "~/services/api.service";
 import { settingsApi } from "~/services/settings.service";
@@ -1518,64 +1518,13 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
 
         {/* Pagination — muncul hanya bila list lebih dari 1 halaman */}
         {totalTicketPages > 1 && (
-          <div className={styles.pagination}>
-            <span className={styles.paginationInfo}>
-              Showing {ticketPageStart + 1}–
-              {Math.min(ticketPageStart + TICKETS_PER_PAGE, displayedTickets.length)} of{" "}
-              {displayedTickets.length} tickets
-            </span>
-            <div className={styles.paginationActions}>
-              <button
-                type="button"
-                className={styles.pageButton}
-                disabled={currentTicketPage === 1}
-                onClick={() => goToTicketPage(currentTicketPage - 1)}
-                aria-label="Previous page"
-              >
-                <ChevronLeft size={14} />
-              </button>
-
-              {[...Array(totalTicketPages)].map((_, i) => {
-                const pageNum = i + 1;
-                if (
-                  pageNum === 1 ||
-                  pageNum === totalTicketPages ||
-                  (pageNum >= currentTicketPage - 1 && pageNum <= currentTicketPage + 1)
-                ) {
-                  return (
-                    <button
-                      key={pageNum}
-                      type="button"
-                      className={`${styles.pageButton} ${
-                        pageNum === currentTicketPage ? styles.pageButtonActive : ""
-                      }`}
-                      onClick={() => goToTicketPage(pageNum)}
-                    >
-                      {pageNum}
-                    </button>
-                  );
-                }
-                if (pageNum === currentTicketPage - 2 || pageNum === currentTicketPage + 2) {
-                  return (
-                    <span key={pageNum} className={styles.pageEllipsis}>
-                      …
-                    </span>
-                  );
-                }
-                return null;
-              })}
-
-              <button
-                type="button"
-                className={styles.pageButton}
-                disabled={currentTicketPage === totalTicketPages}
-                onClick={() => goToTicketPage(currentTicketPage + 1)}
-                aria-label="Next page"
-              >
-                <ChevronRight size={14} />
-              </button>
-            </div>
-          </div>
+          <TicketPagination
+            currentPage={currentTicketPage}
+            totalPages={totalTicketPages}
+            totalItems={displayedTickets.length}
+            pageSize={TICKETS_PER_PAGE}
+            onPageChange={goToTicketPage}
+          />
         )}
       </div>
 

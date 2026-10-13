@@ -18,9 +18,6 @@ import {
   Clock,
   CheckCircle,
   AlertTriangle,
-  ChevronLeft,
-  ChevronRight,
-  MoreHorizontal,
   Plus,
 } from "lucide-react";
 import { Button } from "~/components/ui/button/button";
@@ -32,6 +29,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "~/components/ui/dialog/dialog";
+import { TicketPagination } from "~/components/ui/ticket-pagination/ticket-pagination";
 import {
   getTickets,
   getAgents,
@@ -142,10 +140,6 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
   const [completedTotal, setCompletedTotal] = useState<number>(initialCompletedTotal);
 
   const [isLoadingPage, setIsLoadingPage] = useState(false);
-
-  // ── Jump-to-page dialog (pola sama dengan page Tickets) ──
-  const [isJumpOpen, setIsJumpOpen] = useState(false);
-  const [jumpPage, setJumpPage] = useState("");
 
   // ── Delete Confirmation Dialog State ──
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
@@ -600,176 +594,15 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
                 ))}
               </div>
 
-              {/* Pagination — pola & tampilan sama dengan page Tickets */}
-              {totalForTab > 0 && (
-                <div className={styles.pagination}>
-                  <div className={styles.paginationInfo}>
-                    Showing {(currentPage - 1) * PER_PAGE + 1} to{" "}
-                    {(currentPage - 1) * PER_PAGE + tickets.length} of{" "}
-                    {totalForTab} tickets
-                  </div>
-                  <div className={styles.paginationActions}>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className={styles.pageButton}
-                      disabled={currentPage === 1 || isLoadingPage}
-                      onClick={() => goToPage(currentPage - 1)}
-                    >
-                      <ChevronLeft size={16} />
-                    </Button>
-
-                    {[...Array(totalPages)].map((_, i) => {
-                      const pageNum = i + 1;
-                      if (
-                        pageNum === 1 ||
-                        pageNum === totalPages ||
-                        (pageNum >= currentPage - 1 && pageNum <= currentPage + 1)
-                      ) {
-                        return (
-                          <Button
-                            key={pageNum}
-                            variant={pageNum === currentPage ? "default" : "outline"}
-                            size="sm"
-                            className={`${styles.pageButton} ${
-                              pageNum === currentPage ? styles.pageButtonActive : ""
-                            }`}
-                            disabled={isLoadingPage}
-                            onClick={() => goToPage(pageNum)}
-                          >
-                            {pageNum}
-                          </Button>
-                        );
-                      } else if (
-                        pageNum === currentPage - 2 ||
-                        pageNum === currentPage + 2
-                      ) {
-                        return (
-                          <Button
-                            key={pageNum}
-                            variant="ghost"
-                            size="sm"
-                            className={styles.pageButton}
-                            onClick={() => setIsJumpOpen(true)}
-                            title="Go to page"
-                            style={{ color: "#9ca3af" }}
-                          >
-                            <MoreHorizontal size={14} />
-                          </Button>
-                        );
-                      }
-                      return null;
-                    })}
-
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className={styles.pageButton}
-                      disabled={currentPage === totalPages || isLoadingPage}
-                      onClick={() => goToPage(currentPage + 1)}
-                    >
-                      <ChevronRight size={16} />
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              {/* Jump to page dialog — sama seperti page Tickets */}
-              <Dialog open={isJumpOpen} onOpenChange={setIsJumpOpen}>
-                <DialogContent
-                  className="bg-slate-900 text-white border border-slate-700 rounded-xl p-4"
-                  style={{ maxWidth: 260, width: 260, minHeight: 180 }}
-                >
-                  <DialogHeader style={{ gap: 2, marginBottom: 8 }}>
-                    <DialogTitle className="text-sm font-semibold text-white" style={{ textAlign: "center" }}>
-                      Go to page
-                    </DialogTitle>
-                    <DialogDescription className="text-xs text-slate-400" style={{ textAlign: "center" }}>
-                      1 – {totalPages}
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      gap: 10,
-                      marginTop: 8,
-                      flex: 1,
-                      justifyContent: "center",
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", justifyContent: "center" }}>
-                      <input
-                        type="number"
-                        min={1}
-                        max={totalPages}
-                        value={jumpPage}
-                        onChange={(e) => setJumpPage(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            const p = parseInt(jumpPage, 10);
-                            if (!isNaN(p) && p >= 1 && p <= totalPages) {
-                              goToPage(p);
-                              setIsJumpOpen(false);
-                              setJumpPage("");
-                            }
-                          }
-                        }}
-                        placeholder={`${currentPage}`}
-                        autoFocus
-                        style={{
-                          width: 90,
-                          height: 36,
-                          background: "rgba(15, 23, 42, 0.6)",
-                          border: "1px solid rgba(255, 255, 255, 0.12)",
-                          borderRadius: 8,
-                          padding: "6px 10px",
-                          color: "#fff",
-                          fontSize: "0.9rem",
-                          outline: "none",
-                          textAlign: "center",
-                          fontWeight: 600,
-                        }}
-                      />
-                      <span style={{ fontSize: "0.8rem", color: "#94a3b8", whiteSpace: "nowrap" }}>/ {totalPages}</span>
-                    </div>
-                  </div>
-                  <DialogFooter style={{ marginTop: 16, gap: 8, justifyContent: "center" }}>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setIsJumpOpen(false);
-                        setJumpPage("");
-                      }}
-                      style={{ height: 32, fontSize: "0.8rem", minWidth: 70 }}
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      size="sm"
-                      disabled={
-                        !jumpPage ||
-                        isNaN(parseInt(jumpPage, 10)) ||
-                        parseInt(jumpPage, 10) < 1 ||
-                        parseInt(jumpPage, 10) > totalPages
-                      }
-                      onClick={() => {
-                        const p = parseInt(jumpPage, 10);
-                        if (!isNaN(p) && p >= 1 && p <= totalPages) {
-                          goToPage(p);
-                          setIsJumpOpen(false);
-                          setJumpPage("");
-                        }
-                      }}
-                      style={{ height: 32, fontSize: "0.8rem", minWidth: 60 }}
-                    >
-                      Go
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
+              {/* Pagination — komponen bersama (sama dengan page Tickets) */}
+              <TicketPagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={totalForTab}
+                pageSize={PER_PAGE}
+                onPageChange={goToPage}
+                isLoading={isLoadingPage}
+              />
             </>
           )}
         </section>

@@ -4,8 +4,6 @@ import type { Route } from "./+types/route";
 import {
   Search,
   X,
-  ChevronLeft,
-  ChevronRight,
   ChevronDown,
   Inbox,
   AlertCircle,
@@ -16,18 +14,10 @@ import {
   UserCheck,
   Trash2,
   Check,
-  MoreHorizontal,
   Calendar
 } from "lucide-react";
 import { Button } from "~/components/ui/button/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "~/components/ui/dialog/dialog";
+import { TicketPagination } from "~/components/ui/ticket-pagination/ticket-pagination";
 import {
   getTickets,
   getAgents,
@@ -116,8 +106,6 @@ export default function TicketsList({ loaderData }: Route.ComponentProps) {
   const { revalidate } = useRevalidator();
   const [searchValue, setSearchValue] = useState(initialFilters.search || "");
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
-  const [jumpPage, setJumpPage] = useState("");
-  const [isJumpOpen, setIsJumpOpen] = useState(false);
   const isAdministrator = session?.userRole === 'Administrator' || session?.userRole?.toLowerCase() === 'administrator';
 
   // In-header filter popover state
@@ -1213,142 +1201,13 @@ export default function TicketsList({ loaderData }: Route.ComponentProps) {
           )}
         </div>
 
-        {totalTickets > 0 && (
-          <div className={styles.pagination}>
-            <div className={styles.paginationInfo}>
-              Showing {(initialFilters.page - 1) * initialFilters.per_page + 1} to {(initialFilters.page - 1) * initialFilters.per_page + sortedTickets.length} of {totalTickets} tickets
-            </div>
-            <div className={styles.paginationActions}>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className={styles.pageButton}
-                disabled={initialFilters.page === 1}
-                onClick={() => handleFilterChange("page", (initialFilters.page - 1).toString())}
-              >
-                <ChevronLeft size={16} />
-              </Button>
-              
-              {[...Array(totalPages)].map((_, i) => {
-                const pageNum = i + 1;
-                if (
-                  pageNum === 1 || 
-                  pageNum === totalPages || 
-                  (pageNum >= initialFilters.page - 1 && pageNum <= initialFilters.page + 1)
-                ) {
-                  return (
-                    <Button
-                      key={pageNum}
-                      variant={pageNum === initialFilters.page ? "default" : "outline"}
-                      size="sm"
-                      className={`${styles.pageButton} ${pageNum === initialFilters.page ? styles.pageButtonActive : ""}`}
-                      onClick={() => handleFilterChange("page", pageNum.toString())}
-                    >
-                      {pageNum}
-                    </Button>
-                  );
-                } else if (
-                  pageNum === initialFilters.page - 2 || 
-                  pageNum === initialFilters.page + 2
-                ) {
-                  return (
-                    <Button
-                      key={pageNum}
-                      variant="ghost"
-                      size="sm"
-                      className={styles.pageButton}
-                      onClick={() => setIsJumpOpen(true)}
-                      title="Go to page"
-                      style={{ color: '#9ca3af' }}
-                    >
-                      <MoreHorizontal size={14} />
-                    </Button>
-                  );
-                }
-                return null;
-              })}
-
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className={styles.pageButton}
-                disabled={initialFilters.page === totalPages || totalPages === 0}
-                onClick={() => handleFilterChange("page", (initialFilters.page + 1).toString())}
-              >
-                <ChevronRight size={16} />
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {/* Jump to page dialog — small square via [...] */}
-        <Dialog open={isJumpOpen} onOpenChange={setIsJumpOpen}>
-          <DialogContent className="bg-slate-900 text-white border border-slate-700 rounded-xl p-4" style={{ maxWidth: 260, width: 260, minHeight: 180 }}>
-            <DialogHeader style={{ gap: 2, marginBottom: 8 }}>
-              <DialogTitle className="text-sm font-semibold text-white" style={{ textAlign: 'center' }}>Go to page</DialogTitle>
-              <DialogDescription className="text-xs text-slate-400" style={{ textAlign: 'center' }}>
-                1 – {totalPages}
-              </DialogDescription>
-            </DialogHeader>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, marginTop: 8, flex: 1, justifyContent: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', justifyContent: 'center' }}>
-                <input
-                  type="number"
-                  min={1}
-                  max={totalPages}
-                  value={jumpPage}
-                  onChange={(e) => setJumpPage(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      const p = parseInt(jumpPage, 10);
-                      if (!isNaN(p) && p >= 1 && p <= totalPages) {
-                        handleFilterChange("page", p.toString());
-                        setIsJumpOpen(false);
-                        setJumpPage("");
-                      }
-                    }
-                  }}
-                  placeholder={`${initialFilters.page}`}
-                  autoFocus
-                  style={{
-                    width: 90,
-                    height: 36,
-                    background: 'rgba(15, 23, 42, 0.6)',
-                    border: '1px solid rgba(255, 255, 255, 0.12)',
-                    borderRadius: 8,
-                    padding: '6px 10px',
-                    color: '#fff',
-                    fontSize: '0.9rem',
-                    outline: 'none',
-                    textAlign: 'center',
-                    fontWeight: 600
-                  }}
-                />
-                <span style={{ fontSize: '0.8rem', color: '#94a3b8', whiteSpace: 'nowrap' }}>/ {totalPages}</span>
-              </div>
-            </div>
-            <DialogFooter style={{ marginTop: 16, gap: 8, justifyContent: 'center' }}>
-              <Button variant="outline" size="sm" onClick={() => { setIsJumpOpen(false); setJumpPage(""); }} style={{ height: 32, fontSize: '0.8rem', minWidth: 70 }}>
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                disabled={!jumpPage || isNaN(parseInt(jumpPage, 10)) || parseInt(jumpPage, 10) < 1 || parseInt(jumpPage, 10) > totalPages}
-                onClick={() => {
-                  const p = parseInt(jumpPage, 10);
-                  if (!isNaN(p) && p >= 1 && p <= totalPages) {
-                    handleFilterChange("page", p.toString());
-                    setIsJumpOpen(false);
-                    setJumpPage("");
-                  }
-                }}
-                style={{ height: 32, fontSize: '0.8rem', minWidth: 60 }}
-              >
-                Go
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <TicketPagination
+          currentPage={initialFilters.page}
+          totalPages={totalPages}
+          totalItems={totalTickets}
+          pageSize={initialFilters.per_page}
+          onPageChange={(p) => handleFilterChange("page", p.toString())}
+        />
       </div>
     </div>
   );
