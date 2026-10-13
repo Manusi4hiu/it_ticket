@@ -474,44 +474,47 @@ export default function TicketCalendar() {
               />
             </div>
 
-            {/* Category Select */}
-            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-              <SelectTrigger style={{ width: 140, background: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.1)", height: 36, color: "#fff" }}>
-                <SelectValue placeholder="Category" />
-              </SelectTrigger>
-              <SelectContent style={{ background: "#1e1b4b", border: "1px solid rgba(255,255,255,0.2)", color: "#fff" }}>
-                <SelectItem value="all">All Categories</SelectItem>
-                {categories.map((c: any) => (
-                  <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {/* 3 Dropdown Filters (Category, Priority, Status) */}
+            <div className={styles.filterDropdownsRow}>
+              {/* Category Select */}
+              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                <SelectTrigger className={styles.selectTriggerCompact}>
+                  <SelectValue placeholder="Category" />
+                </SelectTrigger>
+                <SelectContent style={{ background: "#1e1b4b", border: "1px solid rgba(255,255,255,0.2)", color: "#fff" }}>
+                  <SelectItem value="all">All Categories</SelectItem>
+                  {categories.map((c: any) => (
+                    <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-            {/* Priority Select */}
-            <Select value={selectedPriority} onValueChange={setSelectedPriority}>
-              <SelectTrigger style={{ width: 130, background: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.1)", height: 36, color: "#fff" }}>
-                <SelectValue placeholder="Priority" />
-              </SelectTrigger>
-              <SelectContent style={{ background: "#1e1b4b", border: "1px solid rgba(255,255,255,0.2)", color: "#fff" }}>
-                <SelectItem value="all">All Priorities</SelectItem>
-                {(priorities as any[]).map((p: any) => (
-                  <SelectItem key={p.id} value={p.name}>{p.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              {/* Priority Select */}
+              <Select value={selectedPriority} onValueChange={setSelectedPriority}>
+                <SelectTrigger className={styles.selectTriggerCompact}>
+                  <SelectValue placeholder="Priority" />
+                </SelectTrigger>
+                <SelectContent style={{ background: "#1e1b4b", border: "1px solid rgba(255,255,255,0.2)", color: "#fff" }}>
+                  <SelectItem value="all">All Priorities</SelectItem>
+                  {(priorities as any[]).map((p: any) => (
+                    <SelectItem key={p.id} value={p.name}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-            {/* Status Select */}
-            <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-              <SelectTrigger style={{ width: 130, background: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.1)", height: 36, color: "#fff" }}>
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent style={{ background: "#1e1b4b", border: "1px solid rgba(255,255,255,0.2)", color: "#fff" }}>
-                <SelectItem value="all">All Statuses</SelectItem>
-                {statuses.map((s: any) => (
-                  <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              {/* Status Select */}
+              <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                <SelectTrigger className={styles.selectTriggerCompact}>
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent style={{ background: "#1e1b4b", border: "1px solid rgba(255,255,255,0.2)", color: "#fff" }}>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  {statuses.map((s: any) => (
+                    <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
             {/* Toggle between SLA deadline and Created date */}
             <div className={styles.dateFieldToggle}>

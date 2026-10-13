@@ -571,6 +571,38 @@
   align-items: center;
 }
 
+.breakRowHeader {
+  display: contents;
+}
+
+.breakStaffEmail {
+  font-size: 0.74rem;
+  color: #9ca3af;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.breakStatusBadge {
+  display: none;
+}
+
+.breakStatsGrid {
+  display: contents;
+}
+
+.breakStatBox {
+  display: contents;
+}
+
+.breakStatLbl {
+  display: none;
+}
+
+.breakStatusDesktop {
+  display: block;
+}
+
 .breakHead {
   padding: 0.8rem 1rem;
   background: #111c30;
@@ -709,12 +741,36 @@
 
 @media (max-width: 768px) {
   .contentWrapper {
-    padding: 1.5rem 1rem 2.5rem;
+    padding: 1.25rem 0.85rem 2.5rem;
   }
 
   .head {
-    align-items: flex-start;
+    align-items: stretch;
     flex-direction: column;
+    padding: 1.25rem 1.1rem;
+    gap: 1rem;
+  }
+
+  .head .seg {
+    width: 100%;
+    display: flex;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .head .seg::-webkit-scrollbar {
+    display: none;
+  }
+
+  .head .segBtn,
+  .head .segOn {
+    flex: 1;
+    text-align: center;
+    padding: 0.5rem 0.6rem;
+    font-size: 0.8rem;
+    white-space: nowrap;
+    justify-content: center;
   }
 
   .kpis {
@@ -733,6 +789,7 @@
   .hero {
     grid-template-columns: 1fr;
     gap: 1.1rem;
+    padding: 1.25rem 1.1rem;
   }
 
   .heroRank {
@@ -751,6 +808,38 @@
 
   .heroStats > div:first-child {
     padding-left: 0;
+  }
+
+  .panel {
+    padding: 1.25rem 1rem 1.5rem;
+    border-radius: 14px;
+  }
+
+  .panelHead {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.85rem;
+  }
+
+  .panelSub {
+    word-break: break-word;
+    overflow-wrap: break-word;
+    line-height: 1.45;
+    font-size: 0.78rem;
+  }
+
+  .panel .seg {
+    width: 100%;
+    display: flex;
+  }
+
+  .panel .segBtn,
+  .panel .segOn {
+    flex: 1;
+    text-align: center;
+    padding: 0.48rem 0.5rem;
+    font-size: 0.8rem;
+    justify-content: center;
   }
 
   .tableHead,
@@ -772,8 +861,106 @@
     display: none;
   }
 
-  .breakHead,
+  /* Break Tab Mobile Cards */
+  .breakScroll {
+    overflow-x: visible;
+  }
+
+  .breakHead {
+    display: none;
+  }
+
   .breakRow {
-    min-width: 660px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px 14px;
+    background: rgba(17, 24, 39, 0.45);
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    border-radius: 14px;
+    margin-bottom: 12px;
+    min-width: 0;
+  }
+
+  .breakRowHeader {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+  }
+
+  .breakRowHeader .staffCell {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .breakStaffEmail {
+    display: block;
+    font-size: 0.72rem;
+    color: #9ca3af;
+  }
+
+  .breakStatusBadge {
+    display: block;
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+
+  .breakStatusDesktop {
+    display: none;
+  }
+
+  .breakStatsGrid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    background: rgba(10, 19, 40, 0.65);
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .breakStatBox {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+  }
+
+  .breakStatLbl {
+    display: block;
+    font-size: 0.68rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #94a3b8;
+  }
+
+  .breakStatBox .breakNum,
+  .breakStatBox .breakSisa {
+    font-size: 0.95rem;
+    font-weight: 700;
+    text-align: left;
+    justify-self: start;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .breakLogRow {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.85rem 0.75rem;
+  }
+
+  .breakLogRow .staffEmail {
+    display: block !important;
+    font-size: 0.72rem;
+    white-space: normal;
+    word-break: break-word;
   }
 }

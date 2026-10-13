@@ -22,17 +22,16 @@
 }
 
 .header {
-  background: rgba(10, 25, 47, 0.7);
-  backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  padding: var(--space-4) var(--space-6);
+  background: rgba(10, 25, 47, 0.75);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 10px 24px;
   position: sticky;
   top: 0;
   z-index: 100;
   transition: all 0.3s ease;
 }
-
-/* Removed header::before gradient */
 
 .headerContent {
   max-width: 1400px;
@@ -40,30 +39,21 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: var(--space-4);
+  gap: 16px;
+}
+
+/* On desktop, headerTopRow dissolves so headerLeft and navActionGroup flex directly in headerContent */
+.headerTopRow {
+  display: contents;
 }
 
 .headerLeft {
   display: flex;
   align-items: center;
-  gap: var(--space-4);
-  flex: 1;
-}
-
-.headerIcon {
-  width: 32px;
-  height: 32px;
-  color: #3b82f6;
-}
-
-.headerTitle {
-  font-family: 'Inter', sans-serif;
-  margin: 0;
-  font-size: 1.25rem;
-  font-weight: 600;
-  letter-spacing: -0.4px;
-  color: #fff;
-  opacity: 0.9;
+  gap: 12px;
+  order: 1;
+  flex-shrink: 0;
+  user-select: none;
 }
 
 .logoContainer {
@@ -73,96 +63,133 @@
   justify-content: center;
 }
 
-/* Removed rotating logo circle */
+.headerIcon {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+}
+
+.headerTitle {
+  font-family: 'Inter', sans-serif;
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  color: #fff;
+  white-space: nowrap;
+}
 
 .navBar {
   display: flex;
   align-items: center;
-  gap: 24px;
+  gap: 12px;
+  order: 2;
+  margin-left: auto;
+  margin-right: 12px;
+}
+
+.navDivider {
+  width: 1px;
+  height: 18px;
+  background: rgba(255, 255, 255, 0.1);
+  margin: 0 4px;
+  flex-shrink: 0;
 }
 
 .navGroup {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .navLink {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 12px;
+  padding: 7px 12px;
   border-radius: 8px;
-  color: rgba(255, 255, 255, 0.5);
-  font-size: 0.875rem;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.85rem;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
   text-decoration: none;
-  position: relative;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  white-space: nowrap;
 }
 
 .navLink:hover {
-  color: rgba(255, 255, 255, 0.9);
+  color: rgba(255, 255, 255, 0.95);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.1);
 }
 
 .navLinkActive {
-  color: #fff !important;
-}
-
-.navLinkActive::after {
-  content: '';
-  position: absolute;
-  bottom: -4px;
-  left: 12px;
-  right: 12px;
-  height: 2px;
-  background: #3b82f6;
-  border-radius: 2px;
-  box-shadow: 0 0 8px rgba(59, 130, 246, 0.5);
+  color: #ffffff !important;
+  background: rgba(59, 130, 246, 0.18) !important;
+  border-color: rgba(59, 130, 246, 0.4) !important;
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.2);
+  font-weight: 600;
 }
 
 .navIcon {
-  width: 16px;
-  height: 16px;
-  opacity: 0.8;
+  width: 15px;
+  height: 15px;
+  opacity: 0.85;
 }
 
-.navLink:hover .navIcon, .navLinkActive .navIcon {
+.navLink:hover .navIcon,
+.navLinkActive .navIcon {
   opacity: 1;
-  color: #3b82f6;
+  color: #60a5fa;
 }
 
 .navLabel {
-  letter-spacing: 0.3px;
+  letter-spacing: 0.2px;
 }
-
-/* Removed navDivider */
 
 .navActionGroup {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
+  order: 3;
+  flex-shrink: 0;
+}
+
+.logoutForm {
+  display: flex;
+  align-items: center;
+  margin: 0;
 }
 
 .logoutBtn {
-  display: flex;
+  display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  padding: 8px 12px;
-  border-radius: 8px;
-  background: transparent;
-  border: none;
-  color: rgba(255, 255, 255, 0.5);
-  font-size: 0.875rem;
-  font-weight: 500;
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-family: 'Inter', sans-serif;
   cursor: pointer;
   transition: all 0.2s ease;
+  white-space: nowrap;
 }
 
 .logoutBtn:hover {
-  color: #ef4444;
-  background: rgba(239, 68, 68, 0.05);
+  color: #f87171;
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.25);
+}
+
+.logoutText {
+  letter-spacing: 0.2px;
 }
 
 .main {
@@ -180,77 +207,153 @@
   padding: 3px;
   border-radius: 20px;
   box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
-  margin-right: 8px;
+  flex-shrink: 0;
 }
 
 .toggleBtn {
   background: transparent;
   border: none;
-  padding: 6px 16px;
+  padding: 5px 14px;
   border-radius: 16px;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.4);
+  color: rgba(255, 255, 255, 0.45);
   cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  white-space: nowrap;
 }
 
 .toggleBtn:hover {
-  color: rgba(255, 255, 255, 0.8);
+  color: rgba(255, 255, 255, 0.85);
 }
 
 .toggleBtnActive {
-  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
   color: #ffffff !important;
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
+  font-weight: 700;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
-/* ── Responsive navbar ── */
-@media (max-width: 992px) {
+/* ── Responsive Mobile & Tablet Navbar (<= 860px) ── */
+@media (max-width: 860px) {
   .header {
-    padding: var(--space-3) var(--space-4);
+    padding: 10px 16px 8px;
   }
-  .headerContent {
-    flex-wrap: wrap;
-    gap: var(--space-3);
-  }
-  .navBar {
-    width: 100%;
-    justify-content: space-between;
-  }
-}
 
-@media (max-width: 768px) {
   .headerContent {
     flex-direction: column;
-    align-items: flex-start;
+    align-items: stretch;
+    gap: 8px;
   }
-  .headerLeft {
-    justify-content: flex-start;
-  }
-  .navBar {
-    flex-wrap: wrap;
-    gap: var(--space-3);
-  }
-  .navGroup {
-    order: 2;
+
+  /* Row 1: Brand on Left, Notif & Logout on Right */
+  .headerTopRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
     width: 100%;
+    gap: 8px;
+  }
+
+  .headerLeft {
+    order: unset;
+    gap: 10px;
+  }
+
+  .headerIcon {
+    width: 28px;
+    height: 28px;
+  }
+
+  .headerTitle {
+    font-size: 1.05rem;
+    font-weight: 700;
+  }
+
+  .navActionGroup {
+    order: unset;
+    gap: 8px;
+  }
+
+  .logoutBtn {
+    height: 36px;
+    padding: 0 10px;
+    font-size: 0.78rem;
+    gap: 5px;
+    border-radius: 9px;
+  }
+
+  /* Row 2: Mode Toggle + Navigation Links in horizontal track */
+  .navBar {
+    order: unset;
+    width: 100%;
+    margin-left: 0;
+    margin-right: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
     overflow-x: auto;
     scrollbar-width: none;
     -webkit-overflow-scrolling: touch;
-    padding-bottom: 4px;
-    gap: 6px;
+    padding-top: 6px;
+    padding-bottom: 2px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
   }
-  .navGroup::-webkit-scrollbar { display: none; }
-  .modeToggle { order: 1; margin-right: 0; }
-  .navActionGroup { order: 3; }
-  .navLink { padding: 7px 10px; white-space: nowrap; flex-shrink: 0; }
-  .navLinkActive::after { bottom: -2px; left: 10px; right: 10px; }
+
+  .navBar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .modeToggle {
+    padding: 2px;
+  }
+
+  .toggleBtn {
+    padding: 4px 10px;
+    font-size: 0.72rem;
+  }
+
+  .navDivider {
+    height: 16px;
+    margin: 0 2px;
+  }
+
+  .navGroup {
+    gap: 5px;
+    flex-shrink: 0;
+  }
+
+  .navLink {
+    padding: 6px 10px;
+    font-size: 0.78rem;
+    gap: 5px;
+    border-radius: 7px;
+    flex-shrink: 0;
+  }
+
+  .navIcon {
+    width: 14px;
+    height: 14px;
+  }
 }
 
-@media (max-width: 640px) {
-  .headerTitle { font-size: 1rem; }
-  .toggleBtn { padding: 5px 12px; font-size: 0.72rem; }
-  .navLink { padding: 6px 8px; font-size: 0.8rem; gap: 4px; }
+/* Extra compact mobile (<= 400px, e.g. 360px) */
+@media (max-width: 400px) {
+  .header {
+    padding: 8px 12px 6px;
+  }
+
+  .headerTitle {
+    font-size: 0.95rem;
+  }
+
+  .logoutText {
+    display: none; /* Icon-only logout on ultra-narrow viewports */
+  }
+
+  .logoutBtn {
+    width: 36px;
+    padding: 0;
+  }
 }

@@ -12,6 +12,9 @@ class Notification(db.Model):
     - 'admin_override': Admin mengubah tiket milik (assignee lama) / dipindah ke user ini (assignee baru)
     - 'status_changed': Admin mengubah status tiket milik user
     - 'category_changed': Admin mengubah kategori tiket milik user
+    - 'break_overtime': Waktu istirahat melebihi kuota
+    - 'sla_warning': Tiket mendekati batas SLA (< 2 jam tersisa)
+    - 'sla_breached': Tiket telah melewati batas waktu SLA
     """
     __tablename__ = 'notifications'
 

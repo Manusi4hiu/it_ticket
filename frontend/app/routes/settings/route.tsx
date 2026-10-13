@@ -24,14 +24,14 @@ export default function SettingsLayout() {
         <div className={styles.container}>
             <aside className={styles.sidebar}>
                 <div className={styles.sidebarHeader}>
-                    <Link to="/dashboard" className={styles.backLink}>
-                        <ArrowLeft style={{ width: 16, height: 16 }} />
-                        Back to Dashboard
-                    </Link>
-                    <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
+                    <div className={styles.sidebarBrand}>
                         <Settings className={styles.sidebarIcon} />
                         <h2 className={styles.sidebarTitle}>Settings</h2>
                     </div>
+                    <Link to="/dashboard" className={styles.backLink}>
+                        <ArrowLeft className={styles.backIcon} />
+                        <span>Dashboard</span>
+                    </Link>
                 </div>
 
                 <nav className={styles.nav}>
@@ -39,48 +39,48 @@ export default function SettingsLayout() {
                         to="/settings/role-management"
                         className={({ isActive }) => `${styles.navItem} ${isActive ? styles.navItemActive : ''}`}
                     >
-                        <Users size={18} />
-                        Role Management
+                        <Users size={16} className={styles.navIcon} />
+                        <span>Role Management</span>
                     </NavLink>
 
                     <NavLink
                         to="/settings/categories"
                         className={({ isActive }) => `${styles.navItem} ${isActive ? styles.navItemActive : ''}`}
                     >
-                        <Tag size={18} />
-                        Ticket Categories
+                        <Tag size={16} className={styles.navIcon} />
+                        <span>Categories</span>
                     </NavLink>
 
                     <NavLink
                         to="/settings/departments"
                         className={({ isActive }) => `${styles.navItem} ${isActive ? styles.navItemActive : ''}`}
                     >
-                        <Building2 size={18} />
-                        Departments
+                        <Building2 size={16} className={styles.navIcon} />
+                        <span>Departments</span>
                     </NavLink>
 
                     <NavLink
                         to="/settings/priorities"
                         className={({ isActive }) => `${styles.navItem} ${isActive ? styles.navItemActive : ''}`}
                     >
-                        <Flag size={18} />
-                        Priorities & SLA
+                        <Flag size={16} className={styles.navIcon} />
+                        <span>Priorities & SLA</span>
                     </NavLink>
 
                     <NavLink
                         to="/settings/statuses"
                         className={({ isActive }) => `${styles.navItem} ${isActive ? styles.navItemActive : ''}`}
                     >
-                        <ClipboardList size={18} />
-                        Ticket Statuses
+                        <ClipboardList size={16} className={styles.navIcon} />
+                        <span>Statuses</span>
                     </NavLink>
 
                     <NavLink
                         to="/settings/break"
                         className={({ isActive }) => `${styles.navItem} ${isActive ? styles.navItemActive : ''}`}
                     >
-                        <Coffee size={18} />
-                        Break Time Limit
+                        <Coffee size={16} className={styles.navIcon} />
+                        <span>Break Limits</span>
                     </NavLink>
                 </nav>
             </aside>

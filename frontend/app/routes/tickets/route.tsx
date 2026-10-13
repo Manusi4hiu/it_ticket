@@ -4,8 +4,6 @@ import type { Route } from "./+types/route";
 import {
   Search,
   X,
-  ChevronLeft,
-  ChevronRight,
   ChevronDown,
   Inbox,
   AlertCircle,
@@ -16,18 +14,10 @@ import {
   UserCheck,
   Trash2,
   Check,
-  MoreHorizontal,
   Calendar
 } from "lucide-react";
 import { Button } from "~/components/ui/button/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "~/components/ui/dialog/dialog";
+import { TicketPagination } from "~/components/ui/ticket-pagination/ticket-pagination";
 import {
   getTickets,
   getAgents,
@@ -116,8 +106,6 @@ export default function TicketsList({ loaderData }: Route.ComponentProps) {
   const { revalidate } = useRevalidator();
   const [searchValue, setSearchValue] = useState(initialFilters.search || "");
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
-  const [jumpPage, setJumpPage] = useState("");
-  const [isJumpOpen, setIsJumpOpen] = useState(false);
   const isAdministrator = session?.userRole === 'Administrator' || session?.userRole?.toLowerCase() === 'administrator';
 
   // In-header filter popover state
@@ -130,12 +118,26 @@ export default function TicketsList({ loaderData }: Route.ComponentProps) {
   // Close dropdown on click outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      const target = event.target as Node;
-      const inTable = tableRef.current && tableRef.current.contains(target);
-      const inFilterBar = filterBarRef.current && filterBarRef.current.contains(target);
-      if (!inTable && !inFilterBar) {
-        setActiveHeaderDropdown(null);
+      const target = event.target as HTMLElement;
+      if (!target) return;
+      // Don't close if clicked inside any popover
+      if (
+        target.closest?.(`.${styles.columnFilterPopover}`) ||
+        target.closest?.(`.${styles.dateFilterPopoverTop}`) ||
+        target.closest?.(`.${styles.dateFilterPopoverTable}`)
+      ) {
+        return;
       }
+      // Don't close if clicked on a trigger button (its own onClick handles toggling)
+      if (
+        target.closest?.(`.${styles.filterDropdownBtn}`) ||
+        target.closest?.(`.${styles.thFilterButton}`) ||
+        target.closest?.(`.${styles.dateFilterBtnTop}`) ||
+        target.closest?.(`.${styles.segmentedButton}`)
+      ) {
+        return;
+      }
+      setActiveHeaderDropdown(null);
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -179,7 +181,7 @@ export default function TicketsList({ loaderData }: Route.ComponentProps) {
     return () => clearTimeout(timer);
   }, [searchValue]);
 
-  const handleFilterChange = (key: string, value: string) => {
+  const handleFilterChange = (key: string, value: string, closeDropdown: boolean = true) => {
     const newParams = new URLSearchParams(searchParams);
     if (value === "all" || !value) {
       // status=all ditulis eksplisit (beda dari param absen = default view New)
@@ -197,7 +199,9 @@ export default function TicketsList({ loaderData }: Route.ComponentProps) {
     }
     
     setSearchParams(newParams);
-    setActiveHeaderDropdown(null);
+    if (closeDropdown) {
+      setActiveHeaderDropdown(null);
+    }
   };
 
   const currentStartDate = searchParams.get("startDate") || "";
@@ -419,7 +423,7 @@ export default function TicketsList({ loaderData }: Route.ComponentProps) {
     if (key === "status") {
       out = next.map(v => statuses.find(s => s.name.toLowerCase() === v.toLowerCase())?.name || v);
     }
-    handleFilterChange(key, out.length ? out.join(",") : "all");
+    handleFilterChange(key, out.length ? out.join(",") : "all", false);
   };
 
   // Dynamically categorize statuses into New, Progress, Done, and Pending groups.
@@ -577,6 +581,123 @@ export default function TicketsList({ loaderData }: Route.ComponentProps) {
     return categories.filter(c => c.name.toLowerCase().includes(categorySearch.toLowerCase()));
   }, [categories, categorySearch]);
 
+  const renderAssigneePopover = (alignRight: boolean = false) => (
+    <div
+      className={`${styles.columnFilterPopover} ${alignRight ? styles.columnFilterPopoverRight : ""}`}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {agents.length > 6 && (
+        <input
+          type="text"
+          placeholder="Filter assignee..."
+          className={styles.columnFilterSearch}
+          value={assigneeSearch}
+          onChange={(e) => setAssigneeSearch(e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+        />
+      )}
+      <div
+        className={`${styles.columnFilterItem} ${currentAssignedToList.length === 0 ? styles.columnFilterItemActive : ""}`}
+        onClick={() => handleFilterChange("assignedTo", "all")}
+      >
+        <span>All Assignees</span>
+        {currentAssignedToList.length === 0 && <Check size={14} />}
+      </div>
+      <div
+        className={`${styles.columnFilterItem} ${currentAssignedToList.includes("unassigned") ? styles.columnFilterItemActive : ""}`}
+        onClick={() => toggleFilterValue("assignedTo", "unassigned")}
+      >
+        <span>Unassigned</span>
+        {currentAssignedToList.includes("unassigned") && <Check size={14} />}
+      </div>
+      <div style={{ height: 1, background: "rgba(255,255,255,0.1)", margin: "3px 0" }} />
+      {filteredAgents.map((agent) => {
+        const isSelected = currentAssignedToList.some(v => v === String(agent.id) || v.toLowerCase() === agent.name.toLowerCase());
+        return (
+          <div
+            key={agent.id}
+            className={`${styles.columnFilterItem} ${isSelected ? styles.columnFilterItemActive : ""}`}
+            onClick={() => toggleFilterValue("assignedTo", String(agent.id))}
+          >
+            <span>{agent.name}</span>
+            {isSelected && <Check size={14} />}
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  const renderPriorityPopover = (alignRight: boolean = false) => (
+    <div
+      className={`${styles.columnFilterPopover} ${alignRight ? styles.columnFilterPopoverRight : ""}`}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div
+        className={`${styles.columnFilterItem} ${currentPriorityList.length === 0 ? styles.columnFilterItemActive : ""}`}
+        onClick={() => handleFilterChange("priority", "all")}
+      >
+        <span>All Priorities</span>
+        {currentPriorityList.length === 0 && <Check size={14} />}
+      </div>
+      <div style={{ height: 1, background: "rgba(255,255,255,0.1)", margin: "3px 0" }} />
+      {priorities.map((p) => {
+        const isSelected = currentPriorityList.some(v => v.toLowerCase() === p.name.toLowerCase());
+        return (
+          <div
+            key={p.id}
+            className={`${styles.columnFilterItem} ${isSelected ? styles.columnFilterItemActive : ""}`}
+            onClick={() => toggleFilterValue("priority", p.name)}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: p.color || "#9ca3af" }} />
+              <span>{p.name}</span>
+            </div>
+            {isSelected && <Check size={14} />}
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  const renderCategoryPopover = (alignRight: boolean = false) => (
+    <div
+      className={`${styles.columnFilterPopover} ${alignRight ? styles.columnFilterPopoverRight : ""}`}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {categories.length > 6 && (
+        <input
+          type="text"
+          placeholder="Filter category..."
+          className={styles.columnFilterSearch}
+          value={categorySearch}
+          onChange={(e) => setCategorySearch(e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+        />
+      )}
+      <div
+        className={`${styles.columnFilterItem} ${currentCategoryList.length === 0 ? styles.columnFilterItemActive : ""}`}
+        onClick={() => handleFilterChange("category", "all")}
+      >
+        <span>All Categories</span>
+        {currentCategoryList.length === 0 && <Check size={14} />}
+      </div>
+      <div style={{ height: 1, background: "rgba(255,255,255,0.1)", margin: "3px 0" }} />
+      {filteredCategories.map((c) => {
+        const isSelected = currentCategoryList.some(v => v.toLowerCase() === c.name.toLowerCase());
+        return (
+          <div
+            key={c.id}
+            className={`${styles.columnFilterItem} ${isSelected ? styles.columnFilterItemActive : ""}`}
+            onClick={() => toggleFilterValue("category", c.name)}
+          >
+            <span>{c.name}</span>
+            {isSelected && <Check size={14} />}
+          </div>
+        );
+      })}
+    </div>
+  );
+
   return (
     <div className={styles.container}>
       <div className={styles.header}>
@@ -702,6 +823,45 @@ export default function TicketsList({ loaderData }: Route.ComponentProps) {
             </button>
           </div>
 
+          {/* Quick Filter Row for Assignee, Priority, Category (Desktop & Mobile) */}
+          <div className={styles.secondaryFilterRow}>
+            <div className={styles.filterItem}>
+              <button
+                type="button"
+                className={`${styles.filterDropdownBtn} ${currentAssignedTo ? styles.filterDropdownBtnActive : ""}`}
+                onClick={() => setActiveHeaderDropdown(activeHeaderDropdown === "filterAssignee" ? null : "filterAssignee")}
+              >
+                <span>Assignee {currentAssignedTo ? `(${currentAssignedToList.length})` : ""}</span>
+                <ChevronDown size={13} style={{ transform: activeHeaderDropdown === "filterAssignee" ? "rotate(180deg)" : "none" }} />
+              </button>
+              {activeHeaderDropdown === "filterAssignee" && renderAssigneePopover()}
+            </div>
+
+            <div className={styles.filterItem}>
+              <button
+                type="button"
+                className={`${styles.filterDropdownBtn} ${currentPriority ? styles.filterDropdownBtnActive : ""}`}
+                onClick={() => setActiveHeaderDropdown(activeHeaderDropdown === "filterPriority" ? null : "filterPriority")}
+              >
+                <span>Priority {currentPriority ? `(${currentPriorityList.length})` : ""}</span>
+                <ChevronDown size={13} style={{ transform: activeHeaderDropdown === "filterPriority" ? "rotate(180deg)" : "none" }} />
+              </button>
+              {activeHeaderDropdown === "filterPriority" && renderPriorityPopover()}
+            </div>
+
+            <div className={styles.filterItem}>
+              <button
+                type="button"
+                className={`${styles.filterDropdownBtn} ${currentCategory ? styles.filterDropdownBtnActive : ""}`}
+                onClick={() => setActiveHeaderDropdown(activeHeaderDropdown === "filterCategory" ? null : "filterCategory")}
+              >
+                <span>Category {currentCategory ? `(${currentCategoryList.length})` : ""}</span>
+                <ChevronDown size={13} style={{ transform: activeHeaderDropdown === "filterCategory" ? "rotate(180deg)" : "none" }} />
+              </button>
+              {activeHeaderDropdown === "filterCategory" && renderCategoryPopover(true)}
+            </div>
+          </div>
+
           {/* 3. Active filter indicators if any */}
           {hasActiveFilters && (
             <div className={styles.activeFiltersBar}>
@@ -792,48 +952,7 @@ export default function TicketsList({ loaderData }: Route.ComponentProps) {
                       <ChevronDown size={14} className={styles.thChevron} style={{ transform: activeHeaderDropdown === "assignee" ? "rotate(180deg)" : "none" }} />
                     </button>
 
-                    {activeHeaderDropdown === "assignee" && (
-                      <div className={styles.columnFilterPopover}>
-                        {agents.length > 6 && (
-                          <input
-                            type="text"
-                            placeholder="Filter assignee..."
-                            className={styles.columnFilterSearch}
-                            value={assigneeSearch}
-                            onChange={(e) => setAssigneeSearch(e.target.value)}
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                        )}
-                        <div
-                          className={`${styles.columnFilterItem} ${currentAssignedToList.length === 0 ? styles.columnFilterItemActive : ""}`}
-                          onClick={() => handleFilterChange("assignedTo", "all")}
-                        >
-                          <span>All Assignees</span>
-                          {currentAssignedToList.length === 0 && <Check size={14} />}
-                        </div>
-                        <div
-                          className={`${styles.columnFilterItem} ${currentAssignedToList.includes("unassigned") ? styles.columnFilterItemActive : ""}`}
-                          onClick={() => toggleFilterValue("assignedTo", "unassigned")}
-                        >
-                          <span>Unassigned</span>
-                          {currentAssignedToList.includes("unassigned") && <Check size={14} />}
-                        </div>
-                        <div style={{ height: 1, background: "rgba(255,255,255,0.1)", margin: "3px 0" }} />
-                        {filteredAgents.map((agent) => {
-                          const isSelected = currentAssignedToList.some(v => v === String(agent.id) || v.toLowerCase() === agent.name.toLowerCase());
-                          return (
-                            <div
-                              key={agent.id}
-                              className={`${styles.columnFilterItem} ${isSelected ? styles.columnFilterItemActive : ""}`}
-                              onClick={() => toggleFilterValue("assignedTo", String(agent.id))}
-                            >
-                              <span>{agent.name}</span>
-                              {isSelected && <Check size={14} />}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
+                    {activeHeaderDropdown === "assignee" && renderAssigneePopover()}
                   </div>
                 </th>
 
@@ -854,35 +973,7 @@ export default function TicketsList({ loaderData }: Route.ComponentProps) {
                       <ChevronDown size={14} className={styles.thChevron} style={{ transform: activeHeaderDropdown === "priority" ? "rotate(180deg)" : "none" }} />
                     </button>
 
-                    {activeHeaderDropdown === "priority" && (
-                      <div className={styles.columnFilterPopover}>
-                        <div
-                          className={`${styles.columnFilterItem} ${currentPriorityList.length === 0 ? styles.columnFilterItemActive : ""}`}
-                          onClick={() => handleFilterChange("priority", "all")}
-                        >
-                          <span>All Priorities</span>
-                          {currentPriorityList.length === 0 && <Check size={14} />}
-                        </div>
-                        <div style={{ height: 1, background: "rgba(255,255,255,0.1)", margin: "3px 0" }} />
-                        {/* Sinkron master data priorities (bukan hardcode) */}
-                        {priorities.map((p) => {
-                          const isSelected = currentPriorityList.some(v => v.toLowerCase() === p.name.toLowerCase());
-                          return (
-                            <div
-                              key={p.id}
-                              className={`${styles.columnFilterItem} ${isSelected ? styles.columnFilterItemActive : ""}`}
-                              onClick={() => toggleFilterValue("priority", p.name)}
-                            >
-                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: p.color || "#9ca3af" }} />
-                                <span>{p.name}</span>
-                              </div>
-                              {isSelected && <Check size={14} />}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
+                    {activeHeaderDropdown === "priority" && renderPriorityPopover()}
                   </div>
                 </th>
 
@@ -904,41 +995,7 @@ export default function TicketsList({ loaderData }: Route.ComponentProps) {
                       <ChevronDown size={14} className={styles.thChevron} style={{ transform: activeHeaderDropdown === "category" ? "rotate(180deg)" : "none" }} />
                     </button>
 
-                    {activeHeaderDropdown === "category" && (
-                      <div className={styles.columnFilterPopover}>
-                        {categories.length > 6 && (
-                          <input
-                            type="text"
-                            placeholder="Filter category..."
-                            className={styles.columnFilterSearch}
-                            value={categorySearch}
-                            onChange={(e) => setCategorySearch(e.target.value)}
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                        )}
-                        <div
-                          className={`${styles.columnFilterItem} ${currentCategoryList.length === 0 ? styles.columnFilterItemActive : ""}`}
-                          onClick={() => handleFilterChange("category", "all")}
-                        >
-                          <span>All Categories</span>
-                          {currentCategoryList.length === 0 && <Check size={14} />}
-                        </div>
-                        <div style={{ height: 1, background: "rgba(255,255,255,0.1)", margin: "3px 0" }} />
-                        {filteredCategories.map((c) => {
-                          const isSelected = currentCategoryList.some(v => v.toLowerCase() === c.name.toLowerCase());
-                          return (
-                            <div
-                              key={c.id}
-                              className={`${styles.columnFilterItem} ${isSelected ? styles.columnFilterItemActive : ""}`}
-                              onClick={() => toggleFilterValue("category", c.name)}
-                            >
-                              <span>{c.name}</span>
-                              {isSelected && <Check size={14} />}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
+                    {activeHeaderDropdown === "category" && renderCategoryPopover(true)}
                   </div>
                 </th>
 
@@ -1053,142 +1110,104 @@ export default function TicketsList({ loaderData }: Route.ComponentProps) {
           </table>
         </div>
 
-        {totalTickets > 0 && (
-          <div className={styles.pagination}>
-            <div className={styles.paginationInfo}>
-              Showing {(initialFilters.page - 1) * initialFilters.per_page + 1} to {(initialFilters.page - 1) * initialFilters.per_page + sortedTickets.length} of {totalTickets} tickets
+        {/* Mobile Ticket Cards View */}
+        <div className={styles.mobileCardList}>
+          {sortedTickets.length === 0 ? (
+            <div className={styles.emptyState}>
+              <Inbox className={styles.emptyIcon} />
+              <p>No tickets found matching your filters</p>
             </div>
-            <div className={styles.paginationActions}>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className={styles.pageButton}
-                disabled={initialFilters.page === 1}
-                onClick={() => handleFilterChange("page", (initialFilters.page - 1).toString())}
+          ) : (
+            sortedTickets.map((ticket) => (
+              <div
+                key={ticket.id}
+                className={styles.mobileCard}
+                onClick={() => navigate(`/ticket/${ticket.ticketCode || ticket.id}`)}
               >
-                <ChevronLeft size={16} />
-              </Button>
-              
-              {[...Array(totalPages)].map((_, i) => {
-                const pageNum = i + 1;
-                if (
-                  pageNum === 1 || 
-                  pageNum === totalPages || 
-                  (pageNum >= initialFilters.page - 1 && pageNum <= initialFilters.page + 1)
-                ) {
-                  return (
-                    <Button
-                      key={pageNum}
-                      variant={pageNum === initialFilters.page ? "default" : "outline"}
-                      size="sm"
-                      className={`${styles.pageButton} ${pageNum === initialFilters.page ? styles.pageButtonActive : ""}`}
-                      onClick={() => handleFilterChange("page", pageNum.toString())}
-                    >
-                      {pageNum}
-                    </Button>
-                  );
-                } else if (
-                  pageNum === initialFilters.page - 2 || 
-                  pageNum === initialFilters.page + 2
-                ) {
-                  return (
-                    <Button
-                      key={pageNum}
-                      variant="ghost"
-                      size="sm"
-                      className={styles.pageButton}
-                      onClick={() => setIsJumpOpen(true)}
-                      title="Go to page"
-                      style={{ color: '#9ca3af' }}
-                    >
-                      <MoreHorizontal size={14} />
-                    </Button>
-                  );
-                }
-                return null;
-              })}
+                <div className={styles.mobileCardHeader}>
+                  <div className={styles.mobileCardCodeGroup}>
+                    <span className={styles.ticketKey}>{ticket.ticketCode || ticket.id}</span>
+                    {ticket.category && (
+                      <span className={styles.mobileCategoryBadge}>{ticket.category}</span>
+                    )}
+                  </div>
+                  <div className={styles.mobileCardStatusGroup}>
+                    <div className={styles.mobilePriorityBadge}>
+                      {getPriorityIcon(ticket.priority)}
+                      <span>{ticket.priority}</span>
+                    </div>
+                    <span className={`${styles.statusBadge} ${getStatusClass(ticket.status)}`}>
+                      {ticket.status}
+                    </span>
+                  </div>
+                </div>
 
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className={styles.pageButton}
-                disabled={initialFilters.page === totalPages || totalPages === 0}
-                onClick={() => handleFilterChange("page", (initialFilters.page + 1).toString())}
-              >
-                <ChevronRight size={16} />
-              </Button>
-            </div>
-          </div>
-        )}
+                <div className={styles.mobileCardBody}>
+                  <h3 className={styles.mobileCardTitle}>{ticket.title}</h3>
+                </div>
 
-        {/* Jump to page dialog — small square via [...] */}
-        <Dialog open={isJumpOpen} onOpenChange={setIsJumpOpen}>
-          <DialogContent className="bg-slate-900 text-white border border-slate-700 rounded-xl p-4" style={{ maxWidth: 260, width: 260, minHeight: 180 }}>
-            <DialogHeader style={{ gap: 2, marginBottom: 8 }}>
-              <DialogTitle className="text-sm font-semibold text-white" style={{ textAlign: 'center' }}>Go to page</DialogTitle>
-              <DialogDescription className="text-xs text-slate-400" style={{ textAlign: 'center' }}>
-                1 – {totalPages}
-              </DialogDescription>
-            </DialogHeader>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, marginTop: 8, flex: 1, justifyContent: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', justifyContent: 'center' }}>
-                <input
-                  type="number"
-                  min={1}
-                  max={totalPages}
-                  value={jumpPage}
-                  onChange={(e) => setJumpPage(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      const p = parseInt(jumpPage, 10);
-                      if (!isNaN(p) && p >= 1 && p <= totalPages) {
-                        handleFilterChange("page", p.toString());
-                        setIsJumpOpen(false);
-                        setJumpPage("");
-                      }
-                    }
-                  }}
-                  placeholder={`${initialFilters.page}`}
-                  autoFocus
-                  style={{
-                    width: 90,
-                    height: 36,
-                    background: 'rgba(15, 23, 42, 0.6)',
-                    border: '1px solid rgba(255, 255, 255, 0.12)',
-                    borderRadius: 8,
-                    padding: '6px 10px',
-                    color: '#fff',
-                    fontSize: '0.9rem',
-                    outline: 'none',
-                    textAlign: 'center',
-                    fontWeight: 600
-                  }}
-                />
-                <span style={{ fontSize: '0.8rem', color: '#94a3b8', whiteSpace: 'nowrap' }}>/ {totalPages}</span>
+                <div className={styles.mobileCardFooter}>
+                  <div className={styles.mobileCardMeta}>
+                    <span className={styles.mobileMetaText}>By {ticket.submitterName}</span>
+                    <span className={styles.mobileMetaDot}>•</span>
+                    <span className={styles.mobileMetaText}>
+                      {new Date(ticket.createdAt).toLocaleDateString('id-ID', {
+                        day: '2-digit',
+                        month: 'short',
+                        year: 'numeric'
+                      })}
+                    </span>
+                  </div>
+
+                  <div className={styles.mobileCardActions} onClick={(e) => e.stopPropagation()}>
+                    {ticket.assignedTo ? (
+                      <div className={styles.assignedWrapper}>
+                        <UserCheck size={13} className={styles.assignedIcon} />
+                        <span>{ticket.assignedTo}</span>
+                      </div>
+                    ) : (
+                      <div className={styles.takeAction}>
+                        <span className={styles.unassignedText}>Unassigned</span>
+                        {(session.userRole === 'Staff' || session.userRole === 'Administrator') && canTakeTicket(ticket.status) && (
+                          <Button
+                            size="sm"
+                            className={styles.miniTakeButton}
+                            disabled={currentUserIsOnBreak}
+                            title={currentUserIsOnBreak ? "Tidak bisa ambil tiket saat sedang break" : ""}
+                            style={currentUserIsOnBreak ? { filter: 'brightness(0.6)', cursor: 'not-allowed' } : {}}
+                            onClick={() => handleTakeTicket(ticket.id)}
+                          >
+                            Take
+                          </Button>
+                        )}
+                      </div>
+                    )}
+
+                    {isAdministrator && (
+                      <button
+                        type="button"
+                        className={styles.deleteRedBtn}
+                        onClick={() => handleDeleteTicket(ticket.id)}
+                        title="Hapus ticket"
+                        aria-label="Hapus ticket"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
-            <DialogFooter style={{ marginTop: 16, gap: 8, justifyContent: 'center' }}>
-              <Button variant="outline" size="sm" onClick={() => { setIsJumpOpen(false); setJumpPage(""); }} style={{ height: 32, fontSize: '0.8rem', minWidth: 70 }}>
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                disabled={!jumpPage || isNaN(parseInt(jumpPage, 10)) || parseInt(jumpPage, 10) < 1 || parseInt(jumpPage, 10) > totalPages}
-                onClick={() => {
-                  const p = parseInt(jumpPage, 10);
-                  if (!isNaN(p) && p >= 1 && p <= totalPages) {
-                    handleFilterChange("page", p.toString());
-                    setIsJumpOpen(false);
-                    setJumpPage("");
-                  }
-                }}
-                style={{ height: 32, fontSize: '0.8rem', minWidth: 60 }}
-              >
-                Go
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+            ))
+          )}
+        </div>
+
+        <TicketPagination
+          currentPage={initialFilters.page}
+          totalPages={totalPages}
+          totalItems={totalTickets}
+          pageSize={initialFilters.per_page}
+          onPageChange={(p) => handleFilterChange("page", p.toString())}
+        />
       </div>
     </div>
   );
