@@ -647,6 +647,103 @@
   gap: 16px;
 }
 
+/* Scroll viewport list tiket — maksimum 20 kartu per halaman dirender,
+   area ini di-scroll sendiri supaya section tidak membuat halaman jadi
+   sangat panjang saat user punya banyak tiket. */
+.ticketsScroll {
+  max-height: 560px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 6px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(59, 130, 246, 0.4) transparent;
+}
+
+.ticketsScroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.ticketsScroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.ticketsScroll::-webkit-scrollbar-thumb {
+  background: rgba(59, 130, 246, 0.35);
+  border-radius: 999px;
+}
+
+.ticketsScroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(59, 130, 246, 0.6);
+}
+
+/* Pagination — 20 tiket per halaman */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px 12px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(59, 130, 246, 0.15);
+}
+
+.paginationInfo {
+  font-size: 0.8125rem;
+  color: #94a3b8;
+}
+
+.paginationActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.pageButton {
+  min-width: 32px;
+  height: 32px;
+  padding: 0 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 25, 52, 0.75);
+  border: 1px solid rgba(59, 130, 246, 0.22);
+  color: #94a3b8;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  font-family: inherit;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  outline: none;
+}
+
+.pageButton:hover:not(:disabled) {
+  background: rgba(59, 130, 246, 0.15);
+  border-color: rgba(59, 130, 246, 0.4);
+  color: #f1f5f9;
+}
+
+.pageButton:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.pageButtonActive {
+  background: #0284c7 !important;
+  border-color: #38bdf8 !important;
+  color: #ffffff !important;
+  font-weight: 600;
+  box-shadow: 0 2px 12px rgba(2, 132, 199, 0.45);
+}
+
+.pageEllipsis {
+  color: #64748b;
+  font-size: 0.8125rem;
+  padding: 0 2px;
+  user-select: none;
+}
+
 .ticketCard {
   background: rgba(13, 24, 52, 0.85);
   backdrop-filter: blur(12px);
@@ -987,6 +1084,9 @@
   .ticketsGrid {
     grid-template-columns: repeat(2, 1fr);
   }
+  .ticketsScroll {
+    max-height: 520px;
+  }
 }
 
 @media (max-width: 768px) {
@@ -1120,6 +1220,21 @@
   .ticketsGrid {
     grid-template-columns: 1fr;
     gap: 12px;
+  }
+  .ticketsScroll {
+    max-height: 600px;
+    padding-right: 4px;
+  }
+  .pagination {
+    justify-content: center;
+  }
+  .paginationInfo {
+    width: 100%;
+    text-align: center;
+  }
+  .paginationActions {
+    justify-content: center;
+    width: 100%;
   }
   .ticketCard {
     padding: 14px;

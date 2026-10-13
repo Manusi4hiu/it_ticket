@@ -17,8 +17,9 @@
   flex-direction: column;
   padding: 1rem 0.75rem;
   padding-top: calc(1rem + env(safe-area-inset-top, 0px));
-  /* Safe clearance for bottom floating widget */
-  padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+  /* Clearance untuk bottom floating widget dipindah ke dalam
+     .workspacePanel — panel menutup space kosong sampai dasar halaman. */
+  padding-bottom: 0;
   padding-left: calc(0.75rem + env(safe-area-inset-left, 0px));
   padding-right: calc(0.75rem + env(safe-area-inset-right, 0px));
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -30,14 +31,14 @@
 @media (min-width: 640px) {
   .dashboardContainer {
     padding: 1.5rem 1.25rem;
-    padding-bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
+    padding-bottom: 0;
   }
 }
 
 @media (min-width: 1024px) {
   .dashboardContainer {
     padding: 2rem 2.25rem;
-    padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
+    padding-bottom: 0;
   }
 }
 
@@ -48,6 +49,9 @@
   display: flex;
   flex-direction: column;
   gap: 1.125rem;
+  /* Meregang mengisi sisa tinggi viewport — panel tiket di bawahnya
+     ikut menutup space kosong sampai dasar halaman. */
+  flex: 1;
 }
 
 @media (min-width: 768px) {
@@ -354,6 +358,24 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  /* Panel meregang sampai dasar halaman sehingga space kosong di
+     bawah tabel tertutup warna panel; pagination menempel di bawah. */
+  flex: 1;
+  /* Clearance untuk bottom floating widget — nilai yang sama dengan
+     padding-bottom lama .dashboardContainer, kini di dalam panel. */
+  padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+}
+
+@media (min-width: 640px) {
+  .workspacePanel {
+    padding-bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+@media (min-width: 1024px) {
+  .workspacePanel {
+    padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
+  }
 }
 
 /* Panel Toolbar Header */
@@ -557,7 +579,26 @@
 @media (min-width: 769px) {
   .desktopTableContainer {
     display: block;
+    /* Fallback area scroll ±5 baris (thead 41px + 5 × 61px). Tinggi
+       pasti diukur di runtime (route.tsx) agar tepat 5 baris mengikuti
+       tinggi baris nyata dari data. */
+    max-height: 346px;
+    overflow-y: auto;
   }
+
+  /* Header tetap menempel saat isi tabel discroll */
+  .desktopTableContainer .th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }
+}
+
+/* Redupkan tabel/card selama ambil data halaman */
+.tableLoading {
+  opacity: 0.55;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
 }
 
 .table {
@@ -906,46 +947,69 @@
   margin: 0;
 }
 
-/* ── Infinite Scroll Sentinel ── */
-.sentinel {
-  padding: 1.25rem 1rem 5.5rem 1rem;
+/* ── Pagination (disamakan dengan page Tickets) ── */
+.pagination {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-5);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(17, 24, 39, 0.45);
+  /* Panel diregangkan (flex:1) — pagination menempel di dasar panel,
+     ruang kosong di antara tabel dan pagination tertutup warna panel. */
+  margin-top: auto;
 }
 
-.loadingMore {
-  display: inline-flex;
+.paginationInfo {
+  font-size: 0.85rem;
+  color: #9ca3af;
+}
+
+.paginationActions {
+  display: flex;
   align-items: center;
-  gap: 0.5rem;
-  font-size: 0.75rem;
-  color: #60a5fa;
+  gap: var(--space-2);
 }
 
-.loadingIcon {
-  animation: spin 1s linear infinite;
-  width: 14px;
-  height: 14px;
+.pageButton {
+  background: rgba(17, 24, 39, 0.6) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  color: #f3f4f6 !important;
+  width: 32px !important;
+  height: 32px !important;
+  padding: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
 }
 
-.noMore {
-  font-size: 0.6875rem;
-  font-weight: 600;
-  color: #475569;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+.pageButton:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.pageButtonActive {
+  background: #3b82f6 !important;
+  border-color: #3b82f6 !important;
+  color: #fff !important;
+}
+
+@media (max-width: 768px) {
+  .pagination {
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 12px 14px;
+  }
+
+  .paginationInfo {
+    width: 100%;
+    text-align: center;
+    font-size: 0.78rem;
+  }
 }
 
 /* ── Keyframe Animations ── */
-@keyframes spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
 @keyframes ping {
   75%, 100% {
     transform: scale(2);
