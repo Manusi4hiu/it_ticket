@@ -180,9 +180,10 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
       : 0;
 
   // Area scroll diatur ke tepat 5 baris terlihat. Tinggi baris tiket
-  // bervariasi mengikuti isi data (±53-61px terukur), jadi jangan
-  // hardcode — ukur dari baris nyata. Fallback CSS 346px dipakai
-  // sebelum pengukuran pertama dan di layar mobile.
+  // bervariasi mengikuti isi data, jadi jangan hardcode — ukur dari
+  // baris nyata. Panel dibuat fit-content (tidak diregangkan) sehingga
+  // bar pagination duduk tepat di bawah tabel tanpa gap besar.
+  // Fallback CSS 346px dipakai sebelum pengukuran pertama.
   useEffect(() => {
     const el = tableWrapperRef.current;
     if (!el) return;
@@ -191,6 +192,7 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
     if (!row || !thead) return;
     const rowH = row.getBoundingClientRect().height;
     if (rowH > 0) {
+      el.style.minHeight = "";
       el.style.maxHeight = `${Math.round(
         thead.getBoundingClientRect().height + rowH * 5
       )}px`;

@@ -358,9 +358,9 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  /* Panel meregang sampai dasar halaman sehingga space kosong di
-     bawah tabel tertutup warna panel; pagination menempel di bawah. */
-  flex: 1;
+  /* Panel fit-content: menutup tepat di bawah bar pagination — tidak
+     ada ruang kosong meregang di antara tabel 5 baris dan tulisan
+     "Showing …", sehingga tampilan tetap rapih. */
   /* Clearance untuk bottom floating widget — nilai yang sama dengan
      padding-bottom lama .dashboardContainer, kini di dalam panel. */
   padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
@@ -581,7 +581,8 @@
     display: block;
     /* Fallback area scroll ±5 baris (thead 41px + 5 × 61px). Tinggi
        pasti diukur di runtime (route.tsx) agar tepat 5 baris mengikuti
-       tinggi baris nyata dari data. */
+       tinggi baris nyata dari data. Bukan flex:1 — tabel cukup pas
+       5 baris, dan bar pagination duduk tepat di bawahnya. */
     max-height: 346px;
     overflow-y: auto;
   }
@@ -952,12 +953,12 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--space-4) var(--space-5);
+  padding: 0.625rem 1.25rem;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(17, 24, 39, 0.45);
-  /* Panel diregangkan (flex:1) — pagination menempel di dasar panel,
-     ruang kosong di antara tabel dan pagination tertutup warna panel. */
-  margin-top: auto;
+  /* Ramping dan duduk tepat di bawah tabel 5 baris (panel
+     fit-content) — tulisan "Showing …" selalu di posisi akhir
+     tanpa gap besar. */
 }
 
 .paginationInfo {
