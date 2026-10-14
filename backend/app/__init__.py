@@ -25,6 +25,18 @@ def create_app(config_name=None):
 
     app = Flask(__name__)
     app.config.from_object(config[config_name])
+
+    # Paksa session Postgres ke UTC (anti-geser timestamp):
+    # kolom SLA bertipe timestamp-naive; bila session TZ non-UTC (mis.
+    # Asia/Bangkok dari default server), datetime aware yang ditulis service
+    # (sla_deadline/sla_paused_at/taken_at/resolved_at) ikut tergeser +N jam
+    # saat disimpan — countdown & notif SLA molor N jam. Opsi startup ini
+    # tidak bisa di-rollback dan hanya dipakai untuk Postgres.
+    _db_uri = app.config.get("SQLALCHEMY_DATABASE_URI", "") or ""
+    if _db_uri.startswith(("postgres://", "postgresql://")):
+        app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+            "connect_args": {"options": "-c timezone=UTC"}
+        }
     
     # File upload limit: 5MB max per upload
     app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024
