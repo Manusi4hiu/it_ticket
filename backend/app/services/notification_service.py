@@ -9,6 +9,45 @@ from app.models.ticket import Ticket
 from app.models.user import User
 
 
+# Milestone warning SLA (sisa menit): tiap pemindaian hanya mengirim
+# milestone paling mendesak yang tercapai; milestone yang terlewat sekaligus
+# (mis. tiket dibuat dengan sisa 12 menit) tidak dikirim susulan.
+SLA_WARNING_MILESTONES = (30, 20, 10, 5)
+
+
+def _sla_warning_milestone(remaining_secs):
+    """Milestone terdalam yang sudah tercapai, atau None bila sisa >30 menit."""
+    for milestone in (5, 10, 20, 30):
+        if remaining_secs <= milestone * 60:
+            return milestone
+    return None
+
+
+def _sla_warn_already_logged(log, deadline_key, milestone):
+    """True bila log warning sudah mencakup milestone tsb utk deadline yg sama.
+
+    Log lama (sebelum era milestone, tanpa 'threshold' di metadata) dianggap
+    mencakup milestone 30 agar tidak notif ganda pasca-upgrade.
+    """
+    same_deadline = (
+        (deadline_key and deadline_key in (log.details or ""))
+        or (log.metadata_json and deadline_key and deadline_key in log.metadata_json)
+    )
+    if not same_deadline:
+        return False
+    try:
+        meta = json.loads(log.metadata_json) if log.metadata_json else {}
+    except Exception:
+        meta = {}
+    logged_threshold = meta.get("threshold")
+    if logged_threshold is None:
+        return milestone == 30
+    try:
+        return int(logged_threshold) == milestone
+    except (TypeError, ValueError):
+        return False
+
+
 class NotificationService:
     """Service notifikasi in-app.
 
@@ -194,7 +233,10 @@ class NotificationService:
 
         - Proteksi Cooldown & Thread Lock: Mencegah multi-request polling dari
           banyak tab/klien memicu pemindaian duplikat ke database.
-        - Warning (< 2 jam): dikirim ke Assignee (atau Admin jika tiket New unassigned).
+        - Warning bertingkat (30/20/10/5 menit): dikirim ke Assignee (atau
+          Admin jika tiket New unassigned). Maks 1 notif per milestone per
+          deadline; milestone yang terlewat sekaligus hanya mengirim yang
+          paling mendesak. Sisa >30 menit: status tetap warning tanpa notif.
         - Breached (> deadline): dikirim ke Assignee DAN semua Administrator.
         - Eliminasi N+1: Mem-batch query SystemLog seluruh tiket aktif sekaligus
           sehingga pemeriksaan deduplikasi dilakukan di memori O(1).
@@ -285,19 +327,25 @@ class NotificationService:
                 if getattr(sla_dl, 'tzinfo', None) is None:
                     sla_dl = sla_dl.replace(tzinfo=timezone.utc)
 
-                time_diff = sla_dl - now_utc
+                # Sisa memakai acuan beku saat pause (konsisten dgn countdown)
+                paused_at = ticket.sla_paused_at
+                if paused_at is not None and getattr(paused_at, "tzinfo", None) is None:
+                    paused_at = paused_at.replace(tzinfo=timezone.utc)
+                time_diff = sla_dl - (paused_at or now_utc)
 
-                # ── 1. SLA Warning (< 2 jam) ──
+                # ── 1. SLA Warning bertingkat (30/20/10/5 menit) ──
                 if current_sla == 'warning':
                     secs = max(0, int(time_diff.total_seconds()))
+                    milestone = _sla_warning_milestone(secs)
+                    if milestone is None:
+                        continue  # sisa >30 mnt: status warning, tanpa notif
                     hours = secs // 3600
                     mins = (secs % 3600) // 60
                     remaining_text = f"tersisa {hours}j {mins}m" if hours > 0 else f"tersisa {mins} menit"
 
                     existing_warn = logs_by_target.get(('SLA Warning Notification', target_id_str), [])
                     already_logged = any(
-                        (deadline_key and deadline_key in (l.details or '')) or
-                        (l.metadata_json and deadline_key and deadline_key in l.metadata_json)
+                        _sla_warn_already_logged(l, deadline_key, milestone)
                         for l in existing_warn
                     )
 
@@ -310,16 +358,16 @@ class NotificationService:
                                 user_id=r_id,
                                 ticket=ticket,
                                 ntype='sla_warning',
-                                title=f"SLA Warning: {tcode}",
-                                message=f"Tiket '{ticket.title}' mendekati batas waktu SLA ({remaining_text}). Segera tindak lanjuti.",
+                                title=f"SLA {milestone} menit: {tcode}",
+                                message=f"Tiket '{ticket.title}' tersisa {remaining_text} (peringatan {milestone} menit). Segera tindak lanjuti.",
                             )
                             created_count += 1
 
                         new_warn_log = SystemLog(
                             action='SLA Warning Notification',
                             target_id=target_id_str,
-                            details=f"SLA Warning sent for ticket {tcode} (deadline: {deadline_key})",
-                            metadata_json=json.dumps({'ticket_id': ticket.id, 'deadline': deadline_key})
+                            details=f"SLA Warning ({milestone}m) sent for ticket {tcode} (deadline: {deadline_key})",
+                            metadata_json=json.dumps({'ticket_id': ticket.id, 'deadline': deadline_key, 'threshold': milestone})
                         )
                         db.session.add(new_warn_log)
                         logs_by_target[('SLA Warning Notification', target_id_str)].append(new_warn_log)
