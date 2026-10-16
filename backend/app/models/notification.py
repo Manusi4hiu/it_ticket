@@ -13,6 +13,7 @@ class Notification(db.Model):
     - 'status_changed': Admin mengubah status tiket milik user
     - 'category_changed': Admin mengubah kategori tiket milik user
     - 'break_overtime': Waktu istirahat melebihi kuota
+    - 'break_ended': Sesi istirahat berakhir otomatis (jam kerja selesai)
     - 'sla_warning': Tiket mendekati batas SLA (< 2 jam tersisa)
     - 'sla_breached': Tiket telah melewati batas waktu SLA
     """

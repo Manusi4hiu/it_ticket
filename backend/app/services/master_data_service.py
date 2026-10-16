@@ -1,3 +1,4 @@
+import re
 from app import db
 from app.models.master_data import Category, Priority, SLAPolicy, Department, Status, BreakSetting
 from app.models.ticket import Ticket
@@ -355,17 +356,22 @@ class MasterDataService:
             )
             db.session.add(setting)
             db.session.commit()
-        # Backfill kolom periode bila DB lama belum punya nilai (migrasi belum jalan).
+        # Backfill kolom periode dan jam kerja bila DB lama belum punya nilai (migrasi belum jalan).
         changed = False
         for attr, default in (
             ('daily_max_minutes', 60), ('weekly_max_minutes', 300),
             ('monthly_max_minutes', 1200),
+            ('work_start_time', '08:00'),
+            ('work_end_time', '17:00'),
         ):
             if getattr(setting, attr, None) is None:
                 setattr(setting, attr, default)
                 changed = True
         if getattr(setting, 'max_break_minutes', None) is None:
             setting.max_break_minutes = 60
+            changed = True
+        if getattr(setting, 'auto_end_on_shift_end', None) is None:
+            setting.auto_end_on_shift_end = True
             changed = True
         if changed:
             db.session.commit()
@@ -402,6 +408,32 @@ class MasterDataService:
             if minutes > maximum:
                 return None, f'{camel} maksimal {maximum}'
             setattr(setting, column, minutes)
+
+        # Work hours validation: HH:MM
+        time_regex = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
+        start_val = data.get('workStartTime') if 'workStartTime' in data else data.get('work_start_time')
+        end_val = data.get('workEndTime') if 'workEndTime' in data else data.get('work_end_time')
+
+        if start_val is not None:
+            start_str = str(start_val).strip()
+            if not time_regex.match(start_str):
+                return None, 'workStartTime harus berformat HH:MM (contoh: 08:00)'
+            setting.work_start_time = start_str
+
+        if end_val is not None:
+            end_str = str(end_val).strip()
+            if not time_regex.match(end_str):
+                return None, 'workEndTime harus berformat HH:MM (contoh: 17:00)'
+            setting.work_end_time = end_str
+
+        if setting.work_start_time and setting.work_end_time:
+            if setting.work_start_time >= setting.work_end_time:
+                return None, 'Jam mulai kerja harus lebih awal dari jam selesai kerja'
+
+        if 'autoEndOnShiftEnd' in data or 'auto_end_on_shift_end' in data:
+            val = data.get('autoEndOnShiftEnd') if 'autoEndOnShiftEnd' in data else data.get('auto_end_on_shift_end')
+            setting.auto_end_on_shift_end = bool(val)
+
         if 'description' in data:
             setting.description = data['description']
         db.session.commit()

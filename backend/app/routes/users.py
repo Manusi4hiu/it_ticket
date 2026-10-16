@@ -226,19 +226,40 @@ def toggle_break(user_id):
         user.total_break_seconds_today = 0
         user.break_total_date = today_wib
 
+    from app.services.user_service import UserService
+    # Scan dan akhiri break aktif yang sudah melebihi batas jam kerja
+    UserService.auto_end_expired_breaks()
+
     from app.services.master_data_service import MasterDataService
     break_setting = MasterDataService.get_break_setting()
     max_minutes = break_setting.max_break_minutes or 60
     daily_max_minutes = break_setting.daily_max_minutes or 20
+    work_start = break_setting.work_start_time or "08:00"
+    work_end = break_setting.work_end_time or "17:00"
+    auto_end_on_shift_end = getattr(break_setting, 'auto_end_on_shift_end', True)
 
     if user.is_on_break:
-        # END break: akumulasi durasi AKTUAL (tanpa cap)
+        # END break: akumulasi durasi AKTUAL (di-cap di jam selesai kerja bila auto-end aktif)
         if user.break_started_at:
             break_start = user.break_started_at
             if break_start.tzinfo is None:
                 break_start = break_start.replace(tzinfo=timezone.utc)
-            duration = (datetime.now(timezone.utc) - break_start).total_seconds()
-            actual = int(duration)
+            
+            end_time = datetime.now(timezone.utc)
+            if auto_end_on_shift_end:
+                wib_tz = timezone(timedelta(hours=7))
+                start_wib = break_start.astimezone(wib_tz)
+                try:
+                    end_h, end_m = [int(x) for x in work_end.split(':')]
+                    shift_end_wib = start_wib.replace(hour=end_h, minute=end_m, second=0, microsecond=0)
+                    shift_end_utc = shift_end_wib.astimezone(timezone.utc)
+                    if end_time > shift_end_utc:
+                        end_time = shift_end_utc
+                except Exception:
+                    pass
+
+            duration = (end_time - break_start).total_seconds()
+            actual = max(0, int(duration))
             user.total_break_seconds_today = (user.total_break_seconds_today or 0) + actual
             # Catat riwayat sesi (sumber agregasi harian/mingguan/bulanan).
             try:
@@ -246,7 +267,7 @@ def toggle_break(user_id):
                     db.session.add(BreakLog(
                         user_id=user.id,
                         started_at=break_start,
-                        ended_at=datetime.now(timezone.utc),
+                        ended_at=end_time,
                         duration_seconds=actual,
                         log_date=today_wib,
                     ))
@@ -278,18 +299,27 @@ def toggle_break(user_id):
             restored = 'online'
         user.presence_status = restored
     else:
-        # START break: simpan status saat ini lalu set ke 'break'
+        # START break: Cek jam kerja bila auto_end_on_shift_end aktif
+        if auto_end_on_shift_end:
+            now_wib_str = datetime.now(timezone(timedelta(hours=7))).strftime("%H:%M")
+            if now_wib_str < work_start or now_wib_str >= work_end:
+                return jsonify({
+                    'error': f'Fitur break hanya dapat digunakan pada jam kerja ({work_start} - {work_end} WIB).'
+                }), 400
+
+        # Simpan status saat ini lalu set ke 'break'
         user.break_pre_status = user.presence_status or 'online'
         user.is_on_break = True
         user.break_started_at = datetime.now(timezone.utc)
         user.presence_status = 'break'
 
-
-
     db.session.commit()
     payload = user.to_dict()
     payload['maxBreakMinutes'] = max_minutes
     payload['dailyMaxMinutes'] = daily_max_minutes
+    payload['workStartTime'] = work_start
+    payload['workEndTime'] = work_end
+    payload['autoEndOnShiftEnd'] = auto_end_on_shift_end
     return jsonify(payload), 200
 
 

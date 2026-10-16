@@ -130,6 +130,9 @@ class BreakSetting(db.Model):
     daily_max_minutes = db.Column(db.Integer, nullable=False, default=60)
     weekly_max_minutes = db.Column(db.Integer, nullable=False, default=300)
     monthly_max_minutes = db.Column(db.Integer, nullable=False, default=1200)
+    work_start_time = db.Column(db.String(5), nullable=False, default='08:00')
+    work_end_time = db.Column(db.String(5), nullable=False, default='17:00')
+    auto_end_on_shift_end = db.Column(db.Boolean, nullable=False, default=True)
     description = db.Column(db.String(255), nullable=True)
 
     def to_dict(self):
@@ -140,6 +143,9 @@ class BreakSetting(db.Model):
             'dailyMaxMinutes': self.daily_max_minutes,
             'weeklyMaxMinutes': self.weekly_max_minutes,
             'monthlyMaxMinutes': self.monthly_max_minutes,
+            'workStartTime': self.work_start_time or '08:00',
+            'workEndTime': self.work_end_time or '17:00',
+            'autoEndOnShiftEnd': self.auto_end_on_shift_end if self.auto_end_on_shift_end is not None else True,
             'description': self.description
         }
 

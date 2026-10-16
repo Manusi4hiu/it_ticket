@@ -256,7 +256,12 @@ class NotificationService:
             from app.models.system_log import SystemLog
             from app.models.master_data import Status
             from app.services.ticket_service import TicketService
-            from app.services.master_data_service import _infer_filter_group
+            # Auto-end expired breaks yang melebihi jam kerja (best-effort)
+            try:
+                from app.services.user_service import UserService
+                UserService.auto_end_expired_breaks()
+            except Exception:
+                pass
 
             now_utc = datetime.now(timezone.utc)
 

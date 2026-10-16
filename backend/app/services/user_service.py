@@ -368,3 +368,107 @@ class UserService:
             })
         
         return results
+
+    @staticmethod
+    def auto_end_expired_breaks():
+        """Otomatis mengakhiri sesi break yang melebihi batas jam kerja (default 17:00 WIB).
+        
+        Mencegah kesalahan lupa mematikan break saat pulang kantor sehingga
+        break tidak terus berjalan semalaman atau ke hari berikutnya.
+        """
+        from datetime import datetime, timezone, timedelta
+        from app.models.master_data import BreakSetting, BreakLog
+        from app.services.master_data_service import MasterDataService
+        from app.services.notification_service import NotificationService
+
+        setting = MasterDataService.get_break_setting()
+        if not getattr(setting, 'auto_end_on_shift_end', True):
+            return 0
+
+        wib_tz = timezone(timedelta(hours=7))
+        now_utc = datetime.now(timezone.utc)
+        now_wib = now_utc.astimezone(wib_tz)
+
+        work_end = setting.work_end_time or "17:00"
+        try:
+            end_h, end_m = [int(x) for x in work_end.split(':')]
+        except Exception:
+            end_h, end_m = 17, 0
+
+        active_break_users = User.query.filter_by(is_on_break=True).all()
+        ended_count = 0
+
+        for user in active_break_users:
+            if not user.break_started_at:
+                user.is_on_break = False
+                user.presence_status = 'online'
+                ended_count += 1
+                continue
+
+            break_start_utc = user.break_started_at
+            if break_start_utc.tzinfo is None:
+                break_start_utc = break_start_utc.replace(tzinfo=timezone.utc)
+            start_wib = break_start_utc.astimezone(wib_tz)
+
+            shift_end_wib = start_wib.replace(hour=end_h, minute=end_m, second=0, microsecond=0)
+            shift_end_utc = shift_end_wib.astimezone(timezone.utc)
+
+            # Jika sekarang sudah mencapai atau melewati waktu shift end
+            if now_utc >= shift_end_utc:
+                ended_at_utc = shift_end_utc
+                duration = max(0, int((ended_at_utc - break_start_utc).total_seconds()))
+
+                try:
+                    with db.session.begin_nested():
+                        db.session.add(BreakLog(
+                            user_id=user.id,
+                            started_at=break_start_utc,
+                            ended_at=ended_at_utc,
+                            duration_seconds=duration,
+                            log_date=start_wib.date(),
+                        ))
+                except Exception as log_err:
+                    print(f"Auto-end break log insert failed: {log_err}")
+
+                if start_wib.date() == now_wib.date():
+                    user.total_break_seconds_today = (user.total_break_seconds_today or 0) + duration
+                    user.break_total_date = now_wib.date()
+
+                restored = getattr(user, 'break_pre_status', None) or 'online'
+                if restored not in ('online', 'idle', 'dnd', 'offline'):
+                    restored = 'online'
+                user.presence_status = restored
+                user.is_on_break = False
+                user.break_started_at = None
+
+                # Notifikasi ke user bersangkutan
+                try:
+                    NotificationService.push(
+                        user.id, None, 'break_ended',
+                        'Sesi Break Berakhir Otomatis',
+                        f"Sesi break Anda telah otomatis diakhiri karena sudah melewati jam kerja ({work_end} WIB)."
+                    )
+                except Exception:
+                    pass
+
+                # Jika total akumulasi hari ini melebihi kuota harian, kirim notifikasi ke admin
+                daily_limit = setting.daily_max_minutes or 20
+                if (user.total_break_seconds_today or 0) > daily_limit * 60:
+                    try:
+                        admins = User.query.filter(User.role == 'Administrator', User.id != user.id).all()
+                        total_today_min = int(user.total_break_seconds_today or 0) // 60
+                        for admin in admins:
+                            NotificationService.push(
+                                admin.id, None, 'break_overtime',
+                                'Break Melebihi Batas Harian',
+                                f"{user.full_name} break melebihi kuota harian: total hari ini {total_today_min} mnt (kuota harian {daily_limit} mnt)."
+                            )
+                    except Exception:
+                        pass
+
+                ended_count += 1
+
+        if ended_count > 0:
+            db.session.commit()
+
+        return ended_count

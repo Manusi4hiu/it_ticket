@@ -48,7 +48,30 @@ export async function action({ request }: Route.ActionArgs) {
         }
     }
 
-    const response = await settingsApi.updateBreakSetting({ maxBreakMinutes, dailyMaxMinutes, weeklyMaxMinutes, monthlyMaxMinutes } as any);
+    const workStartTime = (formData.get("workStartTime") as string)?.trim() || "08:00";
+    const workEndTime = (formData.get("workEndTime") as string)?.trim() || "17:00";
+    const autoEndOnShiftEnd = formData.get("autoEndOnShiftEnd") === "on" || formData.get("autoEndOnShiftEnd") === "true";
+
+    const timeRegex = /^([01]\d|2[0-3]):[0-5]\d$/;
+    if (!timeRegex.test(workStartTime)) {
+        return Response.json({ error: "Jam mulai kerja harus berformat HH:MM (contoh: 08:00)." }, { status: 400 });
+    }
+    if (!timeRegex.test(workEndTime)) {
+        return Response.json({ error: "Jam selesai kerja harus berformat HH:MM (contoh: 17:00)." }, { status: 400 });
+    }
+    if (workStartTime >= workEndTime) {
+        return Response.json({ error: "Jam mulai kerja harus lebih awal dari jam selesai kerja." }, { status: 400 });
+    }
+
+    const response = await settingsApi.updateBreakSetting({
+        maxBreakMinutes,
+        dailyMaxMinutes,
+        weeklyMaxMinutes,
+        monthlyMaxMinutes,
+        workStartTime,
+        workEndTime,
+        autoEndOnShiftEnd,
+    } as any);
     if (!response.success) return Response.json({ error: response.error }, { status: 400 });
     return Response.json({ success: true, setting: response.data?.data }, { status: 200 });
 }
@@ -85,7 +108,7 @@ export default function BreakSettings() {
                 <CardContent>
                     <Form
                         method="post"
-                        key={`${setting?.maxBreakMinutes ?? 60}-${setting?.dailyMaxMinutes ?? 60}-${setting?.weeklyMaxMinutes ?? 300}-${setting?.monthlyMaxMinutes ?? 1200}`}
+                        key={`${setting?.maxBreakMinutes ?? 60}-${setting?.dailyMaxMinutes ?? 60}-${setting?.weeklyMaxMinutes ?? 300}-${setting?.monthlyMaxMinutes ?? 1200}-${setting?.workStartTime ?? "08:00"}-${setting?.workEndTime ?? "17:00"}-${setting?.autoEndOnShiftEnd ?? true}`}
                     >
                         <div className={styles.breakGrid}>
                             <div className={styles.breakMetricCard}>
@@ -165,8 +188,81 @@ export default function BreakSettings() {
                             </div>
                         </div>
 
+                        <div style={{ marginTop: 24, marginBottom: 8 }}>
+                            <h3 style={{ fontSize: '1rem', fontWeight: 600, color: '#f8fafc', marginBottom: 4 }}>
+                                Jam Kerja & Batas Otomatisasi Break
+                            </h3>
+                            <p style={{ fontSize: '0.85rem', color: '#94a3b8', margin: 0 }}>
+                                Break hanya dapat dimulai pada jam kerja. Sesi break aktif akan otomatis diakhiri bila sudah melewati jam pulang kerja.
+                            </p>
+                        </div>
+
+                        <div className={styles.breakGrid}>
+                            <div className={styles.breakMetricCard}>
+                                <div className={styles.breakMetricHeader}>
+                                    <Label htmlFor="workStartTime" className={styles.breakMetricLabel}>Jam Mulai Kerja</Label>
+                                </div>
+                                <div className={styles.breakInputWrap}>
+                                    <Input
+                                        id="workStartTime"
+                                        name="workStartTime"
+                                        type="time"
+                                        defaultValue={setting?.workStartTime ?? "08:00"}
+                                        required
+                                    />
+                                    <span className={styles.breakUnitTag}>WIB</span>
+                                </div>
+                                <span className={styles.breakMetricSubtext}>Awal jam operasional kantor</span>
+                            </div>
+
+                            <div className={styles.breakMetricCard}>
+                                <div className={styles.breakMetricHeader}>
+                                    <Label htmlFor="workEndTime" className={styles.breakMetricLabel}>Jam Selesai Kerja</Label>
+                                </div>
+                                <div className={styles.breakInputWrap}>
+                                    <Input
+                                        id="workEndTime"
+                                        name="workEndTime"
+                                        type="time"
+                                        defaultValue={setting?.workEndTime ?? "17:00"}
+                                        required
+                                    />
+                                    <span className={styles.breakUnitTag}>WIB</span>
+                                </div>
+                                <span className={styles.breakMetricSubtext}>Batas akhir jam kantor (Auto-End)</span>
+                            </div>
+                        </div>
+
+                        <div style={{
+                            marginTop: 12,
+                            padding: '12px 14px',
+                            background: 'rgba(255, 255, 255, 0.03)',
+                            border: '1px solid rgba(255, 255, 255, 0.08)',
+                            borderRadius: '12px',
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: '12px',
+                            cursor: 'pointer'
+                        }}>
+                            <input
+                                id="autoEndOnShiftEnd"
+                                name="autoEndOnShiftEnd"
+                                type="checkbox"
+                                defaultChecked={setting?.autoEndOnShiftEnd !== false}
+                                style={{ width: '18px', height: '18px', marginTop: '2px', accentColor: '#3b82f6', cursor: 'pointer' }}
+                            />
+                            <Label htmlFor="autoEndOnShiftEnd" style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#f1f5f9' }}>
+                                    Otomatis Nonaktifkan Break Saat Lewat Jam Kerja
+                                </span>
+                                <span style={{ fontSize: '0.8rem', color: '#94a3b8', lineHeight: 1.4 }}>
+                                    Jika staf lupa mengakhiri break saat pulang kantor, sistem secara otomatis mengakhiri break dan memotong durasi maksimal hingga jam selesai kerja ({setting?.workEndTime ?? "17:00"} WIB) agar tidak terus berjalan semalaman.
+                                </span>
+                            </Label>
+                        </div>
+
                         <div className={styles.breakInfoBox}>
-                            Berlaku saat ini: sesi {setting?.maxBreakMinutes ?? 60} mnt · harian {setting?.dailyMaxMinutes ?? 60} mnt · mingguan {setting?.weeklyMaxMinutes ?? 300} mnt · bulanan {setting?.monthlyMaxMinutes ?? 1200} mnt. Total harian tiap staff reset otomatis tiap hari (00:00 WIB).
+                            Berlaku saat ini: sesi {setting?.maxBreakMinutes ?? 60} mnt · harian {setting?.dailyMaxMinutes ?? 60} mnt · jam kerja {setting?.workStartTime ?? "08:00"} – {setting?.workEndTime ?? "17:00"} WIB {setting?.autoEndOnShiftEnd !== false ? "(Auto-End aktif)" : "(Auto-End nonaktif)"}. Total harian tiap staff reset otomatis tiap hari (00:00 WIB).
                         </div>
 
                         <div style={{ marginTop: 14 }}>
