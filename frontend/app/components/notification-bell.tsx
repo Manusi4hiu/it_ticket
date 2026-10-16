@@ -534,6 +534,7 @@ export function NotificationBell({ userId }: NotificationBellProps) {
                   case "sla_warning":
                     return <Clock style={{ width: "18px", height: "18px", color: "#f59e0b", opacity: op }} />;
                   case "break_overtime":
+                  case "break_ended":
                     return <Coffee style={{ width: "18px", height: "18px", color: "#f97316", opacity: op }} />;
                   case "admin_override":
                     return <ShieldAlert style={{ width: "18px", height: "18px", color: "#a855f7", opacity: op }} />;

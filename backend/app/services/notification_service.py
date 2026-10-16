@@ -256,7 +256,6 @@ class NotificationService:
             from app.models.system_log import SystemLog
             from app.models.master_data import Status
             from app.services.ticket_service import TicketService
-            from app.services.master_data_service import _infer_filter_group
 
             now_utc = datetime.now(timezone.utc)
 
