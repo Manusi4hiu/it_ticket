@@ -226,10 +226,6 @@ def toggle_break(user_id):
         user.total_break_seconds_today = 0
         user.break_total_date = today_wib
 
-    from app.services.user_service import UserService
-    # Scan dan akhiri break aktif yang sudah melebihi batas jam kerja
-    UserService.auto_end_expired_breaks()
-
     from app.services.master_data_service import MasterDataService
     break_setting = MasterDataService.get_break_setting()
     max_minutes = break_setting.max_break_minutes or 60
@@ -288,7 +284,7 @@ def toggle_break(user_id):
                             f"{user.full_name} break melebihi kuota harian: total hari ini {total_today_min} mnt (kuota harian {daily_max_minutes} mnt).",
                         )
                 except Exception as notif_err:
-                    print(f"Break overtime notification failed: {notif_err}")
+                    logger.error(f"Break overtime notification failed: {notif_err}")
         user.is_on_break = False
         user.break_started_at = None
         # Restore presence ke status sebelum break (simpan di break_pre_status),
