@@ -380,6 +380,9 @@ class UserService:
         from app.models.master_data import BreakSetting, BreakLog
         from app.services.master_data_service import MasterDataService
         from app.services.notification_service import NotificationService
+        import logging
+
+        logger = logging.getLogger(__name__)
 
         setting = MasterDataService.get_break_setting()
         if not getattr(setting, 'auto_end_on_shift_end', True):
@@ -392,7 +395,8 @@ class UserService:
         work_end = setting.work_end_time or "17:00"
         try:
             end_h, end_m = [int(x) for x in work_end.split(':')]
-        except Exception:
+        except Exception as parse_err:
+            logger.warning(f"Failed to parse work_end_time '{work_end}': {parse_err}, fallback to 17:00")
             end_h, end_m = 17, 0
 
         active_break_users = User.query.filter_by(is_on_break=True).all()
@@ -428,7 +432,7 @@ class UserService:
                             log_date=start_wib.date(),
                         ))
                 except Exception as log_err:
-                    print(f"Auto-end break log insert failed: {log_err}")
+                    logger.error(f"Auto-end break log insert failed for user {user.id}: {log_err}")
 
                 if start_wib.date() == now_wib.date():
                     user.total_break_seconds_today = (user.total_break_seconds_today or 0) + duration
@@ -448,8 +452,8 @@ class UserService:
                         'Sesi Break Berakhir Otomatis',
                         f"Sesi break Anda telah otomatis diakhiri karena sudah melewati jam kerja ({work_end} WIB)."
                     )
-                except Exception:
-                    pass
+                except Exception as notif_err:
+                    logger.warning(f"Failed to send break_ended notification to user {user.id}: {notif_err}")
 
                 # Jika total akumulasi hari ini melebihi kuota harian, kirim notifikasi ke admin
                 daily_limit = setting.daily_max_minutes or 20
@@ -463,12 +467,18 @@ class UserService:
                                 'Break Melebihi Batas Harian',
                                 f"{user.full_name} break melebihi kuota harian: total hari ini {total_today_min} mnt (kuota harian {daily_limit} mnt)."
                             )
-                    except Exception:
-                        pass
+                    except Exception as admin_notif_err:
+                        logger.warning(f"Failed to send break_overtime notification for user {user.id}: {admin_notif_err}")
 
                 ended_count += 1
 
         if ended_count > 0:
-            db.session.commit()
+            try:
+                db.session.commit()
+                logger.info(f"Auto-ended {ended_count} expired breaks")
+            except Exception as commit_err:
+                logger.error(f"Failed to commit auto-end breaks: {commit_err}")
+                db.session.rollback()
+                return 0
 
         return ended_count
