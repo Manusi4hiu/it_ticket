@@ -227,7 +227,9 @@ def toggle_break(user_id):
         user.break_total_date = today_wib
 
     from app.services.master_data_service import MasterDataService
-    max_minutes = MasterDataService.get_break_setting().max_break_minutes or 60
+    break_setting = MasterDataService.get_break_setting()
+    max_minutes = break_setting.max_break_minutes or 60
+    daily_max_minutes = break_setting.daily_max_minutes or 20
 
     if user.is_on_break:
         # END break: akumulasi durasi AKTUAL (tanpa cap)
@@ -250,20 +252,19 @@ def toggle_break(user_id):
                     ))
             except Exception as log_err:
                 logger.error(f"Break log insert failed: {log_err}")
-            # Notifikasi ke admin bila break melebihi batas (best-effort).
-            if actual > max_minutes * 60:
+            # Notifikasi ke admin bila total break hari ini melebihi kuota harian (best-effort).
+            if (user.total_break_seconds_today or 0) > daily_max_minutes * 60:
                 try:
                     from app.services.notification_service import NotificationService
                     admins = User.query.filter(
                         User.role == 'Administrator', User.id != user.id
                     ).all()
-                    over_min = int(duration) // 60
+                    total_today_min = int(user.total_break_seconds_today or 0) // 60
                     for admin in admins:
                         NotificationService.push(
                             admin.id, None, 'break_overtime',
-                            'Break Melebihi Batas',
-                            f"{user.full_name} break {over_min} mnt (batas {max_minutes} mnt). "
-                            f"Total hari ini {((user.total_break_seconds_today or 0) // 60)} mnt.",
+                            'Break Melebihi Batas Harian',
+                            f"{user.full_name} break melebihi kuota harian: total hari ini {total_today_min} mnt (kuota harian {daily_max_minutes} mnt).",
                         )
                 except Exception as notif_err:
                     print(f"Break overtime notification failed: {notif_err}")
@@ -288,6 +289,7 @@ def toggle_break(user_id):
     db.session.commit()
     payload = user.to_dict()
     payload['maxBreakMinutes'] = max_minutes
+    payload['dailyMaxMinutes'] = daily_max_minutes
     return jsonify(payload), 200
 
 
