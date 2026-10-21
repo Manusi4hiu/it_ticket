@@ -183,6 +183,13 @@ export function TicketInfoCard({
             label="Last Updated"
             value={formatDate(ticket.updatedAt)}
           />
+          {ticket.slaDeadline && (
+            <InfoItem
+              icon={<Clock />}
+              label={ticket.teamCode === "COC" || ticket.teamId === 2 || Boolean(ticket.teamName?.toLowerCase().includes("design")) ? "Deadline" : "SLA Deadline"}
+              value={formatDate(ticket.slaDeadline)}
+            />
+          )}
         </div>
 
         {/* Description */}

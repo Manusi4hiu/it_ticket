@@ -23,13 +23,36 @@ tickets_bp = Blueprint('tickets', __name__)
 def get_ticket_or_404(ticket_id):
     """Helper to handle both numeric ID and Ticket Code"""
     ticket = None
-    if str(ticket_id).isdigit():
-        ticket = Ticket.query.get(int(ticket_id))
+    clean_id = str(ticket_id).strip()
+    if clean_id.isdigit():
+        ticket = Ticket.query.get(int(clean_id))
     
     if not ticket:
-        ticket = Ticket.query.filter(Ticket.ticket_code.ilike(ticket_id)).first()
+        ticket = Ticket.query.filter(Ticket.ticket_code.ilike(clean_id)).first()
         
     return ticket
+
+
+def is_system_note_content(content):
+    """Check if note content is an audit/system note that should be visible in ticket history."""
+    if not content:
+        return False
+    text = str(content).lower()
+    system_markers = [
+        'status changed',
+        'ticket transferred',
+        'ticket taken',
+        'ticket resolved',
+        'kategori diganti',
+        'status diganti',
+        'assignee diganti',
+        'prioritas diganti',
+        'priority changed',
+        'otomatis di-assign',
+        'tiket di-reopen',
+        'ticket reopened',
+    ]
+    return any(marker in text for marker in system_markers)
 
 @tickets_bp.route('', methods=['GET'])
 @jwt_required()
@@ -228,20 +251,37 @@ def get_tickets():
 
 
 @tickets_bp.route('/<ticket_id>', methods=['GET'])
-@jwt_required()
 def get_ticket(ticket_id):
-    """Get a single ticket by ID or ticket_code (auth required)"""
+    """Get a single ticket by ID or ticket_code (auth optional for public tracking)"""
     ticket = get_ticket_or_404(ticket_id)
    
     if not ticket:
         return jsonify({'success': False, 'error': 'Ticket tidak ditemukan'}), 404
 
     # ── Team scoping ──
-    user = get_current_user()
-    if not can_access_ticket(user, ticket):
-        return jsonify({'success': False, 'error': 'Forbidden. Anda tidak punya akses ke ticket ini.'}), 403
+    # User internal tim berhak atas akses staff penuh (internal notes, action panel).
+    # Pengguna dari tim lain atau pengunjung (guest) tetap boleh melihat tiket untuk tracking,
+    # tetapi catatan internal disembunyikan.
+    # Jika token expired/revoked/invalid, anggap sebagai pengunjung (guest) biasa.
+    user = None
+    try:
+        verify_jwt_in_request(optional=True)
+        if get_jwt_identity():
+            user = get_current_user()
+    except Exception:
+        user = None
+
+    has_staff_access = bool(user and can_access_ticket(user, ticket))
     
     ticket_data = ticket.to_dict()
+    ticket_data['hasStaffAccess'] = has_staff_access
+
+    if not has_staff_access and 'notes' in ticket_data:
+        ticket_data['notes'] = [
+            n for n in ticket_data['notes']
+            if not n.get('isInternal') or is_system_note_content(n.get('content'))
+        ]
+
     return jsonify({
         'success': True,
         'ticket': ticket_data

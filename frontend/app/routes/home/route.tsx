@@ -34,9 +34,10 @@ export default function Home({ loaderData }: Route.ComponentProps) {
 
   const handleTrackTicket = (e: React.FormEvent) => {
     e.preventDefault();
-    if (trackId.trim()) {
+    const cleanId = trackId.trim().replace(/^#+/, "").trim();
+    if (cleanId) {
       setIsTrackDialogOpen(false);
-      navigate(`/ticket/${trackId.trim()}`);
+      navigate(`/ticket/${cleanId}`);
     }
   };
 

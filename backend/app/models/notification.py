@@ -12,6 +12,8 @@ class Notification(db.Model):
     - 'admin_override': Admin mengubah tiket milik (assignee lama) / dipindah ke user ini (assignee baru)
     - 'status_changed': Admin mengubah status tiket milik user
     - 'category_changed': Admin mengubah kategori tiket milik user
+    - 'sla_warning' / 'sla_breached': tiket IT mendekati / melewati SLA
+    - 'deadline_warning' / 'deadline_breached': tiket Graphic Design mendekati / melewati batas deadline
     """
     __tablename__ = 'notifications'
 

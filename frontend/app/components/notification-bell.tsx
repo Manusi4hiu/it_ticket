@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Bell, Trash2, CheckCheck, X } from "lucide-react";
+import { Bell, Trash2, CheckCheck, X, AlertTriangle, Clock, ShieldAlert, CalendarClock } from "lucide-react";
 import { Button } from "~/components/ui/button/button";
 import { Badge } from "~/components/ui/badge/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "~/components/ui/popover/popover";
@@ -482,6 +482,43 @@ export function NotificationBell({ userId }: NotificationBellProps) {
           ) : (
             notifications.map((notification) => {
               const isSelected = selectedIds.has(notification.id);
+              const isBreached = notification.type === "deadline_breached" || notification.type === "sla_breached";
+              const isWarning = notification.type === "deadline_warning" || notification.type === "sla_warning";
+
+              const typeClass =
+                notification.type === "deadline_breached"
+                  ? styles.deadlineBreached || styles.slaBreached
+                  : notification.type === "sla_breached"
+                  ? styles.slaBreached
+                  : notification.type === "deadline_warning"
+                  ? styles.deadlineWarning || styles.slaWarning
+                  : notification.type === "sla_warning"
+                  ? styles.slaWarning
+                  : "";
+
+              const actionColor = isBreached
+                ? "#f87171"
+                : isWarning
+                ? "#fbbf24"
+                : "#60a5fa";
+
+              const renderIcon = () => {
+                const op = notification.read ? 0.45 : 1;
+                switch (notification.type) {
+                  case "deadline_breached":
+                    return <CalendarClock style={{ width: "18px", height: "18px", color: "#ef4444", opacity: op }} />;
+                  case "sla_breached":
+                    return <AlertTriangle style={{ width: "18px", height: "18px", color: "#ef4444", opacity: op }} />;
+                  case "deadline_warning":
+                  case "sla_warning":
+                    return <Clock style={{ width: "18px", height: "18px", color: "#f59e0b", opacity: op }} />;
+                  case "admin_override":
+                    return <ShieldAlert style={{ width: "18px", height: "18px", color: "#a855f7", opacity: op }} />;
+                  default:
+                    return <Bell style={{ width: "18px", height: "18px", opacity: op }} />;
+                }
+              };
+
               return (
                 <div
                   key={notification.key}
@@ -489,17 +526,11 @@ export function NotificationBell({ userId }: NotificationBellProps) {
                   aria-checked={isDeleteMode ? isSelected : undefined}
                   tabIndex={0}
                   onKeyDown={(e) => { if (isDeleteMode && (e.key === " " || e.key === "Enter")) { e.preventDefault(); handleNotificationClick(notification); } }}
-                  className={`${styles.notificationItem} ${!notification.read ? styles.unread : ""} ${isDeleteMode ? styles.selectable : ""} ${isSelected ? styles.selected : ""}`}
+                  className={`${styles.notificationItem} ${!notification.read ? styles.unread : ""} ${typeClass} ${isDeleteMode ? styles.selectable : ""} ${isSelected ? styles.selected : ""}`}
                   onClick={() => handleNotificationClick(notification)}
                 >
-                  {/* Tanpa checkbox: tidak ada elemen tambahan di baris, jadi
-                      ukuran card IDENTIK antara mode normal & mode hapus.
-                      Seleksi cukup ditandai warna merah pada card (.selected)
-                      + bar merah di tepi kiri — klik / Spasi / Enter toggle. */}
                   <div className={styles.notificationIcon}>
-                    {/* Titik unread pindah ke CSS (.unread .notificationIcon::after)
-                        supaya tidak pernah bertabrakan dengan elemen lain. */}
-                    <Bell style={{ width: "18px", height: "18px", opacity: notification.read ? 0.45 : 1 }} />
+                    {renderIcon()}
                   </div>
                   <div className={styles.notificationContent} style={{ opacity: notification.read ? 0.65 : 1 }}>
                     <div className={styles.notificationTitleRow}>
@@ -509,7 +540,7 @@ export function NotificationBell({ userId }: NotificationBellProps) {
                     <p className={styles.notificationMessage}>{notification.message}</p>
                     {!isDeleteMode && (
                       <div className={styles.notificationFooter}>
-                        <span style={{ fontSize: "11px", color: "#60a5fa", fontWeight: 700 }}>
+                        <span style={{ fontSize: "11px", color: actionColor, fontWeight: 700 }}>
                           {notification.read ? "OPENED" : "VIEW TICKET →"}
                         </span>
                       </div>

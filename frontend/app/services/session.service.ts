@@ -59,12 +59,15 @@ export async function getUserSession(request: Request) {
   const lastActiveTeamId = session.get('lastActiveTeamId');
 
   if (!userId || (typeof userId !== 'string' && typeof userId !== 'number')) {
+    setAuthToken(null);
     return null;
   }
 
   // Set auth token for API calls
   if (authToken) {
     setAuthToken(authToken);
+  } else {
+    setAuthToken(null);
   }
 
   return {
@@ -105,6 +108,7 @@ export async function requireRole(request: Request, allowedRoles: string[]) {
 }
 
 export async function logout(request: Request) {
+  setAuthToken(null);
   const session = await sessionStorage.getSession(request.headers.get('Cookie'));
   
   const token = session.get('authToken');

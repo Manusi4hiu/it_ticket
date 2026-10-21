@@ -18,7 +18,9 @@ import {
   Calendar,
   Layers,
   Sparkles,
-  ClipboardList
+  ClipboardList,
+  Flame,
+  CalendarClock
 } from "lucide-react";
 import { Button } from "~/components/ui/button/button";
 import { Badge } from "~/components/ui/badge/badge";
@@ -49,14 +51,17 @@ import styles from "./style.module.css";
 
 export async function loader({ request }: Route.LoaderArgs) {
   const session = await requireAuth(request);
+  const url = new URL(request.url);
+  const teamIdParam = url.searchParams.get("teamId");
 
-  // Fetch tickets, agents, statuses, categories, priorities (semua master-driven)
-  const [ticketsRes, agents, statusesRes, categoriesRes, prioritiesRes] = await Promise.all([
-    getTickets({ per_page: 250 }),
+  // Fetch tickets, agents, statuses, categories, priorities, teams (semua master-driven)
+  const [ticketsRes, agents, statusesRes, categoriesRes, prioritiesRes, teamsRes] = await Promise.all([
+    getTickets({ per_page: 350, teamId: teamIdParam || undefined }),
     getAgents(),
     settingsApi.getStatuses(),
     settingsApi.getCategories(),
-    settingsApi.getPriorities()
+    settingsApi.getPriorities(),
+    settingsApi.getTeams().catch(() => ({ success: false, data: [] }))
   ]);
 
   return Response.json({
@@ -65,12 +70,14 @@ export async function loader({ request }: Route.LoaderArgs) {
     agents,
     statuses: (statusesRes.data?.data || []).filter((s: any) => s.showOnItHelpdesk !== false),
     categories: categoriesRes.data?.data || [],
-    priorities: (prioritiesRes.data?.data || []).filter((p: any) => p.isActive !== false)
+    priorities: (prioritiesRes.data?.data || []).filter((p: any) => p.isActive !== false),
+    teams: ((teamsRes as any)?.data || []) as any[],
+    activeTeamId: teamIdParam || session.lastActiveTeamId || null,
   });
 }
 
 export default function TicketCalendar() {
-  const { session, initialTickets, agents, statuses, categories, priorities } = useLoaderData() as typeof loader extends (...args: any[]) => Promise<infer T> ? T : any;
+  const { session, initialTickets, agents, statuses, categories, priorities, teams = [], activeTeamId } = useLoaderData() as typeof loader extends (...args: any[]) => Promise<infer T> ? T : any;
   const navigate = useNavigate();
 
   // Tickets state
@@ -78,10 +85,11 @@ export default function TicketCalendar() {
   const [searchQuery, setSearchQuery] = useState("");
 
   // Filters state
+  const [selectedTeam, setSelectedTeam] = useState<string>(activeTeamId ? String(activeTeamId) : "all");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedPriority, setSelectedPriority] = useState("all");
   const [selectedStatus, setSelectedStatus] = useState("all");
-  const [dateField, setDateField] = useState<"deadline" | "created">("deadline"); // "deadline" (SLA) or "created" (Created Date)
+  const [dateField, setDateField] = useState<"deadline" | "created">("deadline"); // "deadline" (Target Deadline) or "created" (Created Date)
 
   // Current calendar month view state
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -181,6 +189,21 @@ export default function TicketCalendar() {
   // Filtered tickets
   const filteredTickets = useMemo(() => {
     return tickets.filter((t) => {
+      // Team filter
+      if (selectedTeam !== "all") {
+        if (selectedTeam === "2") {
+          // COC / Graphic Design
+          const isCoc = t.teamId === 2 || t.teamCode === "COC" || (t.category || "").toLowerCase().includes("design");
+          if (!isCoc) return false;
+        } else if (selectedTeam === "1") {
+          // IT
+          const isIt = t.teamId === 1 || t.teamCode === "IT" || !(t.category || "").toLowerCase().includes("design");
+          if (!isIt) return false;
+        } else if (String(t.teamId) !== String(selectedTeam)) {
+          return false;
+        }
+      }
+
       // Search text filter
       const matchesSearch = searchQuery.trim() === "" ||
         t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -199,9 +222,9 @@ export default function TicketCalendar() {
 
       return matchesSearch && matchesCategory && matchesPriority && matchesStatus;
     });
-  }, [tickets, searchQuery, selectedCategory, selectedPriority, selectedStatus]);
+  }, [tickets, selectedTeam, searchQuery, selectedCategory, selectedPriority, selectedStatus]);
 
-  // Map tickets to calendar days
+  // Map tickets to calendar days and sort chronologically by deadline time
   const ticketsByDay = useMemo(() => {
     const map: Record<string, Ticket[]> = {};
 
@@ -218,8 +241,73 @@ export default function TicketCalendar() {
       map[key].push(ticket);
     });
 
+    // Urutkan tiket di tiap tanggal secara kronologis berdasarkan jam deadline
+    Object.keys(map).forEach((k) => {
+      map[k].sort((a, b) => {
+        const timeA = new Date(dateField === "deadline" ? (a.slaDeadline || a.createdAt) : a.createdAt).getTime();
+        const timeB = new Date(dateField === "deadline" ? (b.slaDeadline || b.createdAt) : b.createdAt).getTime();
+        return timeA - timeB;
+      });
+    });
+
     return map;
   }, [filteredTickets, dateField]);
+
+  // Ringkasan beban kerja dan target rilis bulanan (untuk visualisasi hari padat vs longgar)
+  const monthSummary = useMemo(() => {
+    const inMonth = filteredTickets.filter((t) => {
+      const d = dateField === "deadline" ? t.slaDeadline : t.createdAt;
+      if (!d) return false;
+      const dt = new Date(d);
+      return dt.getFullYear() === year && dt.getMonth() === month;
+    });
+
+    const total = inMonth.length;
+    const now = Date.now();
+    const overdue = inMonth.filter((t) => {
+      const isDone = ["resolved", "closed", "completed"].includes((t.status || "").toLowerCase());
+      if (isDone) return false;
+      return t.slaDeadline && new Date(t.slaDeadline).getTime() < now;
+    }).length;
+
+    const dueSoon = inMonth.filter((t) => {
+      const isDone = ["resolved", "closed", "completed"].includes((t.status || "").toLowerCase());
+      if (isDone || !t.slaDeadline) return false;
+      const diff = new Date(t.slaDeadline).getTime() - now;
+      return diff > 0 && diff <= 24 * 60 * 60 * 1000;
+    }).length;
+
+    const completed = inMonth.filter((t) =>
+      ["resolved", "closed", "completed"].includes((t.status || "").toLowerCase())
+    ).length;
+
+    // Hitung hari dengan jadwal rilis terpadat
+    const dayCounts: Record<number, number> = {};
+    inMonth.forEach((t) => {
+      const d = dateField === "deadline" ? t.slaDeadline : t.createdAt;
+      if (!d) return;
+      const dayNum = new Date(d).getDate();
+      dayCounts[dayNum] = (dayCounts[dayNum] || 0) + 1;
+    });
+
+    let peakDayNum: number | null = null;
+    let peakCount = 0;
+    Object.entries(dayCounts).forEach(([dayStr, c]) => {
+      if (c > peakCount) {
+        peakCount = c;
+        peakDayNum = parseInt(dayStr, 10);
+      }
+    });
+
+    return {
+      total,
+      overdue,
+      dueSoon,
+      completed,
+      peakDayNum,
+      peakCount,
+    };
+  }, [filteredTickets, dateField, year, month]);
 
   // Helper to check if a day is today
   const isToday = (date: Date) => {
@@ -446,11 +534,11 @@ export default function TicketCalendar() {
       <div className={styles.banner}>
         <div>
           <h2 className={styles.bannerTitle}>
-            <Calendar size={22} className={styles.bannerIcon} />
-            IT Tickets Calendar
+            <CalendarClock size={22} className={styles.bannerIcon} />
+            {selectedTeam === "2" ? "Kalender Jadwal Rilis & Deadline Graphic Design" : "Kalender Jadwal Rilis & Target Deadline"}
           </h2>
           <p className={styles.bannerSubtitle}>
-            Browse, manage, and schedule helpdesk tickets and development tasks on a calendar view
+            Pantau jadwal rilis desain dan beban kerja harian (hari padat vs longgar) secara visual berdasarkan Target Deadline
           </p>
         </div>
         <Button onClick={() => setIsAddDialogOpen(true)} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg">
@@ -459,12 +547,95 @@ export default function TicketCalendar() {
         </Button>
       </div>
 
+      {/* Monthly Workload & Deadline Summary Bar */}
+      <div className={styles.summaryGrid}>
+        <div className={styles.summaryCard}>
+          <div className={styles.summaryIconBox} style={{ background: "rgba(59, 130, 246, 0.2)", color: "#60a5fa" }}>
+            <CalendarClock size={22} />
+          </div>
+          <div className={styles.summaryContent}>
+            <span className={styles.summaryLabel}>
+              {dateField === "deadline" ? "Target Rilis Bulan Ini" : "Tiket Dibuat Bulan Ini"}
+            </span>
+            <span className={styles.summaryValue}>{monthSummary.total}</span>
+            <span className={styles.summarySubtext}>
+              {monthNames[month]} {year} • {selectedTeam === "2" ? "Tim Graphic Design" : selectedTeam === "1" ? "Tim IT" : "Semua Tim"}
+            </span>
+          </div>
+        </div>
+
+        <div className={styles.summaryCard}>
+          <div className={styles.summaryIconBox} style={{ background: monthSummary.peakCount >= 5 ? "rgba(239, 68, 68, 0.2)" : "rgba(245, 158, 11, 0.2)", color: monthSummary.peakCount >= 5 ? "#f87171" : "#fbbf24" }}>
+            <Flame size={22} />
+          </div>
+          <div className={styles.summaryContent}>
+            <span className={styles.summaryLabel}>Hari Paling Padat</span>
+            <span className={styles.summaryValue}>
+              {monthSummary.peakCount > 0 ? `Tgl ${monthSummary.peakDayNum}` : "-"}
+            </span>
+            <span className={styles.summarySubtext}>
+              {monthSummary.peakCount > 0
+                ? `${monthSummary.peakCount} rilis deadline (${monthSummary.peakCount >= 5 ? "🔥 Padat" : monthSummary.peakCount >= 3 ? "⚡ Sedang" : "🌱 Longgar"})`
+                : "Tidak ada jadwal deadline"}
+            </span>
+          </div>
+        </div>
+
+        <div className={styles.summaryCard}>
+          <div className={styles.summaryIconBox} style={{ background: "rgba(245, 158, 11, 0.2)", color: "#f59e0b" }}>
+            <Clock size={22} />
+          </div>
+          <div className={styles.summaryContent}>
+            <span className={styles.summaryLabel}>Mendekati Deadline (&lt; 24j)</span>
+            <span className={styles.summaryValue}>{monthSummary.dueSoon}</span>
+            <span className={styles.summarySubtext}>Perlu diprioritaskan penyelesaiannya</span>
+          </div>
+        </div>
+
+        <div className={styles.summaryCard}>
+          <div className={styles.summaryIconBox} style={{ background: "rgba(239, 68, 68, 0.2)", color: "#ef4444" }}>
+            <AlertTriangle size={22} />
+          </div>
+          <div className={styles.summaryContent}>
+            <span className={styles.summaryLabel}>Lewat Deadline (Overdue)</span>
+            <span className={styles.summaryValue} style={{ color: monthSummary.overdue > 0 ? "#f87171" : "#ffffff" }}>
+              {monthSummary.overdue}
+            </span>
+            <span className={styles.summarySubtext}>
+              {monthSummary.overdue > 0 ? "⚠️ Melebihi target deadline pembuat" : "Semua deadline terkendali"}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Workload / Density Legend Bar */}
+      <div className={styles.legendBar}>
+        <div className={styles.legendItems}>
+          <span className={styles.legendLabel}>
+            <Layers size={14} />
+            Indikator Kepadatan Jadwal Rilis:
+          </span>
+          <span className={`${styles.legendPill} ${styles.legendPillLonggar}`}>
+            🌱 Longgar (1–2 rilis)
+          </span>
+          <span className={`${styles.legendPill} ${styles.legendPillSedang}`}>
+            ⚡ Sedang (3–4 rilis)
+          </span>
+          <span className={`${styles.legendPill} ${styles.legendPillPadat}`}>
+            🔥 Padat (≥ 5 rilis)
+          </span>
+        </div>
+        <div style={{ fontSize: "0.72rem", color: "rgba(255,255,255,0.45)", display: "flex", alignItems: "center", gap: 4 }}>
+          <span>Mode: <strong>{dateField === "deadline" ? "Berdasarkan Target Waktu Deadline" : "Berdasarkan Waktu Tiket Dibuat"}</strong></span>
+        </div>
+      </div>
+
       <div className={styles.contentArea}>
         {/* Controls / Filter Bar */}
         <div className={styles.filterBar}>
           <div className={styles.filtersGroup}>
             {/* Search Input */}
-            <div style={{ position: "relative", minWidth: 200 }}>
+            <div style={{ position: "relative", minWidth: 180 }}>
               <Search style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.4)" }} size={14} />
               <Input
                 placeholder="Search tickets..."
@@ -473,6 +644,18 @@ export default function TicketCalendar() {
                 style={{ paddingLeft: 30, background: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.1)", color: "#fff", height: 36, borderRadius: 8 }}
               />
             </div>
+
+            {/* Team Workspace Select */}
+            <Select value={selectedTeam} onValueChange={setSelectedTeam}>
+              <SelectTrigger style={{ width: 170, background: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.1)", height: 36, color: "#fff" }}>
+                <SelectValue placeholder="Semua Tim" />
+              </SelectTrigger>
+              <SelectContent style={{ background: "#1e1b4b", border: "1px solid rgba(255,255,255,0.2)", color: "#fff" }}>
+                <SelectItem value="all">Semua Tim</SelectItem>
+                <SelectItem value="2">Graphic Design (COC)</SelectItem>
+                <SelectItem value="1">IT Helpdesk</SelectItem>
+              </SelectContent>
+            </Select>
 
             {/* Category Select */}
             <Select value={selectedCategory} onValueChange={setSelectedCategory}>
@@ -513,21 +696,23 @@ export default function TicketCalendar() {
               </SelectContent>
             </Select>
 
-            {/* Toggle between SLA deadline and Created date */}
+            {/* Toggle between Target Deadline and Created date */}
             <div className={styles.dateFieldToggle}>
               <button
                 type="button"
                 className={`${styles.toggleBtn} ${dateField === "deadline" ? styles.toggleBtnActive : ""}`}
                 onClick={() => setDateField("deadline")}
+                title="Tampilkan berdasarkan Target Deadline penyelesaian desain / SLA"
               >
-                SLA Deadline
+                🎯 Target Deadline
               </button>
               <button
                 type="button"
                 className={`${styles.toggleBtn} ${dateField === "created" ? styles.toggleBtnActive : ""}`}
                 onClick={() => setDateField("created")}
+                title="Tampilkan berdasarkan tanggal pembuatan tiket"
               >
-                Created Date
+                📅 Tanggal Dibuat
               </button>
             </div>
           </div>
@@ -567,36 +752,98 @@ export default function TicketCalendar() {
               const dayTickets = ticketsByDay[dayKey] || [];
               const isCurr = day.isCurrentMonth;
               const isTodayCell = isToday(day.date);
+              const count = dayTickets.length;
+
+              const densityClass =
+                count >= 5
+                  ? styles.dayCellPadat
+                  : count >= 3
+                  ? styles.dayCellSedang
+                  : count >= 1
+                  ? styles.dayCellLonggar
+                  : "";
 
               return (
                 <div
                   key={idx}
-                  className={`${styles.dayCell} ${!isCurr ? styles.dayCellOutside : ""} ${isTodayCell ? styles.dayCellToday : ""}`}
+                  className={`${styles.dayCell} ${!isCurr ? styles.dayCellOutside : ""} ${isTodayCell ? styles.dayCellToday : ""} ${densityClass}`}
                 >
                   <div className={styles.cellHeader}>
                     <span className={styles.dayNumber}>{day.date.getDate()}</span>
-                    {dayTickets.length > 0 && (
-                      <span className={styles.ticketCountBadge}>
-                        {dayTickets.length}
+                    {count >= 5 ? (
+                      <span className={styles.densityBadgePadat} title="Jadwal Padat: ≥5 rilis desain">
+                        🔥 Padat ({count})
                       </span>
-                    )}
+                    ) : count >= 3 ? (
+                      <span className={styles.densityBadgeSedang} title="Jadwal Sedang: 3-4 rilis desain">
+                        ⚡ Sedang ({count})
+                      </span>
+                    ) : count >= 1 ? (
+                      <span className={styles.densityBadgeLonggar} title="Jadwal Longgar: 1-2 rilis desain">
+                        🌱 {count} Rilis
+                      </span>
+                    ) : null}
                   </div>
 
                   <div className={styles.cellTickets}>
-                    {dayTickets.map((t) => (
-                      <div
-                        key={t.id}
-                        className={styles.ticketItem}
-                        style={{ borderLeftColor: getPriorityColor(t.priority) }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenDetail(t);
-                        }}
-                        title={`${t.ticketCode || t.id}: ${t.title}`}
-                      >
-                        {t.ticketCode ? `[${t.ticketCode}] ` : ""}{t.title}
-                      </div>
-                    ))}
+                    {dayTickets.map((t) => {
+                      const isDesign = (t.teamCode === "COC" || t.teamId === 2 || (t.category || "").toLowerCase().includes("design"));
+                      const isDone = ["resolved", "closed", "completed"].includes((t.status || "").toLowerCase());
+                      const isOverdue = t.slaDeadline && new Date(t.slaDeadline).getTime() < Date.now() && !isDone;
+                      const isDueToday = t.slaDeadline && isToday(new Date(t.slaDeadline)) && !isDone;
+
+                      const deadlineTimeStr = t.slaDeadline
+                        ? new Date(t.slaDeadline).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })
+                        : null;
+
+                      return (
+                        <div
+                          key={t.id}
+                          className={styles.ticketItem}
+                          style={{ borderLeftColor: getPriorityColor(t.priority) }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenDetail(t);
+                          }}
+                          title={`${t.ticketCode || t.id}: ${t.title} (${t.status})`}
+                        >
+                          <div className={styles.ticketCardHeader}>
+                            {dateField === "deadline" && deadlineTimeStr ? (
+                              <span className={styles.ticketTime}>
+                                <Clock size={10} />
+                                {deadlineTimeStr}
+                              </span>
+                            ) : (
+                              <span style={{ fontSize: "0.65rem", color: "rgba(255,255,255,0.45)" }}>
+                                {t.ticketCode || `#${t.id}`}
+                              </span>
+                            )}
+
+                            {isDone ? (
+                              <span className={styles.badgeDone}>✓ Selesai</span>
+                            ) : isOverdue ? (
+                              <span className={styles.badgeOverdue}>⚠️ Overdue</span>
+                            ) : isDueToday ? (
+                              <span className={styles.badgeDueToday}>🎯 Hari Ini</span>
+                            ) : isDesign ? (
+                              <span className={styles.badgeCoc}>COC</span>
+                            ) : null}
+                          </div>
+
+                          <span className={styles.ticketTitleText}>
+                            {t.ticketCode ? `[${t.ticketCode}] ` : ""}{t.title}
+                          </span>
+
+                          <div className={styles.ticketFooter}>
+                            <span className={styles.ticketAssignee}>
+                              <User size={10} />
+                              {t.assignedTo || "Unassigned"}
+                            </span>
+                            <span style={{ opacity: 0.6 }}>{t.category}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               );

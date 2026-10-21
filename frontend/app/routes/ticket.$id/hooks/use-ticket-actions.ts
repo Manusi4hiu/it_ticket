@@ -8,7 +8,7 @@
  * di ticket.$id hanya fokus pada rendering.
  */
 
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { useToast } from "~/hooks/use-toast";
 import { useNavigate } from "react-router";
 import {
@@ -69,6 +69,19 @@ export function useTicketActions({
   const [collaboratorIds, setCollaboratorIds] = useState<string[]>(
     (initialTicket?.collaboratorIds || []).map(String)
   );
+
+  // Sinkronisasi state ketika initialTicket berganti (navigasi client-side)
+  useEffect(() => {
+    if (initialTicket) {
+      setTicket(initialTicket);
+      setStatus(initialTicket.status || "New");
+      setPriority(initialTicket.priority || "medium");
+      setCategory(initialTicket.category || "Uncategorized");
+      setAssignedTo(initialTicket.assignedTo || "");
+      setCollaborators(initialTicket.collaborators || []);
+      setCollaboratorIds((initialTicket.collaboratorIds || []).map(String));
+    }
+  }, [initialTicket?.id, initialTicket?.ticketCode, initialTicket?.updatedAt]);
 
   // ── Note State ──
   const [newNote, setNewNote] = useState("");

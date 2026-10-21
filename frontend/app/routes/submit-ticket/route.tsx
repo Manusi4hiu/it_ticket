@@ -23,7 +23,9 @@ import {
     MessageSquare,
     Image as ImageIcon,
     X,
+    Clock,
 } from "lucide-react";
+import { toDatetimeLocalString } from "~/utils/date";
 import styles from "./style.module.css";
 
 import { createTicket } from "~/services/ticket.service";
@@ -45,9 +47,13 @@ export async function loader({ request }: Route.LoaderArgs) {
         settingsApi.getTeams()
     ]);
 
+    const url = new URL(request.url);
+    const initialTeamParam = url.searchParams.get("team") || url.searchParams.get("teamId") || url.searchParams.get("teamCode") || "";
+
     return {
         isAuthenticated: Boolean(session),
         homePath: session ? "/dashboard" : "/",
+        initialTeamParam,
         categories: (categoriesRes.data?.data || []) as Category[],
         priorities: (prioritiesRes.data?.data || []) as Priority[],
         departments: (departmentsRes.data?.data || []) as Department[],
@@ -64,6 +70,8 @@ export async function action({ request }: Route.ActionArgs) {
     const priority = (formData.get("priority") as string || 'medium').trim();
     const category = (formData.get("category") as string || "Uncategorized").trim();
     const teamId = (formData.get("teamId") as string || "").trim();
+    const teamCode = (formData.get("teamCode") as string || "").trim();
+    const deadlineRaw = (formData.get("deadline") as string || "").trim();
     const subject = (formData.get("subject") as string || "").trim();
     const description = (formData.get("description") as string || "").trim();
     const receiveUpdates = formData.get("receiveUpdates") === "true" || formData.get("receiveUpdates") === "on";
@@ -101,6 +109,24 @@ export async function action({ request }: Route.ActionArgs) {
         return { error: "Nomor telepon hanya boleh berisi angka dan simbol +, -, ()" };
     }
 
+    // Validasi deadline untuk tiket Graphic Design / COC
+    const isGraphicDesignTicket = teamCode.toUpperCase() === "COC" || category.toLowerCase().includes("design");
+    if (isGraphicDesignTicket && !deadlineRaw) {
+        return { error: "Waktu deadline wajib diisi untuk tiket Graphic Design" };
+    }
+
+    let deadlineIso: string | undefined = undefined;
+    if (deadlineRaw) {
+        const d = new Date(deadlineRaw);
+        if (isNaN(d.getTime())) {
+            return { error: "Format Waktu Deadline tidak valid" };
+        }
+        if (d.getTime() < Date.now() - 60 * 1000) {
+            return { error: "Waktu deadline tidak boleh di masa lalu" };
+        }
+        deadlineIso = d.toISOString();
+    }
+
     try {
         const newTicket = await createTicket({
             title: subject,
@@ -113,6 +139,8 @@ export async function action({ request }: Route.ActionArgs) {
             submitterDepartment: department,
             receiveUpdates: receiveUpdates,
             teamId: teamId || undefined,
+            teamCode: teamCode || undefined,
+            deadline: deadlineIso,
         }, validImage, idempotencyKey);
 
         if (!newTicket) {
@@ -128,13 +156,17 @@ export async function action({ request }: Route.ActionArgs) {
 }
 
 export default function SubmitTicket({ actionData, loaderData }: Route.ComponentProps) {
-    const { priorities, departments, homePath, teams, categories } = loaderData;
+    const { priorities, departments, homePath, teams, categories, initialTeamParam } = loaderData;
     const navigate = useNavigate();
     const navigation = useNavigation();
     const isSubmitting = navigation.state !== "idle";
     const [imagePreview, setImagePreview] = React.useState<string | null>(null);
     const [fileError, setFileError] = React.useState<string | null>(null);
     const [selectedTeamId, setSelectedTeamId] = React.useState<string>(() => {
+        if (initialTeamParam) {
+            const found = teams.find(t => String(t.id) === initialTeamParam || t.code.toLowerCase() === initialTeamParam.toLowerCase());
+            if (found) return String(found.id);
+        }
         // Default: team IT (code IT), fallback team pertama.
         const it = teams.find(t => t.code === 'IT') ?? teams[0];
         return it ? String(it.id) : "";
@@ -147,6 +179,16 @@ export default function SubmitTicket({ actionData, loaderData }: Route.Component
     // - teamId NULL = global (tampil semua team)
     // - teamId terpilih = global + kategori team tsb
     const filteredCategories = categories.filter(c => c.isActive && (!c.teamId || String(c.teamId) === selectedTeamId));
+
+    const selectedTeam = teams.find(t => String(t.id) === selectedTeamId);
+    const isGraphicDesign = Boolean(
+        selectedTeam?.code === 'COC' ||
+        selectedTeam?.name.toLowerCase().includes('design')
+    );
+
+    const minDeadline = React.useMemo(() => {
+        return toDatetimeLocalString(new Date());
+    }, []);
 
     // "Back to Home" context-aware:
     // - sesi tanpa login (dari landing page)  -> "/" (landing page)
@@ -362,7 +404,29 @@ export default function SubmitTicket({ actionData, loaderData }: Route.Component
                                             </SelectContent>
                                         </Select>
                                         <input type="hidden" name="teamId" value={selectedTeamId} />
+                                        <input type="hidden" name="teamCode" value={selectedTeam?.code || ""} />
                                     </div>
+
+                                    {/* Deadline field khusus tiket Graphic Design (COC) */}
+                                    {isGraphicDesign && (
+                                        <div className={styles.formGroup}>
+                                            <Label htmlFor="deadline" className={styles.label}>
+                                                <Clock size={14} />
+                                                Waktu Deadline *
+                                            </Label>
+                                            <Input
+                                                id="deadline"
+                                                name="deadline"
+                                                type="datetime-local"
+                                                required={isGraphicDesign}
+                                                min={minDeadline}
+                                                className={styles.input}
+                                            />
+                                            <p style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
+                                                Tentukan target tanggal & waktu deadline penyelesaian kebutuhan desain ini.
+                                            </p>
+                                        </div>
+                                    )}
 
                                     <div className={styles.formGroup}>
                                         <Label htmlFor="category" className={styles.label}>

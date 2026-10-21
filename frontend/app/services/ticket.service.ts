@@ -7,7 +7,7 @@
  * Types are imported from ~/types/*, NOT defined here.
  */
 
-import { ticketsApi, usersApi } from './api.service';
+import { ticketsApi, usersApi, setAuthToken } from './api.service';
 import type { Ticket, TicketNote, SLAStatus } from '~/types/ticket.types';
 import type { Agent } from '~/types/user.types';
 
@@ -57,6 +57,7 @@ function mapApiTicket(apiTicket: Record<string, unknown>): Ticket {
         })),
         resolutionSummary: apiTicket.resolutionSummary as string | undefined,
         resolutionImageUrl: apiTicket.resolutionImageUrl as string | undefined,
+        hasStaffAccess: apiTicket.hasStaffAccess as boolean | undefined,
     };
 }
 
@@ -95,7 +96,14 @@ export async function getTickets(filters?: {
 }
 
 export async function getTicketById(id: string): Promise<Ticket | null> {
-    const response = await ticketsApi.getById(id);
+    let response = await ticketsApi.getById(id);
+
+    // If request failed due to auth/token issues (e.g. revoked or expired token in SSR), retry as public tracking
+    const errStr = (response.error || '').toLowerCase();
+    if (!response.success && (errStr.includes('token') || errStr.includes('401') || errStr.includes('unauthorized'))) {
+        setAuthToken(null);
+        response = await ticketsApi.getById(id);
+    }
 
     if (!response.success || !response.data) {
         console.error('Failed to fetch ticket:', response.error);
@@ -117,6 +125,7 @@ export async function createTicket(ticket: {
     receiveUpdates?: boolean;
     teamId?: number | string;
     teamCode?: string;
+    deadline?: string;
 }, image?: File, idempotencyKey?: string): Promise<Ticket | null> {
     const response = await ticketsApi.create(ticket, image, idempotencyKey);
 

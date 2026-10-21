@@ -53,25 +53,13 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   const session = await getUserSession(request);
   const ticketId_val = params.id!;
 
-  // Blokir akses via numeric ID langsung (e.g. /ticket/105)
-  // User harus menggunakan ticket code (e.g. FIN-006)
-  if (/^\d+$/.test(ticketId_val)) {
-    return Response.json({
-      session,
-      ticket: null as Ticket | null,
-      invalidNumericId: true,
-      agents: [],
-      priorities: [] as Priority[],
-      statuses: [] as Status[],
-      categories: [] as Category[],
-    });
-  }
+  // Mendukung akses via ticket code maupun numeric ID langsung
 
   // Fetch semua data secara paralel
   const [ticket, agents, prioritiesRes, statusesRes, categoriesRes] =
     await Promise.all([
       getTicketById(ticketId_val),
-      getAgents(),
+      session ? getAgents() : Promise.resolve([]),
       session
         ? settingsApi.getPriorities()
         : Promise.resolve({ success: true, data: { data: [] } }),
@@ -111,7 +99,7 @@ export default function TicketDetail({ loaderData }: Route.ComponentProps) {
   const params = useParams();
 
   // ── View Mode ──
-  const isPublic = !session;
+  const isPublic = !session || initialTicket?.hasStaffAccess === false;
   const isManagement = session?.userRole === "Management";
   const isAdministrator = session?.userRole === "Administrator";
 
@@ -272,7 +260,7 @@ export default function TicketDetail({ loaderData }: Route.ComponentProps) {
               />
             </div>
           ) : (
-            <PublicSidebar status={ticket.status} />
+            <PublicSidebar status={ticket.status} deadline={ticket.slaDeadline} />
           )}
         </div>
 

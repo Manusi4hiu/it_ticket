@@ -8,7 +8,7 @@ from app.utils.security import sanitize_html, NOTE_ALLOWED_TAGS
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 from flask import current_app, has_app_context
-from app.constants import DEV_CATEGORY
+from app.constants import DEV_CATEGORY, TEAM_COC_CODE
 
 def _report_tz():
     """Zona waktu pelaporan (batas hari grafik/analytics).
@@ -246,6 +246,21 @@ class TicketService:
         return sla_hours_map.get(priority_name.lower() if priority_name else 'medium', 24)
 
     @staticmethod
+    def is_graphic_design_ticket(ticket):
+        """Cek apakah tiket merupakan tiket Graphic Design / COC (kreatif)"""
+        if not ticket:
+            return False
+        team = getattr(ticket, 'team', None)
+        if team and (team.code == TEAM_COC_CODE or 'design' in (team.name or '').lower()):
+            return True
+        if getattr(ticket, 'team_id', None) == 2:
+            return True
+        cat = getattr(ticket, 'category', '') or ''
+        if 'design' in cat.lower():
+            return True
+        return False
+
+    @staticmethod
     def _resolve_team(data):
         """Resolve team pemilik ticket dari input.
 
@@ -363,14 +378,35 @@ class TicketService:
 
         # Transaction for Atomicity
         try:
-            # SLA only runs when the ticket is claimed/assigned
+            # SLA & Deadline Logic
+            # Untuk tiket Graphic Design / COC, deadline ditentukan oleh pembuat tiket (pasti),
+            # sedangkan tiket IT ditentukan oleh SLA priority setelah diambil/di-assign.
+            is_coc_or_design = (
+                (team and (team.code == TEAM_COC_CODE or 'design' in (team.name or '').lower())) or
+                (str(category or '').strip().lower() in ('graphic design', 'design', 'desain')) or
+                ('design' in str(category or '').lower())
+            )
+
+            deadline_input = data.get('deadline') or data.get('slaDeadline')
             sla_deadline = None
-            if assigned_to_id:
+            sla_taken_at = None
+
+            if deadline_input and str(deadline_input).strip():
+                clean_dl = str(deadline_input).strip()
+                try:
+                    if clean_dl.endswith('Z') or '+' in clean_dl.split('T')[-1] or ('-' in clean_dl.split('T')[-1] and not clean_dl.split('T')[-1].startswith('-')):
+                        dt_parsed = datetime.fromisoformat(clean_dl.replace('Z', '+00:00'))
+                        sla_deadline = dt_parsed.astimezone(timezone.utc).replace(tzinfo=None)
+                    else:
+                        sla_deadline = datetime.fromisoformat(clean_dl)
+                except Exception as e:
+                    raise ValueError(f"Format deadline tidak valid: {str(e)}")
+            elif assigned_to_id and not is_coc_or_design:
                 hours = TicketService.get_sla_hours_for_ticket(priority, category)
                 sla_deadline = datetime.now(timezone.utc) + timedelta(hours=hours)
+
+            if assigned_to_id:
                 sla_taken_at = datetime.now(timezone.utc)
-            else:
-                sla_taken_at = None
             
             # Fetch department info (identitas PEMOHON — penentu prefix kode tiket)
             dept_code = "TKT"
@@ -422,7 +458,7 @@ class TicketService:
                 image_url=image_url,
                 idempotency_key=idempotency_key,
                 sla_deadline=sla_deadline,
-                sla_status='good',
+                sla_status=TicketService.calculate_sla_status(sla_deadline, None, None, None) if sla_deadline else 'good',
                 taken_at=sla_taken_at,
                 ticket_code=ticket_code,
                 code_counter=new_counter,
@@ -722,6 +758,16 @@ class TicketService:
                 was_done = str(old_status_name).strip().lower() in ('resolved', 'closed')
                 if not (was_done and ticket.resolved_at):
                     ticket.resolved_at = datetime.now(timezone.utc)
+                # Auto-mark unread SLA & Deadline notifications as read saat tiket selesai
+                try:
+                    from app.models.notification import Notification
+                    Notification.query.filter(
+                        Notification.ticket_id == ticket.id,
+                        Notification.type.in_(['sla_warning', 'sla_breached', 'deadline_warning', 'deadline_breached']),
+                        Notification.is_read == False
+                    ).update({'is_read': True}, synchronize_session=False)
+                except Exception:
+                    pass
             # Auto-assign: tiap perubahan status ke non-New berarti aktor
             # mengambil alih tiket — unassigned -> assignee = aktor.
             # (Status New = pool, boleh unassigned.)
@@ -801,6 +847,21 @@ class TicketService:
                     raise ve
                 pass
 
+        if 'deadline' in data or 'slaDeadline' in data:
+            new_dl = data.get('deadline') or data.get('slaDeadline')
+            if new_dl and str(new_dl).strip():
+                clean_dl = str(new_dl).strip()
+                try:
+                    if clean_dl.endswith('Z') or '+' in clean_dl.split('T')[-1] or ('-' in clean_dl.split('T')[-1] and not clean_dl.split('T')[-1].startswith('-')):
+                        dt_parsed = datetime.fromisoformat(clean_dl.replace('Z', '+00:00'))
+                        ticket.sla_deadline = dt_parsed.astimezone(timezone.utc).replace(tzinfo=None)
+                    else:
+                        ticket.sla_deadline = datetime.fromisoformat(clean_dl)
+                except Exception as e:
+                    raise ValueError(f"Format deadline tidak valid: {str(e)}")
+            elif new_dl is None:
+                ticket.sla_deadline = None
+
         if 'assignedToId' in data:
             prev_assigned_id = ticket.assigned_to_id
             new_assigned_id = data['assignedToId']
@@ -867,21 +928,26 @@ class TicketService:
                 )
                 ticket.status = new_status_name
                 
+            is_design = TicketService.is_graphic_design_ticket(ticket)
             if ticket.assigned_to_id:
-                if not prev_assigned_id or not ticket.sla_deadline:
+                # Untuk tiket IT, hitung SLA dari priority jika belum ada deadline.
+                # Untuk Graphic Design / COC, deadline ditentukan oleh pembuat tiket, jangan ditimpa!
+                if not is_design and (not prev_assigned_id or not ticket.sla_deadline):
                     hours = TicketService.get_sla_hours_for_ticket(ticket.priority, ticket.category)
                     ticket.sla_deadline = datetime.now(timezone.utc) + timedelta(hours=hours)
                 # Set taken_at only on first assignment
                 if not prev_assigned_id and not ticket.taken_at:
                     ticket.taken_at = datetime.now(timezone.utc)
             else:
-                ticket.sla_deadline = None
+                if not is_design:
+                    ticket.sla_deadline = None
                 ticket.taken_at = None
         elif (priority_changed or category_changed) and ticket.assigned_to_id:
-            # Recalculate deadline from taken_at preserving elapsed time
-            hours = TicketService.get_sla_hours_for_ticket(ticket.priority, ticket.category)
-            base_time = ticket.taken_at or ticket.created_at or datetime.now(timezone.utc)
-            ticket.sla_deadline = base_time + timedelta(hours=hours)
+            # Recalculate deadline from taken_at preserving elapsed time ONLY for IT tickets
+            if not TicketService.is_graphic_design_ticket(ticket):
+                hours = TicketService.get_sla_hours_for_ticket(ticket.priority, ticket.category)
+                base_time = ticket.taken_at or ticket.created_at or datetime.now(timezone.utc)
+                ticket.sla_deadline = base_time + timedelta(hours=hours)
             
         if 'collaboratorIds' in data:
             # Clear existing collaborators and add new ones
@@ -1026,8 +1092,8 @@ class TicketService:
 
             ticket.assigned_to_id = user_id
 
-            # Postpone SLA deadline calculation until it is assigned (taken)
-            if not ticket.sla_deadline:
+            # Postpone SLA deadline calculation until it is assigned (taken) - IT tickets only
+            if not ticket.sla_deadline and not TicketService.is_graphic_design_ticket(ticket):
                 hours = TicketService.get_sla_hours_for_ticket(ticket.priority, ticket.category)
                 ticket.sla_deadline = datetime.now(timezone.utc) + timedelta(hours=hours)
             # Set taken_at only on first assignment (marker "pernah diambil" —
@@ -1103,8 +1169,9 @@ class TicketService:
             if ticket.status.lower() in ('resolved', 'closed', 'completed'):
                 return None, f"Ticket dengan status '{ticket.status}' tidak bisa diubah assigneenya. Ubah statusnya terlebih dahulu dari '{ticket.status}' ke status lain."
             ticket.assigned_to_id = None
-            ticket.sla_deadline = None
-            ticket.sla_status = 'good'
+            if not TicketService.is_graphic_design_ticket(ticket):
+                ticket.sla_deadline = None
+                ticket.sla_status = 'good'
             ticket.taken_at = None
             # Revert to default status
             default_status = Status.query.filter_by(is_default=True).first()
@@ -1318,6 +1385,18 @@ class TicketService:
                     EmailService.send_ticket_resolved(ticket)
                 except Exception as e:
                     print(f"Failed to send resolved email: {e}")
+
+        if str(status).strip().lower() in ('resolved', 'closed', 'completed'):
+            try:
+                from app.models.notification import Notification
+                Notification.query.filter(
+                    Notification.ticket_id == ticket.id,
+                    Notification.type.in_(['sla_warning', 'sla_breached', 'deadline_warning', 'deadline_breached']),
+                    Notification.is_read == False
+                ).update({'is_read': True}, synchronize_session=False)
+                db.session.commit()
+            except Exception:
+                pass
 
         # ── Notifikasi Admin Override (via endpoint /status):
         # Admin mengubah status tiket milik staff -> alasan dikirim ke PEMILIK tiket.

@@ -62,6 +62,7 @@ export interface Ticket {
     createdAt: Date;
     updatedAt: Date;
     notes: TicketNote[];
+    hasStaffAccess?: boolean;
 }
 
 // ─────────────────────────────────────────────
@@ -113,4 +114,5 @@ export interface CreateTicketPayload {
     receiveUpdates?: boolean;
     teamId?: number | string;
     teamCode?: string;
+    deadline?: string;
 }
