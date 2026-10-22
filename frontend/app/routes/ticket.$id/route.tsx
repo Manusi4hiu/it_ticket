@@ -68,7 +68,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   }
 
   // Fetch semua data secara paralel
-  const [ticket, agents, prioritiesRes, statusesRes, categoriesRes] =
+  const [ticket, agents, prioritiesRes, statusesRes, categoriesRes, holidaysRes] =
     await Promise.all([
       getTicketById(ticketId_val),
       getAgents(),
@@ -79,6 +79,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
       session
         ? settingsApi.getCategories()
         : Promise.resolve({ success: true, data: { data: [] } }),
+      settingsApi.getHolidays(),
     ]);
 
   return Response.json({
@@ -89,6 +90,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     priorities: (prioritiesRes.data?.data || []) as Priority[],
     statuses: ((statusesRes.data?.data || []) as Status[]).filter(s => s.showOnItHelpdesk !== false),
     categories: (categoriesRes.data?.data || []) as Category[],
+    holidays: (holidaysRes.data?.data || []),
   });
 }
 
@@ -105,6 +107,7 @@ export default function TicketDetail({ loaderData }: Route.ComponentProps) {
     statuses,
     categories,
     invalidNumericId,
+    holidays,
   } = loaderData;
 
   const navigate = useNavigate();
@@ -141,6 +144,7 @@ export default function TicketDetail({ loaderData }: Route.ComponentProps) {
     agents,
     currentUser,
     statuses,
+    holidays,
   });
 
   // ── Error State: Ticket Not Found / Invalid ID ──
@@ -234,6 +238,7 @@ export default function TicketDetail({ loaderData }: Route.ComponentProps) {
                 onOpenEditResolvedAt={actions.handleOpenEditResolvedAt}
                 onSaveResolvedAt={actions.handleSaveResolvedAt}
                 onCancelEditResolvedAt={() => actions.setIsEditingResolvedAt(false)}
+                holidays={holidays}
               />
 
               <TicketActionsPanel
@@ -291,6 +296,7 @@ export default function TicketDetail({ loaderData }: Route.ComponentProps) {
           resolutionError={actions.resolutionError}
           resolutionImage={actions.resolutionImage}
           onResolutionImageChange={actions.handleResolutionImageChange}
+          holidays={holidays}
           onSubmit={actions.handleSubmitResolution}
         />
 

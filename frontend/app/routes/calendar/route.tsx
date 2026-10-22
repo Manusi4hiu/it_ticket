@@ -45,18 +45,24 @@ import { settingsApi } from "~/services/settings.service";
 import { requireAuth } from "~/services/session.service";
 import { ReasonDialog } from "~/routes/ticket.$id/components/ReasonDialog";
 import { ResolveDialog } from "~/routes/ticket.$id/components/ResolveDialog";
+import {
+  isWorkingDay,
+  validateWorkingHoursDateTime,
+  getInitialWorkingDateTime,
+} from "~/utils/date";
 import styles from "./style.module.css";
 
 export async function loader({ request }: Route.LoaderArgs) {
   const session = await requireAuth(request);
 
-  // Fetch tickets, agents, statuses, categories, priorities (semua master-driven)
-  const [ticketsRes, agents, statusesRes, categoriesRes, prioritiesRes] = await Promise.all([
+  // Fetch tickets, agents, statuses, categories, priorities, holidays (semua master-driven)
+  const [ticketsRes, agents, statusesRes, categoriesRes, prioritiesRes, holidaysRes] = await Promise.all([
     getTickets({ per_page: 250 }),
     getAgents(),
     settingsApi.getStatuses(),
     settingsApi.getCategories(),
-    settingsApi.getPriorities()
+    settingsApi.getPriorities(),
+    settingsApi.getHolidays(),
   ]);
 
   return Response.json({
@@ -65,12 +71,13 @@ export async function loader({ request }: Route.LoaderArgs) {
     agents,
     statuses: (statusesRes.data?.data || []).filter((s: any) => s.showOnItHelpdesk !== false),
     categories: categoriesRes.data?.data || [],
-    priorities: (prioritiesRes.data?.data || []).filter((p: any) => p.isActive !== false)
+    priorities: (prioritiesRes.data?.data || []).filter((p: any) => p.isActive !== false),
+    holidays: holidaysRes.data?.data || [],
   });
 }
 
 export default function TicketCalendar() {
-  const { session, initialTickets, agents, statuses, categories, priorities } = useLoaderData() as typeof loader extends (...args: any[]) => Promise<infer T> ? T : any;
+  const { session, initialTickets, agents, statuses, categories, priorities, holidays } = useLoaderData() as typeof loader extends (...args: any[]) => Promise<infer T> ? T : any;
   const navigate = useNavigate();
 
   // Tickets state
@@ -100,7 +107,7 @@ export default function TicketCalendar() {
   const [statusReason, setStatusReason] = useState("");
   const [resolutionSummary, setResolutionSummary] = useState("");
   const [resolutionError, setResolutionError] = useState("");
-  const [resolveDate, setResolveDate] = useState(new Date().toISOString().split("T")[0]);
+  const [resolveDate, setResolveDate] = useState(() => getInitialWorkingDateTime(new Date(), holidays));
   const [resolutionImage, setResolutionImage] = useState<File | null>(null);
   const [resolveCategory, setResolveCategory] = useState("");
   const [resolveCategoryError, setResolveCategoryError] = useState("");
@@ -210,6 +217,20 @@ export default function TicketCalendar() {
       if (!dateToCompare) return;
 
       const dateObj = new Date(dateToCompare);
+      if (isNaN(dateObj.getTime())) return;
+
+      // Aturan bisnis: Jika melihat SLA Deadline, tanggal akhir pekan (Sabtu/Minggu)
+      // dan hari libur nasional harus kosong (tidak ada penugasan SLA deadline di hari libur).
+      if (dateField === "deadline") {
+        const dayOfWeek = dateObj.getDay();
+        if (dayOfWeek === 0 || dayOfWeek === 6) {
+          return;
+        }
+        if (!isWorkingDay(dateObj, holidays)) {
+          return;
+        }
+      }
+
       const key = `${dateObj.getFullYear()}-${dateObj.getMonth()}-${dateObj.getDate()}`;
 
       if (!map[key]) {
@@ -219,7 +240,7 @@ export default function TicketCalendar() {
     });
 
     return map;
-  }, [filteredTickets, dateField]);
+  }, [filteredTickets, dateField, holidays]);
 
   // Helper to check if a day is today
   const isToday = (date: Date) => {
@@ -322,6 +343,7 @@ export default function TicketCalendar() {
 
     if (isResolvingWithoutSummary) {
       setPendingStatusUpdate({ ticketId, targetStatus });
+      setResolveDate(getInitialWorkingDateTime(new Date(), holidays));
       setShowResolveDialog(true);
       return;
     }
@@ -348,9 +370,9 @@ export default function TicketCalendar() {
   const handleSubmitResolution = async () => {
     if (!pendingStatusUpdate) return;
     if (resolveDate) {
-      const dateObj = new Date(resolveDate);
-      if (dateObj > new Date()) {
-        setResolutionError("Waktu penyelesaian tidak boleh di masa depan (maksimal sekarang).");
+      const validation = validateWorkingHoursDateTime(resolveDate, holidays);
+      if (!validation.valid) {
+        setResolutionError(validation.error || "Waktu penyelesaian harus di jam kerja (08:00 - 17:00 WIB, Senin - Jumat).");
         return;
       }
     }
@@ -570,6 +592,7 @@ export default function TicketCalendar() {
               const dayTickets = ticketsByDay[dayKey] || [];
               const isCurr = day.isCurrentMonth;
               const isTodayCell = isToday(day.date);
+              const isNonWorking = !isWorkingDay(day.date, holidays);
 
               return (
                 <div
@@ -578,6 +601,20 @@ export default function TicketCalendar() {
                 >
                   <div className={styles.cellHeader}>
                     <span className={styles.dayNumber}>{day.date.getDate()}</span>
+                    {dateField === "deadline" && isNonWorking && (
+                      <span
+                        style={{
+                          fontSize: "0.65rem",
+                          padding: "1px 5px",
+                          borderRadius: "4px",
+                          background: "rgba(239, 68, 68, 0.15)",
+                          color: "#f87171",
+                          fontWeight: 500,
+                        }}
+                      >
+                        Libur
+                      </span>
+                    )}
                     {dayTickets.length > 0 && (
                       <span className={styles.ticketCountBadge}>
                         {dayTickets.length}
@@ -796,6 +833,7 @@ export default function TicketCalendar() {
         resolutionError={resolutionError}
         resolutionImage={resolutionImage}
         onResolutionImageChange={setResolutionImage}
+        holidays={holidays}
         onSubmit={handleSubmitResolution}
       />
 

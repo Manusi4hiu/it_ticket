@@ -321,6 +321,14 @@ class NotificationService:
                 if ticket.sla_status != current_sla:
                     ticket.sla_status = current_sla
 
+                # Sinkronkan response_sla_status jika lewat response deadline tanpa respons
+                if not ticket.first_responded_at and ticket.response_deadline:
+                    resp_dl = ticket.response_deadline
+                    if getattr(resp_dl, 'tzinfo', None) is None:
+                        resp_dl = resp_dl.replace(tzinfo=timezone.utc)
+                    if now_utc > resp_dl and ticket.response_sla_status != 'breached':
+                        ticket.response_sla_status = 'breached'
+
                 if current_sla == 'good':
                     continue
 

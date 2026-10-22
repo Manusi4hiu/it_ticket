@@ -1,6 +1,7 @@
 import re
+from datetime import datetime, timedelta, date
 from app import db
-from app.models.master_data import Category, Priority, SLAPolicy, Department, Status, BreakSetting
+from app.models.master_data import Category, Priority, SLAPolicy, Department, Status, BreakSetting, Holiday
 from app.models.ticket import Ticket
 
 # Valid groups untuk mapping tombol segmented filter Tickets
@@ -438,3 +439,105 @@ class MasterDataService:
             setting.description = data['description']
         db.session.commit()
         return setting, None
+
+    # --- Holidays ---
+    @staticmethod
+    def get_holidays():
+        """Get all public holidays ordered by date"""
+        return Holiday.query.order_by(Holiday.holiday_date.asc()).all()
+
+    @staticmethod
+    def create_holiday(data):
+        name = data.get('name')
+        if not name or not str(name).strip():
+            return None, 'Name is required'
+        
+        name = str(name).strip()
+        is_recurring = bool(data.get('isRecurring', False))
+
+        start_date_str = data.get('startDate') or data.get('start_date') or data.get('holidayDate') or data.get('holiday_date')
+        end_date_str = data.get('endDate') or data.get('end_date') or start_date_str
+
+        if not start_date_str:
+            return None, 'Holiday date or start date is required'
+
+        try:
+            start_date = datetime.strptime(str(start_date_str).strip(), '%Y-%m-%d').date()
+        except ValueError:
+            return None, 'Start date must be YYYY-MM-DD'
+
+        try:
+            end_date = datetime.strptime(str(end_date_str).strip(), '%Y-%m-%d').date() if end_date_str else start_date
+        except ValueError:
+            return None, 'End date must be YYYY-MM-DD'
+
+        if end_date < start_date:
+            return None, 'End date cannot be earlier than start date'
+
+        # If single date
+        if start_date == end_date:
+            if Holiday.query.filter_by(holiday_date=start_date).first():
+                return None, 'Holiday date already exists'
+
+            holiday = Holiday(
+                name=name,
+                holiday_date=start_date,
+                is_recurring=is_recurring
+            )
+            db.session.add(holiday)
+            db.session.commit()
+            return holiday, None
+
+        # Range of dates:
+        created_holidays = []
+        cur = start_date
+        while cur <= end_date:
+            existing = Holiday.query.filter_by(holiday_date=cur).first()
+            if not existing:
+                h = Holiday(
+                    name=name,
+                    holiday_date=cur,
+                    is_recurring=is_recurring
+                )
+                db.session.add(h)
+                created_holidays.append(h)
+            else:
+                existing.name = name
+                existing.is_recurring = is_recurring
+                created_holidays.append(existing)
+            cur += timedelta(days=1)
+
+        db.session.commit()
+        return (created_holidays[0] if created_holidays else None), None
+
+    @staticmethod
+    def update_holiday(id, data):
+        holiday = Holiday.query.get(id)
+        if not holiday:
+            return None, 'Holiday not found'
+        if 'name' in data and data['name']:
+            holiday.name = str(data['name']).strip()
+        holiday_date_str = data.get('holidayDate') or data.get('holiday_date')
+        if holiday_date_str:
+            try:
+                h_date = datetime.strptime(str(holiday_date_str).strip(), '%Y-%m-%d').date()
+                existing = Holiday.query.filter_by(holiday_date=h_date).first()
+                if existing and existing.id != holiday.id:
+                    return None, 'Holiday date already exists'
+                holiday.holiday_date = h_date
+            except ValueError:
+                return None, 'Holiday date must be YYYY-MM-DD'
+        if 'isRecurring' in data:
+            holiday.is_recurring = bool(data['isRecurring'])
+        db.session.commit()
+        return holiday, None
+
+    @staticmethod
+    def delete_holiday(id):
+        holiday = Holiday.query.get(id)
+        if not holiday:
+            return False
+        db.session.delete(holiday)
+        db.session.commit()
+        return True
+
