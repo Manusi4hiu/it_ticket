@@ -294,12 +294,30 @@ export default function TicketCalendar() {
     const map: Record<string, Ticket[]> = {};
 
     filteredTickets.forEach((ticket) => {
-      // In deadline mode, use slaDeadline if available; fallback to createdAt so tickets without deadline are never lost
-      const dateToCompare = dateField === "deadline" ? (ticket.slaDeadline || ticket.createdAt) : ticket.createdAt;
+      const isDesign = (ticket.teamCode === "COC" || ticket.teamId === 2 || (ticket.category || "").toLowerCase().includes("design"));
+
+      // Di mode deadline: gunakan slaDeadline.
+      // Tiket IT tanpa deadline tidak boleh ditampilkan di kalender target deadline.
+      // Di mode created: gunakan createdAt.
+      const dateToCompare = dateField === "deadline" ? ticket.slaDeadline : ticket.createdAt;
       if (!dateToCompare) return;
 
       const dateObj = new Date(dateToCompare);
       if (isNaN(dateObj.getTime())) return;
+
+      // Aturan bisnis: Jika melihat SLA Target Deadline, tanggal akhir pekan (Sabtu/Minggu)
+      // dan hari libur nasional harus kosong untuk tiket IT (tidak boleh ada deadline IT di hari libur).
+      if (dateField === "deadline") {
+        if (!isDesign) {
+          const dayOfWeek = dateObj.getDay();
+          if (dayOfWeek === 0 || dayOfWeek === 6) {
+            return;
+          }
+          if (!isWorkingDay(dateObj, holidays)) {
+            return;
+          }
+        }
+      }
 
       const key = `${dateObj.getFullYear()}-${dateObj.getMonth()}-${dateObj.getDate()}`;
 
@@ -312,21 +330,28 @@ export default function TicketCalendar() {
     // Urutkan tiket di tiap tanggal secara kronologis berdasarkan jam deadline
     Object.keys(map).forEach((k) => {
       map[k].sort((a, b) => {
-        const timeA = new Date(dateField === "deadline" ? (a.slaDeadline || a.createdAt) : a.createdAt).getTime();
-        const timeB = new Date(dateField === "deadline" ? (b.slaDeadline || b.createdAt) : b.createdAt).getTime();
+        const timeA = new Date(dateField === "deadline" ? a.slaDeadline! : a.createdAt).getTime();
+        const timeB = new Date(dateField === "deadline" ? b.slaDeadline! : b.createdAt).getTime();
         return timeA - timeB;
       });
     });
 
     return map;
-  }, [filteredTickets, dateField]);
+  }, [filteredTickets, dateField, holidays]);
 
   // Ringkasan beban kerja dan target rilis bulanan (untuk visualisasi hari padat vs longgar)
   const monthSummary = useMemo(() => {
     const inMonth = filteredTickets.filter((t) => {
-      const d = dateField === "deadline" ? (t.slaDeadline || t.createdAt) : t.createdAt;
+      const isDesign = (t.teamCode === "COC" || t.teamId === 2 || (t.category || "").toLowerCase().includes("design"));
+      const d = dateField === "deadline" ? t.slaDeadline : t.createdAt;
       if (!d) return false;
       const dt = new Date(d);
+      if (isNaN(dt.getTime())) return false;
+      if (dateField === "deadline" && !isDesign) {
+        const dayOfWeek = dt.getDay();
+        if (dayOfWeek === 0 || dayOfWeek === 6) return false;
+        if (!isWorkingDay(dt, holidays)) return false;
+      }
       return dt.getFullYear() === year && dt.getMonth() === month;
     });
 
