@@ -7,7 +7,7 @@
  * @module settings/holidays
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Form, useLoaderData, useActionData } from "react-router";
 import type { Route } from "./+types/route";
 import { Button } from "~/components/ui/button/button";
@@ -127,6 +127,12 @@ export default function HolidaysSettings() {
     const [startDate, setStartDate] = useState("");
     const [endDate, setEndDate] = useState("");
 
+    useEffect(() => {
+        if (actionData?.success) {
+            setIsDialogOpen(false);
+        }
+    }, [actionData]);
+
     const openCreateDialog = () => {
         setEditingHoliday(null);
         setDateMode("single");
@@ -181,7 +187,7 @@ export default function HolidaysSettings() {
                 </Alert>
             )}
 
-            <Card className={styles.mainCard}>
+            <Card>
                 <CardContent>
                     {holidays.length === 0 ? (
                         <div style={{ padding: 48, textAlign: 'center', color: 'var(--color-neutral-10)' }}>
@@ -192,173 +198,102 @@ export default function HolidaysSettings() {
                             </p>
                         </div>
                     ) : (
-                        <>
-                            {/* Desktop Table View */}
-                            <div className={styles.desktopTable}>
-                                <div className={styles.tableContainer}>
-                                    <div className={styles.scrollableArea}>
-                                        <table className={styles.dataTable}>
-                                            <thead>
-                                                <tr>
-                                                    <th>Nama Hari Libur</th>
-                                                    <th>Tanggal</th>
-                                                    <th>Sifat Hari Libur</th>
-                                                    <th style={{ textAlign: "right" }}>Actions</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {holidays.map((holiday) => (
-                                                    <tr key={holiday.id}>
-                                                        <td style={{ fontWeight: 600 }}>
-                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                                                <div style={{
-                                                                    width: 28,
-                                                                    height: 28,
-                                                                    borderRadius: 6,
-                                                                    background: "rgba(59, 130, 246, 0.15)",
-                                                                    display: "flex",
-                                                                    alignItems: "center",
-                                                                    justifyContent: "center",
-                                                                    color: "#60a5fa"
-                                                                }}>
-                                                                    <Calendar size={15} />
-                                                                </div>
-                                                                <span>{holiday.name}</span>
-                                                            </div>
-                                                        </td>
-                                                        <td>
-                                                            <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                                                <span style={{ fontWeight: 500 }}>{formatHolidayDate(holiday.holidayDate)}</span>
-                                                                <span style={{ fontSize: '0.78rem', color: '#94a3b8' }}>{holiday.holidayDate}</span>
-                                                            </div>
-                                                        </td>
-                                                        <td>
-                                                            {holiday.isRecurring ? (
-                                                                <span style={{
-                                                                    display: "inline-flex",
-                                                                    alignItems: "center",
-                                                                    gap: 5,
-                                                                    padding: "4px 10px",
-                                                                    borderRadius: 8,
-                                                                    fontSize: "0.75rem",
-                                                                    fontWeight: 600,
-                                                                    background: "rgba(59, 130, 246, 0.2)",
-                                                                    color: "#93c5fd",
-                                                                    border: "1px solid rgba(59, 130, 246, 0.35)"
-                                                                }}>
-                                                                    <Repeat size={12} />
-                                                                    Berulang Tiap Tahun
-                                                                </span>
-                                                            ) : (
-                                                                <span style={{
-                                                                    display: "inline-flex",
-                                                                    alignItems: "center",
-                                                                    padding: "4px 10px",
-                                                                    borderRadius: 8,
-                                                                    fontSize: "0.75rem",
-                                                                    fontWeight: 600,
-                                                                    background: "rgba(148, 163, 184, 0.15)",
-                                                                    color: "#cbd5e1",
-                                                                    border: "1px solid rgba(148, 163, 184, 0.25)"
-                                                                }}>
-                                                                    Satu Kali / Khusus Tahun Ini
-                                                                </span>
-                                                            )}
-                                                        </td>
-                                                        <td>
-                                                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                                                                <Button variant="outline" size="sm" onClick={() => openEditDialog(holiday)}>
-                                                                    <Pencil size={14} />
-                                                                </Button>
-                                                                <Form method="post" onSubmit={(e) => {
-                                                                    if (!confirm(`Hapus hari libur "${holiday.name}" (${holiday.holidayDate})?`)) {
-                                                                        e.preventDefault();
-                                                                    }
-                                                                }}>
-                                                                    <input type="hidden" name="intent" value="delete" />
-                                                                    <input type="hidden" name="id" value={holiday.id} />
-                                                                    <Button variant="outline" size="sm" style={{ color: 'var(--color-critical-9)' }}>
-                                                                        <Trash2 size={14} />
-                                                                    </Button>
-                                                                </Form>
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
+                        <div className={styles.tableContainer}>
+                            <div className={styles.scrollableArea} style={{ maxHeight: 'calc(100vh - 280px)', minHeight: '320px' }}>
+                                <table className={styles.dataTable}>
+                                    <thead>
+                                        <tr>
+                                            <th>Nama Hari Libur</th>
+                                            <th>Tanggal</th>
+                                            <th>Sifat Hari Libur</th>
+                                            <th style={{ textAlign: "right" }}>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {holidays.map((holiday) => (
+                                            <tr key={holiday.id}>
+                                                <td style={{ fontWeight: 600 }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                                        <div style={{
+                                                            width: 32,
+                                                            height: 32,
+                                                            borderRadius: 8,
+                                                            background: "rgba(59, 130, 246, 0.15)",
+                                                            border: "1px solid rgba(59, 130, 246, 0.3)",
+                                                            display: "flex",
+                                                            alignItems: "center",
+                                                            justifyContent: "center",
+                                                            color: "#60a5fa",
+                                                            flexShrink: 0
+                                                        }}>
+                                                            <Calendar size={16} />
+                                                        </div>
+                                                        <span style={{ color: "#f8fafc" }}>{holiday.name}</span>
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                                        <span style={{ fontWeight: 500, color: "#e2e8f0" }}>{formatHolidayDate(holiday.holidayDate)}</span>
+                                                        <span style={{ fontSize: '0.78rem', color: '#94a3b8', fontFamily: 'monospace' }}>{holiday.holidayDate}</span>
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    {holiday.isRecurring ? (
+                                                        <span style={{
+                                                            display: "inline-flex",
+                                                            alignItems: "center",
+                                                            gap: 6,
+                                                            padding: "4px 10px",
+                                                            borderRadius: 8,
+                                                            fontSize: "0.75rem",
+                                                            fontWeight: 600,
+                                                            background: "rgba(59, 130, 246, 0.2)",
+                                                            color: "#93c5fd",
+                                                            border: "1px solid rgba(59, 130, 246, 0.35)"
+                                                        }}>
+                                                            <Repeat size={12} />
+                                                            Berulang Tiap Tahun
+                                                        </span>
+                                                    ) : (
+                                                        <span style={{
+                                                            display: "inline-flex",
+                                                            alignItems: "center",
+                                                            padding: "4px 10px",
+                                                            borderRadius: 8,
+                                                            fontSize: "0.75rem",
+                                                            fontWeight: 600,
+                                                            background: "rgba(148, 163, 184, 0.15)",
+                                                            color: "#cbd5e1",
+                                                            border: "1px solid rgba(148, 163, 184, 0.25)"
+                                                        }}>
+                                                            Satu Kali / Khusus Tahun Ini
+                                                        </span>
+                                                    )}
+                                                </td>
+                                                <td>
+                                                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                                                        <Button variant="outline" size="sm" onClick={() => openEditDialog(holiday)} title="Edit Hari Libur">
+                                                            <Pencil size={14} />
+                                                        </Button>
+                                                        <Form method="post" onSubmit={(e) => {
+                                                            if (!confirm(`Hapus hari libur "${holiday.name}" (${holiday.holidayDate})?`)) {
+                                                                e.preventDefault();
+                                                            }
+                                                        }}>
+                                                            <input type="hidden" name="intent" value="delete" />
+                                                            <input type="hidden" name="id" value={holiday.id} />
+                                                            <Button variant="outline" size="sm" style={{ color: 'var(--color-critical-9)' }} title="Hapus Hari Libur">
+                                                                <Trash2 size={14} />
+                                                            </Button>
+                                                        </Form>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
                             </div>
-
-                            {/* Mobile Card List View */}
-                            <div className={styles.mobileCardList}>
-                                {holidays.map((holiday) => (
-                                    <div key={holiday.id} className={styles.settingCard}>
-                                        <div className={styles.settingCardHeader}>
-                                            <div className={styles.settingCardTitleGroup}>
-                                                <div style={{
-                                                    width: 32,
-                                                    height: 32,
-                                                    borderRadius: 8,
-                                                    background: "rgba(59, 130, 246, 0.12)",
-                                                    border: "1px solid rgba(59, 130, 246, 0.25)",
-                                                    display: "flex",
-                                                    alignItems: "center",
-                                                    justifyContent: "center",
-                                                    flexShrink: 0,
-                                                }}>
-                                                    <Calendar size={15} style={{ color: "#60a5fa" }} />
-                                                </div>
-                                                <div style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
-                                                    <span className={styles.settingCardTitle}>{holiday.name}</span>
-                                                    <span style={{ fontSize: "0.8rem", color: "#93c5fd" }}>
-                                                        {formatHolidayDate(holiday.holidayDate)}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                            <div className={styles.settingCardActions}>
-                                                <button
-                                                    type="button"
-                                                    className={styles.settingCardActionBtn}
-                                                    onClick={() => openEditDialog(holiday)}
-                                                    title="Edit holiday"
-                                                >
-                                                    <Pencil size={13} />
-                                                </button>
-                                                <Form method="post" onSubmit={(e) => {
-                                                    if (!confirm(`Hapus hari libur "${holiday.name}"?`)) {
-                                                        e.preventDefault();
-                                                    }
-                                                }}>
-                                                    <input type="hidden" name="intent" value="delete" />
-                                                    <input type="hidden" name="id" value={holiday.id} />
-                                                    <button
-                                                        type="submit"
-                                                        className={styles.settingCardActionBtnDanger}
-                                                        title="Delete holiday"
-                                                    >
-                                                        <Trash2 size={13} />
-                                                    </button>
-                                                </Form>
-                                            </div>
-                                        </div>
-
-                                        <div className={styles.settingCardBody} style={{ paddingTop: 6 }}>
-                                            {holiday.isRecurring ? (
-                                                <span style={{ fontSize: "0.75rem", color: "#93c5fd", display: "inline-flex", alignItems: "center", gap: 4 }}>
-                                                    <Repeat size={11} /> Berulang setiap tahun
-                                                </span>
-                                            ) : (
-                                                <span style={{ fontSize: "0.75rem", color: "#94a3b8" }}>
-                                                    Hanya berlaku tahun {holiday.holidayDate.split("-")[0]}
-                                                </span>
-                                            )}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </>
+                        </div>
                     )}
                 </CardContent>
             </Card>
@@ -368,7 +303,7 @@ export default function HolidaysSettings() {
                     <DialogHeader>
                         <DialogTitle>{editingHoliday ? 'Edit Hari Libur' : 'Tambah Hari Libur Baru'}</DialogTitle>
                     </DialogHeader>
-                    <Form method="post" onSubmit={() => setIsDialogOpen(false)}>
+                    <Form key={editingHoliday ? `edit-${editingHoliday.id}` : 'create'} method="post">
                         <input type="hidden" name="intent" value={editingHoliday ? "update" : "create"} />
                         {editingHoliday && <input type="hidden" name="id" value={editingHoliday.id} />}
                         <input type="hidden" name="dateMode" value={dateMode} />
