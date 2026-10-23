@@ -1121,12 +1121,33 @@ class TicketService:
             ticket.sla_deadline = TicketService.calculate_business_deadline(base_time, hours=hours)
             
         if 'collaboratorIds' in data:
-            # Clear existing collaborators and add new ones
+            old_collab_names = set(u.full_name for u in ticket.collaborators)
+            # Clear existing collaborators and add new ones (exclude primary assignee)
             ticket.collaborators = []
             for uid in data['collaboratorIds']:
                 user = User.query.get(uid)
-                if user:
+                if user and (not ticket.assigned_to_id or user.id != ticket.assigned_to_id):
                     ticket.collaborators.append(user)
+            
+            new_collab_names = set(u.full_name for u in ticket.collaborators)
+            added_collabs = new_collab_names - old_collab_names
+            removed_collabs = old_collab_names - new_collab_names
+            change_msgs = []
+            if added_collabs:
+                change_msgs.append('Menambahkan collaborator: ' + ', '.join(sorted(added_collabs)))
+            if removed_collabs:
+                change_msgs.append('Menghapus collaborator: ' + ', '.join(sorted(removed_collabs)))
+            if change_msgs:
+                try:
+                    note_author_id = int(user_id) if user_id else (actor.id if actor else (ticket.assigned_to_id or 1))
+                    ticket.notes.append(TicketNote(
+                        ticket_id=ticket.id,
+                        content='; '.join(change_msgs),
+                        author_id=note_author_id,
+                        is_internal=True
+                    ))
+                except Exception as ne:
+                    print('Warning: Failed to add collaborator note:', ne)
 
         # Guard: Tiket yang sudah di-assign tapi belum memiliki SLA deadline wajib diinisialisasi
         if ticket.assigned_to_id and not ticket.sla_deadline and str(ticket.status).strip().lower() not in ('resolved', 'closed'):

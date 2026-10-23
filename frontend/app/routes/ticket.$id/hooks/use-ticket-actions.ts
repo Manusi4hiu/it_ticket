@@ -147,11 +147,17 @@ export function useTicketActions({
   // ─────────────────────────────────────────────
 
   const handleAddCollaborator = async (collaboratorId: string) => {
-    const agent = agents.find((a) => String(a.id) === collaboratorId);
+    if (!collaboratorId) return;
+    const agent = agents.find((a) => String(a.id) === String(collaboratorId) || a.name === collaboratorId);
     if (!agent) return;
-    if (collaboratorIds.includes(collaboratorId) || agent.name === assignedTo) return;
+    const strId = String(agent.id);
+    if (collaboratorIds.includes(strId) || agent.name === assignedTo || String(agent.id) === String(ticket.assignedToId)) {
+      return;
+    }
 
-    const newIds = [...collaboratorIds, collaboratorId];
+    const prevIds = [...collaboratorIds];
+    const prevNames = [...collaborators];
+    const newIds = [...collaboratorIds, strId];
     const newNames = [...collaborators, agent.name];
     setCollaboratorIds(newIds);
     setCollaborators(newNames);
@@ -162,18 +168,29 @@ export function useTicketActions({
         setTicket(updated);
         setCollaborators(updated.collaborators || []);
         setCollaboratorIds((updated.collaboratorIds || []).map(String));
+        toast({ title: "Berhasil", description: `${agent.name} ditambahkan sebagai collaborator.` });
+      } else {
+        setCollaboratorIds(prevIds);
+        setCollaborators(prevNames);
+        toast({ title: "Error", description: "Gagal menambah collaborator.", variant: "destructive" });
       }
     } catch {
+      setCollaboratorIds(prevIds);
+      setCollaborators(prevNames);
       toast({ title: "Error", description: "Gagal menambah collaborator.", variant: "destructive" });
     }
   };
 
-  const handleRemoveCollaborator = async (collaboratorId: string) => {
-    const agent = agents.find((a) => String(a.id) === collaboratorId);
-    if (!agent) return;
+  const handleRemoveCollaborator = async (identifier: string) => {
+    if (!identifier) return;
+    const agent = agents.find((a) => String(a.id) === String(identifier) || a.name === identifier);
+    const targetId = agent ? String(agent.id) : (collaboratorIds.find((id) => id === identifier) || "");
+    const targetName = agent ? agent.name : (collaborators.find((n) => n === identifier) || identifier);
 
-    const newIds = collaboratorIds.filter((id) => id !== collaboratorId);
-    const newNames = collaborators.filter((name) => name !== agent.name);
+    const prevIds = [...collaboratorIds];
+    const prevNames = [...collaborators];
+    const newIds = collaboratorIds.filter((id) => id !== targetId && id !== identifier);
+    const newNames = collaborators.filter((name) => name !== targetName && name !== identifier);
     setCollaboratorIds(newIds);
     setCollaborators(newNames);
 
@@ -183,8 +200,15 @@ export function useTicketActions({
         setTicket(updated);
         setCollaborators(updated.collaborators || []);
         setCollaboratorIds((updated.collaboratorIds || []).map(String));
+        toast({ title: "Berhasil", description: "Collaborator berhasil dihapus." });
+      } else {
+        setCollaboratorIds(prevIds);
+        setCollaborators(prevNames);
+        toast({ title: "Error", description: "Gagal menghapus collaborator.", variant: "destructive" });
       }
     } catch {
+      setCollaboratorIds(prevIds);
+      setCollaborators(prevNames);
       toast({ title: "Error", description: "Gagal menghapus collaborator.", variant: "destructive" });
     }
   };
