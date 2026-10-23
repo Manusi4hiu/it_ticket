@@ -21,7 +21,12 @@ import {
 } from "~/services/ticket.service";
 import { usersApi } from "~/services/api.service";
 import { compressImage } from "~/utils/image-compression";
-import { toDatetimeLocalString } from "~/utils/date";
+import {
+  toDatetimeLocalString,
+  validateWorkingHoursDateTime,
+  getInitialWorkingDateTime,
+  type HolidayLike,
+} from "~/utils/date";
 import type { Agent } from "~/services/ticket.service";
 import type { Status } from "~/services/settings.service";
 import type { StaffInfo, CurrentUser } from "../types";
@@ -35,6 +40,7 @@ interface UseTicketActionsOptions {
   agents: Agent[];
   currentUser: CurrentUser | null;
   statuses: Status[];
+  holidays?: HolidayLike[];
 }
 
 // ─────────────────────────────────────────────
@@ -53,6 +59,7 @@ export function useTicketActions({
   agents,
   currentUser,
   statuses,
+  holidays,
 }: UseTicketActionsOptions) {
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -140,11 +147,17 @@ export function useTicketActions({
   // ─────────────────────────────────────────────
 
   const handleAddCollaborator = async (collaboratorId: string) => {
-    const agent = agents.find((a) => String(a.id) === collaboratorId);
+    if (!collaboratorId) return;
+    const agent = agents.find((a) => String(a.id) === String(collaboratorId) || a.name === collaboratorId);
     if (!agent) return;
-    if (collaboratorIds.includes(collaboratorId) || agent.name === assignedTo) return;
+    const strId = String(agent.id);
+    if (collaboratorIds.includes(strId) || agent.name === assignedTo || String(agent.id) === String(ticket.assignedToId)) {
+      return;
+    }
 
-    const newIds = [...collaboratorIds, collaboratorId];
+    const prevIds = [...collaboratorIds];
+    const prevNames = [...collaborators];
+    const newIds = [...collaboratorIds, strId];
     const newNames = [...collaborators, agent.name];
     setCollaboratorIds(newIds);
     setCollaborators(newNames);
@@ -155,18 +168,29 @@ export function useTicketActions({
         setTicket(updated);
         setCollaborators(updated.collaborators || []);
         setCollaboratorIds((updated.collaboratorIds || []).map(String));
+        toast({ title: "Berhasil", description: `${agent.name} ditambahkan sebagai collaborator.` });
+      } else {
+        setCollaboratorIds(prevIds);
+        setCollaborators(prevNames);
+        toast({ title: "Error", description: "Gagal menambah collaborator.", variant: "destructive" });
       }
     } catch {
+      setCollaboratorIds(prevIds);
+      setCollaborators(prevNames);
       toast({ title: "Error", description: "Gagal menambah collaborator.", variant: "destructive" });
     }
   };
 
-  const handleRemoveCollaborator = async (collaboratorId: string) => {
-    const agent = agents.find((a) => String(a.id) === collaboratorId);
-    if (!agent) return;
+  const handleRemoveCollaborator = async (identifier: string) => {
+    if (!identifier) return;
+    const agent = agents.find((a) => String(a.id) === String(identifier) || a.name === identifier);
+    const targetId = agent ? String(agent.id) : (collaboratorIds.find((id) => id === identifier) || "");
+    const targetName = agent ? agent.name : (collaborators.find((n) => n === identifier) || identifier);
 
-    const newIds = collaboratorIds.filter((id) => id !== collaboratorId);
-    const newNames = collaborators.filter((name) => name !== agent.name);
+    const prevIds = [...collaboratorIds];
+    const prevNames = [...collaborators];
+    const newIds = collaboratorIds.filter((id) => id !== targetId && id !== identifier);
+    const newNames = collaborators.filter((name) => name !== targetName && name !== identifier);
     setCollaboratorIds(newIds);
     setCollaborators(newNames);
 
@@ -176,8 +200,15 @@ export function useTicketActions({
         setTicket(updated);
         setCollaborators(updated.collaborators || []);
         setCollaboratorIds((updated.collaboratorIds || []).map(String));
+        toast({ title: "Berhasil", description: "Collaborator berhasil dihapus." });
+      } else {
+        setCollaboratorIds(prevIds);
+        setCollaborators(prevNames);
+        toast({ title: "Error", description: "Gagal menghapus collaborator.", variant: "destructive" });
       }
     } catch {
+      setCollaboratorIds(prevIds);
+      setCollaborators(prevNames);
       toast({ title: "Error", description: "Gagal menghapus collaborator.", variant: "destructive" });
     }
   };
@@ -585,15 +616,15 @@ export function useTicketActions({
     setResolutionImage(null);
     setResolveCategory("");
     setResolveCategoryError("");
-    setResolveDate(toDatetimeLocalString(new Date()));
+    setResolveDate(getInitialWorkingDateTime(new Date(), holidays));
     setShowResolveDialog(true);
   };
 
   const handleSubmitResolution = async () => {
     if (resolveDate) {
-      const dateObj = new Date(resolveDate);
-      if (dateObj > new Date()) {
-        setResolutionError("Waktu penyelesaian tidak boleh di masa depan (maksimal sekarang).");
+      const validation = validateWorkingHoursDateTime(resolveDate, holidays);
+      if (!validation.valid) {
+        setResolutionError(validation.error || "Waktu penyelesaian tidak valid.");
         return;
       }
     }
@@ -790,23 +821,30 @@ export function useTicketActions({
 
   const handleSaveResolvedAt = async () => {
     if (!editResolvedAtValue) return;
-    const dateObj = new Date(editResolvedAtValue);
-    if (isNaN(dateObj.getTime())) return;
-    if (dateObj > new Date()) {
+    const validation = validateWorkingHoursDateTime(editResolvedAtValue, holidays);
+    if (!validation.valid) {
       toast({
-        title: "Error",
-        description: "Waktu penyelesaian tidak boleh di masa depan (maksimal sekarang).",
+        title: "Waktu Tidak Valid",
+        description: validation.error || "Waktu penyelesaian harus di jam kerja (08:00 - 17:00 WIB, Senin - Jumat).",
         variant: "destructive",
       });
       return;
     }
 
     try {
+      const dateObj = new Date(editResolvedAtValue);
       const updated = await updateTicket(String(ticket.id), { resolvedAt: dateObj });
-      if (updated) setTicket(updated);
+      if (updated) {
+        setTicket(updated);
+        toast({ title: "Tersimpan", description: "Waktu penyelesaian berhasil diperbarui.", variant: "success" });
+      }
       setIsEditingResolvedAt(false);
-    } catch {
-      // Silent
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: err?.message || "Gagal menyimpan waktu penyelesaian.",
+        variant: "destructive",
+      });
     }
   };
 

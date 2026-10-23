@@ -7,7 +7,8 @@ import {
     ArrowLeft,
     Building2,
     ClipboardList,
-    Coffee
+    Coffee,
+    Calendar
 } from "lucide-react";
 import type { Route } from "./+types/route";
 import { requireRole } from "~/services/session.service";
@@ -81,6 +82,14 @@ export default function SettingsLayout() {
                     >
                         <Coffee size={16} className={styles.navIcon} />
                         <span>Break Limits</span>
+                    </NavLink>
+
+                    <NavLink
+                        to="/settings/holidays"
+                        className={({ isActive }) => `${styles.navItem} ${isActive ? styles.navItemActive : ''}`}
+                    >
+                        <Calendar size={16} className={styles.navIcon} />
+                        <span>Public Holidays</span>
                     </NavLink>
                 </nav>
             </aside>
