@@ -302,25 +302,29 @@ export function TicketActionsPanel({
             <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
               {collaborators.length > 0 && (
                 <div className={styles.collaboratorsList}>
-                  {collaborators.map((collaborator) => (
-                    <Badge
-                      key={collaborator}
-                      variant="secondary"
-                      className={styles.collaboratorBadgeAction}
-                    >
-                      <Users style={{ width: "12px", height: "12px" }} />
-                      {collaborator}
-                      {canEditCollaborator && (
-                        <button
-                          type="button"
-                          onClick={() => onRemoveCollaborator(collaborator)}
-                          className={styles.removeCollaboratorBtn}
-                        >
-                          <X />
-                        </button>
-                      )}
-                    </Badge>
-                  ))}
+                  {collaborators.map((collaborator, index) => {
+                    const collabId = collaboratorIds[index];
+                    return (
+                      <Badge
+                        key={collaborator}
+                        variant="secondary"
+                        className={styles.collaboratorBadgeAction}
+                      >
+                        <Users style={{ width: "12px", height: "12px" }} />
+                        {collaborator}
+                        {canEditCollaborator && (
+                          <button
+                            type="button"
+                            onClick={() => onRemoveCollaborator(collabId || collaborator)}
+                            className={styles.removeCollaboratorBtn}
+                            title="Hapus collaborator"
+                          >
+                            <X />
+                          </button>
+                        )}
+                      </Badge>
+                    );
+                  })}
                 </div>
               )}
 

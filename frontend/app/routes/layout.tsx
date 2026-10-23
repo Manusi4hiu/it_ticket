@@ -14,6 +14,7 @@ import { NotificationBell } from "~/components/notification-bell";
 import { getUserSession, logout } from "~/services/session.service";
 import { setAuthToken, usersApi } from "~/services/api.service";
 import type { Route } from "./+types/layout";
+import { getActiveTeamIdFromRequest, setActiveTeamId, getActiveTeamIdClient } from "~/utils/team-cookie";
 import styles from "./layout.module.css";
 import { useIdleTimeout } from "~/hooks/use-idle-timeout";
 import { SessionWarningModal } from "~/components/session-warning-modal";
@@ -22,7 +23,8 @@ import { GlobalBreakModal } from "~/components/global-break-modal";
 
 export async function loader({ request }: Route.LoaderArgs) {
   const session = await getUserSession(request);
-  return { session };
+  const activeTeamId = getActiveTeamIdFromRequest(request);
+  return { session, activeTeamId };
 }
 
 export async function action({ request }: Route.ActionArgs) {
@@ -41,18 +43,29 @@ export async function action({ request }: Route.ActionArgs) {
 }
 
 export default function AppLayout({ loaderData }: Route.ComponentProps) {
-  const { session } = loaderData;
+  const { session, activeTeamId: initialActiveTeamId } = loaderData;
   const navigate = useNavigate();
   const location = useLocation();
   const isAdministrator = session?.userRole === 'Administrator';
 
   // ── Team branding: ikuti team yang aktif dipilih (IT -> IT Aero Support, COC -> CORCOM) ──
   const teams = (session?.teams || []) as { id: string | number; name: string; code: string }[];
-  const [storedTeamId, setStoredTeamId] = useState<string | null>(null);
+  const [storedTeamId, setStoredTeamId] = useState<string | null>(initialActiveTeamId || null);
 
   useEffect(() => {
-    const saved = localStorage.getItem("app_active_team_id");
-    if (saved) setStoredTeamId(saved);
+    const saved = getActiveTeamIdClient();
+    if (saved) {
+      setStoredTeamId(saved);
+      setActiveTeamId(saved);
+    }
+    const handler = (e: any) => {
+      const newId = e.detail?.teamId;
+      if (newId) {
+        setStoredTeamId(newId);
+      }
+    };
+    window.addEventListener("app-team-changed", handler);
+    return () => window.removeEventListener("app-team-changed", handler);
   }, []);
 
   const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
@@ -60,12 +73,14 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
 
   useEffect(() => {
     if (urlTeamId) {
-      localStorage.setItem("app_active_team_id", urlTeamId);
+      setActiveTeamId(urlTeamId);
       setStoredTeamId(urlTeamId);
     }
   }, [urlTeamId]);
 
-  const activeTeamId = urlTeamId || storedTeamId;
+  const activeTeamId = urlTeamId || storedTeamId || initialActiveTeamId;
+  const teamQuery = activeTeamId ? `?teamId=${activeTeamId}` : "";
+  const isPathActive = (p: string) => location.pathname === p || (p !== "/" && location.pathname.startsWith(p + "/"));
   const activeTeam = useMemo(() => {
     if (activeTeamId) {
       return teams.find(t => String(t.id) === String(activeTeamId));
@@ -256,30 +271,30 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
                 {!isDevMode ? (
                   <>
                     <NavLink
-                      to="/tickets"
-                      className={({ isActive }) => `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`}
+                      to={`/tickets${teamQuery}`}
+                      className={() => `${styles.navLink} ${isPathActive('/tickets') ? styles.navLinkActive : ''}`}
                     >
                       <Inbox className={styles.navIcon} />
                       <span className={styles.navLabel}>Tickets</span>
                     </NavLink>
                     <NavLink
                       to={`/profile/${session.userId}`}
-                      className={({ isActive }) => `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`}
+                      className={() => `${styles.navLink} ${isPathActive('/profile') ? styles.navLinkActive : ''}`}
                     >
                       <User className={styles.navIcon} />
                       <span className={styles.navLabel}>Profile</span>
                     </NavLink>
                     <NavLink
-                      to="/staff-performance"
-                      className={({ isActive }) => `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`}
+                      to={`/staff-performance${teamQuery}`}
+                      className={() => `${styles.navLink} ${isPathActive('/staff-performance') ? styles.navLinkActive : ''}`}
                     >
                       <Users className={styles.navIcon} />
                       <span className={styles.navLabel}>Performance</span>
                     </NavLink>
                     {(isAdministrator || session.userRole === 'Management') && (
                       <NavLink
-                        to="/analytics"
-                        className={({ isActive }) => `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`}
+                        to={`/analytics${teamQuery}`}
+                        className={() => `${styles.navLink} ${isPathActive('/analytics') ? styles.navLinkActive : ''}`}
                       >
                         <BarChart3 className={styles.navIcon} />
                         <span className={styles.navLabel}>Analytics</span>
@@ -299,21 +314,21 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
                   <>
                     <NavLink
                       to="/dev-dashboard"
-                      className={({ isActive }) => `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`}
+                      className={() => `${styles.navLink} ${isPathActive('/dev-dashboard') ? styles.navLinkActive : ''}`}
                     >
                       <Kanban className={styles.navIcon} />
                       <span className={styles.navLabel}>{L.devBoardNav}</span>
                     </NavLink>
                     <NavLink
-                      to="/staff-performance"
-                      className={({ isActive }) => `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`}
+                      to={`/staff-performance${teamQuery}`}
+                      className={() => `${styles.navLink} ${isPathActive('/staff-performance') ? styles.navLinkActive : ''}`}
                     >
                       <Users className={styles.navIcon} />
                       <span className={styles.navLabel}>Performance</span>
                     </NavLink>
                     <NavLink
-                      to="/calendar"
-                      className={({ isActive }) => `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`}
+                      to={`/calendar${teamQuery}`}
+                      className={() => `${styles.navLink} ${isPathActive('/calendar') ? styles.navLinkActive : ''}`}
                     >
                       <Calendar className={styles.navIcon} />
                       <span className={styles.navLabel}>Calendar</span>

@@ -339,7 +339,7 @@ def create_ticket():
         }), 500
 
 
-@tickets_bp.route('/<ticket_id>', methods=['PUT'])
+@tickets_bp.route('/<ticket_id>', methods=['PUT', 'PATCH'])
 @jwt_required()
 def update_ticket(ticket_id):
     """Update a ticket (Administrator/Staff penuh; Management view-only: boleh note, tidak boleh status/assign/priority/category)"""

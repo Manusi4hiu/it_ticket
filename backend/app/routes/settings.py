@@ -346,6 +346,43 @@ def update_break_setting():
 
     return jsonify({'success': True, 'data': setting.to_dict()})
 
+# --- HOLIDAYS ---
+
+@settings_bp.route('/holidays', methods=['GET'])
+def get_holidays():
+    holidays = MasterDataService.get_holidays()
+    return jsonify({'success': True, 'data': [h.to_dict() for h in holidays]})
+
+@settings_bp.route('/holidays', methods=['POST'])
+@admin_required
+def create_holiday():
+    data = request.get_json()
+    if not data:
+        return jsonify({'success': False, 'error': 'No data provided'}), 400
+    holiday, error = MasterDataService.create_holiday(data)
+    if error:
+        return jsonify({'success': False, 'error': error}), 400
+    return jsonify({'success': True, 'data': holiday.to_dict()})
+
+@settings_bp.route('/holidays/<int:id>', methods=['PUT'])
+@admin_required
+def update_holiday(id):
+    data = request.get_json()
+    if not data:
+        return jsonify({'success': False, 'error': 'No data provided'}), 400
+    holiday, error = MasterDataService.update_holiday(id, data)
+    if error:
+        return jsonify({'success': False, 'error': error}), 400 if error != 'Holiday not found' else 404
+    return jsonify({'success': True, 'data': holiday.to_dict()})
+
+@settings_bp.route('/holidays/<int:id>', methods=['DELETE'])
+@admin_required
+def delete_holiday(id):
+    success = MasterDataService.delete_holiday(id)
+    if not success:
+        return jsonify({'success': False, 'error': 'Holiday not found'}), 404
+    return jsonify({'success': True})
+
 # --- SYSTEM LOGS ---
 
 @settings_bp.route('/logs', methods=['GET'])

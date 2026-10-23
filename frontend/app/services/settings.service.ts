@@ -55,6 +55,21 @@ export interface BreakSetting {
     description?: string;
 }
 
+export interface Holiday {
+    id: string | number;
+    name: string;
+    holidayDate: string; // YYYY-MM-DD
+    isRecurring: boolean;
+}
+
+export interface CreateHolidayPayload {
+    name: string;
+    holidayDate?: string;
+    startDate?: string;
+    endDate?: string;
+    isRecurring?: boolean;
+}
+
 export const settingsApi = {
     // Categories
     getCategories: async () => {
@@ -180,6 +195,25 @@ export const settingsApi = {
     // System Logs
     getLogs: async () => {
         return apiRequest<{ success: boolean; data: SystemLog[] }>('/settings/logs');
+    },
+    // Holidays
+    getHolidays: async () => {
+        return apiRequest<{ success: boolean; data: Holiday[] }>('/settings/holidays');
+    },
+    createHoliday: async (data: CreateHolidayPayload | Partial<Holiday>) => {
+        return apiRequest<{ success: boolean; data: Holiday }>('/settings/holidays', {
+            method: 'POST',
+            body: JSON.stringify(data)
+        });
+    },
+    updateHoliday: async (id: string | number, data: Partial<Holiday>) => {
+        return apiRequest<{ success: boolean; data: Holiday }>(`/settings/holidays/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(data)
+        });
+    },
+    deleteHoliday: async (id: string | number) => {
+        return apiRequest<{ success: boolean }>(`/settings/holidays/${id}`, { method: 'DELETE' });
     }
 };
 

@@ -36,6 +36,19 @@
   gap: 10px;
 }
 
+.segBtn:hover {
+  color: #e5e7eb;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.segOn {
+  background: rgba(59, 130, 246, 0.2);
+  border-color: rgba(59, 130, 246, 0.6);
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.35);
+  color: #fff;
+  font-weight: 600;
+}
+
 .bannerSubtitle {
   font-size: 0.8rem;
   color: rgba(255, 255, 255, 0.5);

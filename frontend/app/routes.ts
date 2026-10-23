@@ -20,6 +20,7 @@ export default [
       route("departments", "routes/settings/departments/route.tsx"),
       route("statuses", "routes/settings/statuses/route.tsx"),
       route("break", "routes/settings/break/route.tsx"),
+      route("holidays", "routes/settings/holidays/route.tsx"),
     ]),
     route("calendar", "routes/calendar/route.tsx"),
   ]),

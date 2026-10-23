@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { useLoaderData, useNavigate } from "react-router";
+import { useLoaderData, useNavigate, useSearchParams } from "react-router";
 import type { Route } from "./+types/route";
 import {
   Inbox,
@@ -47,21 +47,28 @@ import { settingsApi } from "~/services/settings.service";
 import { requireAuth } from "~/services/session.service";
 import { ReasonDialog } from "~/routes/ticket.$id/components/ReasonDialog";
 import { ResolveDialog } from "~/routes/ticket.$id/components/ResolveDialog";
+import {
+  isWorkingDay,
+  validateWorkingHoursDateTime,
+  getInitialWorkingDateTime,
+} from "~/utils/date";
+import { getActiveTeamIdFromRequest, setActiveTeamId, getActiveTeamIdClient } from "~/utils/team-cookie";
 import styles from "./style.module.css";
 
 export async function loader({ request }: Route.LoaderArgs) {
   const session = await requireAuth(request);
   const url = new URL(request.url);
-  const teamIdParam = url.searchParams.get("teamId");
+  const teamIdParam = getActiveTeamIdFromRequest(request, url);
 
-  // Fetch tickets, agents, statuses, categories, priorities, teams (semua master-driven)
-  const [ticketsRes, agents, statusesRes, categoriesRes, prioritiesRes, teamsRes] = await Promise.all([
-    getTickets({ per_page: 350, teamId: teamIdParam || undefined }),
+  // Fetch tickets, agents, statuses, categories, priorities, teams, holidays (semua master-driven)
+  const [ticketsRes, agents, statusesRes, categoriesRes, prioritiesRes, teamsRes, holidaysRes] = await Promise.all([
+    getTickets({ per_page: 500 }),
     getAgents(),
     settingsApi.getStatuses(),
     settingsApi.getCategories(),
     settingsApi.getPriorities(),
-    settingsApi.getTeams().catch(() => ({ success: false, data: [] }))
+    settingsApi.getTeams().catch(() => ({ success: false, data: [] })),
+    settingsApi.getHolidays(),
   ]);
 
   return Response.json({
@@ -73,19 +80,69 @@ export async function loader({ request }: Route.LoaderArgs) {
     priorities: (prioritiesRes.data?.data || []).filter((p: any) => p.isActive !== false),
     teams: ((teamsRes as any)?.data || []) as any[],
     activeTeamId: teamIdParam || session.lastActiveTeamId || null,
+    holidays: holidaysRes.data?.data || [],
   });
 }
 
 export default function TicketCalendar() {
-  const { session, initialTickets, agents, statuses, categories, priorities, teams = [], activeTeamId } = useLoaderData() as typeof loader extends (...args: any[]) => Promise<infer T> ? T : any;
+  const { session, initialTickets, agents, statuses, categories, priorities, teams = [], activeTeamId, holidays = [] } = useLoaderData() as typeof loader extends (...args: any[]) => Promise<infer T> ? T : any;
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlTeam = searchParams.get("teamId");
 
   // Tickets state
   const [tickets, setTickets] = useState<Ticket[]>(initialTickets);
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Filters state
-  const [selectedTeam, setSelectedTeam] = useState<string>(activeTeamId ? String(activeTeamId) : "all");
+  // Filters state: default to urlTeam if present, else activeTeamId, else "all"
+  const [selectedTeam, setSelectedTeam] = useState<string>(() => {
+    if (urlTeam) return urlTeam;
+    return activeTeamId ? String(activeTeamId) : "all";
+  });
+
+  // Sync tickets with incoming loader data
+  useEffect(() => {
+    setTickets(initialTickets);
+  }, [initialTickets]);
+
+  // Sync selectedTeam whenever urlTeam changes (including when removed -> "all")
+  useEffect(() => {
+    const current = urlTeam || "all";
+    if (current !== selectedTeam) {
+      setSelectedTeam(current);
+    }
+  }, [urlTeam]);
+
+  // Sync when another page/header dispatches app-team-changed
+  useEffect(() => {
+    const handleExternalTeamChange = (e: any) => {
+      const newId = e.detail?.teamId;
+      if (newId === "all" || !newId) {
+        setSelectedTeam("all");
+      } else {
+        setSelectedTeam(String(newId));
+      }
+    };
+    window.addEventListener("app-team-changed", handleExternalTeamChange);
+    return () => window.removeEventListener("app-team-changed", handleExternalTeamChange);
+  }, []);
+
+  const handleTeamChange = (val: string) => {
+    setSelectedTeam(val);
+    if (val === "all") {
+      setActiveTeamId(null);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("app-team-changed", { detail: { teamId: "all" } }));
+      }
+      navigate("/calendar", { replace: true });
+    } else {
+      setActiveTeamId(val);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("app-team-changed", { detail: { teamId: val } }));
+      }
+      navigate(`/calendar?teamId=${val}`, { replace: true });
+    }
+  };
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedPriority, setSelectedPriority] = useState("all");
   const [selectedStatus, setSelectedStatus] = useState("all");
@@ -108,7 +165,7 @@ export default function TicketCalendar() {
   const [statusReason, setStatusReason] = useState("");
   const [resolutionSummary, setResolutionSummary] = useState("");
   const [resolutionError, setResolutionError] = useState("");
-  const [resolveDate, setResolveDate] = useState(new Date().toISOString().split("T")[0]);
+  const [resolveDate, setResolveDate] = useState(() => getInitialWorkingDateTime(new Date(), holidays));
   const [resolutionImage, setResolutionImage] = useState<File | null>(null);
   const [resolveCategory, setResolveCategory] = useState("");
   const [resolveCategoryError, setResolveCategoryError] = useState("");
@@ -193,11 +250,19 @@ export default function TicketCalendar() {
       if (selectedTeam !== "all") {
         if (selectedTeam === "2") {
           // COC / Graphic Design
-          const isCoc = t.teamId === 2 || t.teamCode === "COC" || (t.category || "").toLowerCase().includes("design");
+          const isCoc =
+            t.teamId === 2 ||
+            t.teamCode === "COC" ||
+            Boolean(t.teamName && t.teamName.toLowerCase().includes("design")) ||
+            Boolean(t.teamName && t.teamName.toLowerCase().includes("coc"));
           if (!isCoc) return false;
         } else if (selectedTeam === "1") {
-          // IT
-          const isIt = t.teamId === 1 || t.teamCode === "IT" || !(t.category || "").toLowerCase().includes("design");
+          // IT Helpdesk
+          const isIt =
+            t.teamId === 1 ||
+            t.teamCode === "IT" ||
+            (!t.teamId && !t.teamCode) ||
+            Boolean(t.teamName && t.teamName.toLowerCase().includes("it"));
           if (!isIt) return false;
         } else if (String(t.teamId) !== String(selectedTeam)) {
           return false;
@@ -229,10 +294,13 @@ export default function TicketCalendar() {
     const map: Record<string, Ticket[]> = {};
 
     filteredTickets.forEach((ticket) => {
-      const dateToCompare = dateField === "deadline" ? ticket.slaDeadline : ticket.createdAt;
+      // In deadline mode, use slaDeadline if available; fallback to createdAt so tickets without deadline are never lost
+      const dateToCompare = dateField === "deadline" ? (ticket.slaDeadline || ticket.createdAt) : ticket.createdAt;
       if (!dateToCompare) return;
 
       const dateObj = new Date(dateToCompare);
+      if (isNaN(dateObj.getTime())) return;
+
       const key = `${dateObj.getFullYear()}-${dateObj.getMonth()}-${dateObj.getDate()}`;
 
       if (!map[key]) {
@@ -256,7 +324,7 @@ export default function TicketCalendar() {
   // Ringkasan beban kerja dan target rilis bulanan (untuk visualisasi hari padat vs longgar)
   const monthSummary = useMemo(() => {
     const inMonth = filteredTickets.filter((t) => {
-      const d = dateField === "deadline" ? t.slaDeadline : t.createdAt;
+      const d = dateField === "deadline" ? (t.slaDeadline || t.createdAt) : t.createdAt;
       if (!d) return false;
       const dt = new Date(d);
       return dt.getFullYear() === year && dt.getMonth() === month;
@@ -284,7 +352,7 @@ export default function TicketCalendar() {
     // Hitung hari dengan jadwal rilis terpadat
     const dayCounts: Record<number, number> = {};
     inMonth.forEach((t) => {
-      const d = dateField === "deadline" ? t.slaDeadline : t.createdAt;
+      const d = dateField === "deadline" ? (t.slaDeadline || t.createdAt) : t.createdAt;
       if (!d) return;
       const dayNum = new Date(d).getDate();
       dayCounts[dayNum] = (dayCounts[dayNum] || 0) + 1;
@@ -410,6 +478,7 @@ export default function TicketCalendar() {
 
     if (isResolvingWithoutSummary) {
       setPendingStatusUpdate({ ticketId, targetStatus });
+      setResolveDate(getInitialWorkingDateTime(new Date(), holidays));
       setShowResolveDialog(true);
       return;
     }
@@ -436,9 +505,9 @@ export default function TicketCalendar() {
   const handleSubmitResolution = async () => {
     if (!pendingStatusUpdate) return;
     if (resolveDate) {
-      const dateObj = new Date(resolveDate);
-      if (dateObj > new Date()) {
-        setResolutionError("Waktu penyelesaian tidak boleh di masa depan (maksimal sekarang).");
+      const validation = validateWorkingHoursDateTime(resolveDate, holidays);
+      if (!validation.valid) {
+        setResolutionError(validation.error || "Waktu penyelesaian harus di jam kerja (08:00 - 17:00 WIB, Senin - Jumat).");
         return;
       }
     }
@@ -499,7 +568,7 @@ export default function TicketCalendar() {
         }
 
         // Refresh
-        const updatedRes = await getTickets({ per_page: 250 });
+        const updatedRes = await getTickets({ per_page: 500 });
         setTickets(updatedRes.tickets);
 
         setIsAddDialogOpen(false);
@@ -535,12 +604,21 @@ export default function TicketCalendar() {
         <div>
           <h2 className={styles.bannerTitle}>
             <CalendarClock size={22} className={styles.bannerIcon} />
-            {selectedTeam === "2" ? "Kalender Jadwal Rilis & Deadline Graphic Design" : "Kalender Jadwal Rilis & Target Deadline"}
+            {selectedTeam === "2"
+              ? "Kalender Jadwal Rilis & Deadline Graphic Design"
+              : selectedTeam === "1"
+              ? "Kalender Jadwal SLA IT Helpdesk"
+              : "Kalender Jadwal & Deadline (Semua Tim)"}
           </h2>
           <p className={styles.bannerSubtitle}>
-            Pantau jadwal rilis desain dan beban kerja harian (hari padat vs longgar) secara visual berdasarkan Target Deadline
+            {selectedTeam === "2"
+              ? "Pantau jadwal rilis desain dan beban kerja kreatif secara visual berdasarkan Target Deadline"
+              : selectedTeam === "1"
+              ? "Pantau jadwal SLA penanganan tiket IT helpdesk secara visual"
+              : "Pantau seluruh jadwal kerja, target deadline desain, dan SLA helpdesk dari seluruh tim"}
           </p>
         </div>
+
         <Button onClick={() => setIsAddDialogOpen(true)} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg">
           <Plus size={16} />
           Create Task
@@ -646,7 +724,7 @@ export default function TicketCalendar() {
             </div>
 
             {/* Team Workspace Select */}
-            <Select value={selectedTeam} onValueChange={setSelectedTeam}>
+            <Select value={selectedTeam} onValueChange={handleTeamChange}>
               <SelectTrigger style={{ width: 170, background: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.1)", height: 36, color: "#fff" }}>
                 <SelectValue placeholder="Semua Tim" />
               </SelectTrigger>
@@ -753,6 +831,7 @@ export default function TicketCalendar() {
               const isCurr = day.isCurrentMonth;
               const isTodayCell = isToday(day.date);
               const count = dayTickets.length;
+              const isNonWorking = !isWorkingDay(day.date, holidays);
 
               const densityClass =
                 count >= 5
@@ -770,6 +849,20 @@ export default function TicketCalendar() {
                 >
                   <div className={styles.cellHeader}>
                     <span className={styles.dayNumber}>{day.date.getDate()}</span>
+                    {dateField === "deadline" && isNonWorking && (
+                      <span
+                        style={{
+                          fontSize: "0.65rem",
+                          padding: "1px 5px",
+                          borderRadius: "4px",
+                          background: "rgba(239, 68, 68, 0.15)",
+                          color: "#f87171",
+                          fontWeight: 500,
+                        }}
+                      >
+                        Libur
+                      </span>
+                    )}
                     {count >= 5 ? (
                       <span className={styles.densityBadgePadat} title="Jadwal Padat: ≥5 rilis desain">
                         🔥 Padat ({count})
@@ -812,6 +905,10 @@ export default function TicketCalendar() {
                               <span className={styles.ticketTime}>
                                 <Clock size={10} />
                                 {deadlineTimeStr}
+                              </span>
+                            ) : dateField === "deadline" && !t.slaDeadline ? (
+                              <span style={{ fontSize: "0.65rem", color: "rgba(255,255,255,0.5)", fontStyle: "italic" }}>
+                                {t.ticketCode || `#${t.id}`} • No SLA
                               </span>
                             ) : (
                               <span style={{ fontSize: "0.65rem", color: "rgba(255,255,255,0.45)" }}>
@@ -1040,6 +1137,7 @@ export default function TicketCalendar() {
         resolutionError={resolutionError}
         resolutionImage={resolutionImage}
         onResolutionImageChange={setResolutionImage}
+        holidays={holidays}
         onSubmit={handleSubmitResolution}
       />
 

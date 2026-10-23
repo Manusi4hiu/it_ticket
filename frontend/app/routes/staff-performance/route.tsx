@@ -18,6 +18,7 @@ import { usersApi } from "~/services/api.service";
 import { settingsApi, type Team } from "~/services/settings.service";
 import { requireAuth } from "~/services/session.service";
 import type { Route } from "./+types/route";
+import { getActiveTeamIdFromRequest, setActiveTeamId, getActiveTeamIdClient } from "~/utils/team-cookie";
 import styles from "./style.module.css";
 
 export async function loader({ request }: Route.LoaderArgs) {
@@ -47,8 +48,8 @@ export async function loader({ request }: Route.LoaderArgs) {
     : allTeams.filter((t) => userTeams.some((ut) => String(ut.id) === String(t.id)));
 
   // Team scoping: dari query param, fallback ke team IT atau team pertama yang diizinkan
-  const paramTeamId = params.get("teamId");
-  let selectedTeamId = paramTeamId;
+  const requestedTeamId = getActiveTeamIdFromRequest(request, new URL(request.url));
+  let selectedTeamId = requestedTeamId;
   if (!selectedTeamId || !teams.some((t) => String(t.id) === selectedTeamId)) {
     const itTeam = teams.find((t) => t.code === "IT");
     selectedTeamId = itTeam ? String(itTeam.id) : teams[0] ? String(teams[0].id) : "";
@@ -92,8 +93,41 @@ export default function StaffPerformance({ loaderData }: Route.ComponentProps) {
   const { session, agentsPerformance, stats, teams, selectedTeamId, isAdmin } = loaderData;
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const urlTeam = searchParams.get("teamId");
+  const [activeTeamId, setActiveTeamIdState] = useState<string>(() => {
+    return urlTeam || selectedTeamId || getActiveTeamIdClient() || "";
+  });
 
-  const currentTeam = (teams as Team[]).find((t) => String(t.id) === String(selectedTeamId));
+  useEffect(() => {
+    if (urlTeam && urlTeam !== activeTeamId) {
+      setActiveTeamIdState(urlTeam);
+      setActiveTeamId(urlTeam);
+    }
+  }, [urlTeam]);
+
+  useEffect(() => {
+    const saved = getActiveTeamIdClient();
+    const currentParam = searchParams.get("teamId");
+    if (!currentParam && saved && teams.some((t: Team) => String(t.id) === saved)) {
+      setActiveTeamIdState(saved);
+      const next = new URLSearchParams(searchParams);
+      next.set("teamId", saved);
+      setSearchParams(next, { replace: true });
+    }
+  }, []);
+
+  const handleTeamChange = (newTeamId: string) => {
+    setActiveTeamIdState(newTeamId);
+    setActiveTeamId(newTeamId);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("app-team-changed", { detail: { teamId: newTeamId } }));
+    }
+    const next = new URLSearchParams(searchParams);
+    next.set("teamId", newTeamId);
+    setSearchParams(next);
+  };
+
+  const currentTeam = (teams as Team[]).find((t) => String(t.id) === String(activeTeamId));
   const isCocSelected = currentTeam?.code === "COC";
 
   const [activeTab, setActiveTab] = useState<"overview" | "analytics" | "leaderboard" | "break">("overview");
@@ -243,13 +277,9 @@ export default function StaffPerformance({ loaderData }: Route.ComponentProps) {
                 <button
                   key={t.id}
                   role="tab"
-                  aria-selected={String(t.id) === String(selectedTeamId)}
-                  className={String(t.id) === String(selectedTeamId) ? styles.segOn : styles.segBtn}
-                  onClick={() => {
-                    const next = new URLSearchParams(searchParams);
-                    next.set("teamId", String(t.id));
-                    setSearchParams(next);
-                  }}
+                  aria-selected={String(t.id) === String(activeTeamId)}
+                  className={String(t.id) === String(activeTeamId) ? styles.segOn : styles.segBtn}
+                  onClick={() => handleTeamChange(String(t.id))}
                 >
                   {t.name}
                 </button>

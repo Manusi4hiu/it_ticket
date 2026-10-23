@@ -41,6 +41,7 @@ import { settingsApi, type Status, type Category, type Priority, type Team } fro
 import { usersApi } from "~/services/api.service";
 import { requireAuth } from "~/services/session.service";
 import { sortStatusesByWorkflow, getStatusWorkflowRank, canTakeTicket, inferFilterGroup } from "~/utils/ticket-ui";
+import { getActiveTeamIdFromRequest, setActiveTeamId, getActiveTeamIdClient } from "~/utils/team-cookie";
 import styles from "./style.module.css";
 
 export async function loader({ request }: Route.LoaderArgs) {
@@ -74,8 +75,8 @@ export async function loader({ request }: Route.LoaderArgs) {
     ? allTeams
     : allTeams.filter((t) => userTeams.some((ut) => String(ut.id) === String(t.id)));
 
-  const paramTeamId = url.searchParams.get("teamId");
-  let selectedTeamId = paramTeamId;
+  const requestedTeamId = getActiveTeamIdFromRequest(request, url);
+  let selectedTeamId = requestedTeamId;
   if (!selectedTeamId || !teams.some((t) => String(t.id) === selectedTeamId)) {
     const itTeam = teams.find((t) => t.code === "IT");
     selectedTeamId = itTeam ? String(itTeam.id) : teams[0] ? String(teams[0].id) : "";
@@ -149,6 +150,41 @@ export default function TicketsList({ loaderData }: Route.ComponentProps) {
   }, [initialTickets]);
 
   const [searchParams, setSearchParams] = useSearchParams();
+  const urlTeam = searchParams.get("teamId");
+  const [activeTeamId, setActiveTeamIdState] = useState<string>(() => {
+    return urlTeam || selectedTeamId || getActiveTeamIdClient() || "";
+  });
+
+  useEffect(() => {
+    if (urlTeam && urlTeam !== activeTeamId) {
+      setActiveTeamIdState(urlTeam);
+      setActiveTeamId(urlTeam);
+    }
+  }, [urlTeam]);
+
+  // Sync saved team if URL has no teamId parameter
+  useEffect(() => {
+    const saved = getActiveTeamIdClient();
+    const currentParam = searchParams.get("teamId");
+    if (!currentParam && saved && teams.some((t: Team) => String(t.id) === saved)) {
+      setActiveTeamIdState(saved);
+      const next = new URLSearchParams(searchParams);
+      next.set("teamId", saved);
+      setSearchParams(next, { replace: true });
+    }
+  }, []);
+
+  const handleTeamChange = (newTeamId: string) => {
+    setActiveTeamIdState(newTeamId);
+    setActiveTeamId(newTeamId);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("app-team-changed", { detail: { teamId: newTeamId } }));
+    }
+    const next = new URLSearchParams(searchParams);
+    next.set("teamId", newTeamId);
+    next.delete("page");
+    setSearchParams(next);
+  };
   const navigate = useNavigate();
   const { revalidate } = useRevalidator();
   const [searchValue, setSearchValue] = useState(initialFilters.search || "");
@@ -626,14 +662,9 @@ export default function TicketsList({ loaderData }: Route.ComponentProps) {
                   key={t.id}
                   type="button"
                   role="tab"
-                  aria-selected={String(t.id) === String(selectedTeamId)}
-                  className={String(t.id) === String(selectedTeamId) ? styles.segOn : styles.segBtn}
-                  onClick={() => {
-                    const next = new URLSearchParams(searchParams);
-                    next.set("teamId", String(t.id));
-                    next.delete("page");
-                    setSearchParams(next);
-                  }}
+                  aria-selected={String(t.id) === String(activeTeamId)}
+                  className={String(t.id) === String(activeTeamId) ? styles.segOn : styles.segBtn}
+                  onClick={() => handleTeamChange(String(t.id))}
                 >
                   {t.name}
                 </button>

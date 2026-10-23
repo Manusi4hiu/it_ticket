@@ -291,15 +291,37 @@ class NotificationService:
                 if str(ticket.status).strip().lower() in done_status_names:
                     continue
 
+                is_coc = TicketService.is_graphic_design_ticket(ticket)
+
+                # Tiket IT yang belum di-assign atau belum di-take sama sekali (atau masih berstatus New)
+                # TIDAK memulai SLA resolution countdown dan tidak boleh memicu notifikasi breach/warning
+                if not is_coc and (not ticket.assigned_to_id or not ticket.taken_at or str(ticket.status).strip().lower() in ('new', 'baru')):
+                    if ticket.sla_deadline is not None:
+                        ticket.sla_deadline = None
+                    if ticket.sla_status != 'good':
+                        ticket.sla_status = 'good'
+                    continue
+
                 current_sla = TicketService.calculate_sla_status(
                     ticket.sla_deadline,
                     resolved_at=None,
                     sla_paused_at=ticket.sla_paused_at,
-                    assigned_user=ticket.assigned_user
+                    assigned_user=ticket.assigned_user,
+                    is_design=is_coc,
+                    status=ticket.status,
+                    taken_at=ticket.taken_at
                 )
 
                 if ticket.sla_status != current_sla:
                     ticket.sla_status = current_sla
+
+                # Sinkronkan response_sla_status jika lewat response deadline tanpa respons
+                if not ticket.first_responded_at and ticket.response_deadline:
+                    resp_dl = ticket.response_deadline
+                    if getattr(resp_dl, 'tzinfo', None) is None:
+                        resp_dl = resp_dl.replace(tzinfo=timezone.utc)
+                    if now_utc > resp_dl and ticket.response_sla_status != 'breached':
+                        ticket.response_sla_status = 'breached'
 
                 if current_sla == 'good':
                     continue

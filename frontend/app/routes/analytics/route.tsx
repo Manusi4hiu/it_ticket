@@ -19,6 +19,7 @@ import { getTicketStats, getAllAgentsPerformance } from "~/services/ticket.servi
 import { usersApi } from "~/services/api.service";
 import { settingsApi, type Category, type Priority, type Status, type Department, type Team } from "~/services/settings.service";
 import { requireRole } from "~/services/session.service";
+import { getActiveTeamIdFromRequest, setActiveTeamId, getActiveTeamIdClient } from "~/utils/team-cookie";
 import type { Route } from "./+types/route";
 import styles from "./style.module.css";
 
@@ -149,8 +150,8 @@ export async function loader({ request }: Route.LoaderArgs) {
     : allTeams.filter((t) => userTeams.some((ut) => String(ut.id) === String(t.id)));
 
   // Team scoping: dari query param, fallback ke team IT atau team pertama yang diizinkan
-  const paramTeamId = params.get("teamId");
-  let selectedTeamId = paramTeamId;
+  const requestedTeamId = getActiveTeamIdFromRequest(request, new URL(request.url));
+  let selectedTeamId = requestedTeamId;
   if (!selectedTeamId || !teams.some((t) => String(t.id) === selectedTeamId)) {
     const itTeam = teams.find((t) => t.code === "IT");
     selectedTeamId = itTeam ? String(itTeam.id) : teams[0] ? String(teams[0].id) : "";
@@ -238,6 +239,16 @@ export default function Analytics({ loaderData }: Route.ComponentProps) {
   const [activeTab, setActiveTab] = useState<"overview" | "distribution" | "staff">("overview");
   const [params, setParams] = useSearchParams();
 
+  useEffect(() => {
+    const saved = getActiveTeamIdClient();
+    const currentParam = params.get("teamId");
+    if (!currentParam && saved && Array.isArray(teams) && teams.some((t: any) => String(t.id) === saved)) {
+      const next = new URLSearchParams(params);
+      next.set("teamId", saved);
+      setParams(next, { replace: true });
+    }
+  }, []);
+
   if (!stats) return <div className="p-12 text-center text-slate-400">Loading analytics...</div>;
 
   return (
@@ -258,6 +269,10 @@ export default function Analytics({ loaderData }: Route.ComponentProps) {
       selectedTeamId={selectedTeamId}
       isAdmin={isAdmin}
       onTeamChange={(tId) => {
+        setActiveTeamId(tId);
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("app-team-changed", { detail: { teamId: tId } }));
+        }
         const next = new URLSearchParams(params);
         next.set("teamId", tId);
         setParams(next);

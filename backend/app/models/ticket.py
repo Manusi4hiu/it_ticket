@@ -61,6 +61,9 @@ class Ticket(db.Model):
     sla_paused_at = db.Column(db.DateTime, nullable=True)
     taken_at = db.Column(db.DateTime, nullable=True)  # Timestamp ketika ticket pertama kali di-assign/diambil
     transferred_at = db.Column(db.DateTime, nullable=True)  # Timestamp terakhir tiket di-OPER ke assignee saat ini
+    response_deadline = db.Column(db.DateTime, nullable=True)
+    first_responded_at = db.Column(db.DateTime, nullable=True)
+    response_sla_status = db.Column(db.String(20), default='good')  # good, breached
     
     # Resolution
     resolution_summary = db.Column(db.Text, nullable=True)
@@ -74,7 +77,7 @@ class Ticket(db.Model):
     # Notes and Notifications relationship
     notes = db.relationship('TicketNote', back_populates='ticket', cascade='all, delete-orphan', order_by='TicketNote.created_at')
     notifications = db.relationship('Notification', backref='ticket', cascade='all, delete-orphan')
-    
+
     def to_dict(self, include_notes=True):
         """Convert ticket to dictionary"""
         data = {
@@ -103,6 +106,9 @@ class Ticket(db.Model):
             'slaPausedAt': format_iso_date(self.sla_paused_at),
             'takenAt': format_iso_date(self.taken_at),
             'transferredAt': format_iso_date(self.transferred_at),
+            'responseDeadline': format_iso_date(self.response_deadline),
+            'firstRespondedAt': format_iso_date(self.first_responded_at),
+            'responseSlaStatus': self.response_sla_status or 'good',
             'resolutionSummary': self.resolution_summary,
             'resolutionImageUrl': self.resolution_image_url,
             'resolvedAt': format_iso_date(self.resolved_at),

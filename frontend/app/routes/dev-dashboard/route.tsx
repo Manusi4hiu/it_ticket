@@ -53,6 +53,10 @@ import { ResolveDialog } from "~/routes/ticket.$id/components/ResolveDialog";
 import { requireRole } from "~/services/session.service";
 import { isSystemNote } from "~/utils/ticket-history";
 import {
+  validateWorkingHoursDateTime,
+  getInitialWorkingDateTime,
+} from "~/utils/date";
+import {
   validateFields,
   hasErrors,
   focusFirstError,
@@ -86,12 +90,13 @@ export async function loader({ request }: Route.LoaderArgs) {
     throw redirect("/forbidden");
   }
 
-  const [ticketsRes, agents, statusesRes, categoriesRes, prioritiesRes] = await Promise.all([
+  const [ticketsRes, agents, statusesRes, categoriesRes, prioritiesRes, holidaysRes] = await Promise.all([
     getTickets({ category: "Development", per_page: 150 }), // Only show Development-scoped tracking tasks
     getAgents(),
     settingsApi.getStatuses(),
     settingsApi.getCategories(),
-    settingsApi.getPriorities()
+    settingsApi.getPriorities(),
+    settingsApi.getHolidays(),
   ]);
 
   return Response.json({
@@ -101,12 +106,13 @@ export async function loader({ request }: Route.LoaderArgs) {
     statuses: (statusesRes.data?.data || []).filter((s: any) => s.showOnDevboard)
       .sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0)),
     categories: categoriesRes.data?.data || [],
-    priorities: (prioritiesRes.data?.data || []).filter((p: any) => p.isActive !== false)
+    priorities: (prioritiesRes.data?.data || []).filter((p: any) => p.isActive !== false),
+    holidays: holidaysRes.data?.data || [],
   });
 }
 
 export default function DevDashboard() {
-  const { session, initialTickets, agents, statuses: loaderStatuses, categories, priorities } = useLoaderData() as typeof loader extends (...args: any[]) => Promise<infer T> ? T : any;
+  const { session, initialTickets, agents, statuses: loaderStatuses, categories, priorities, holidays } = useLoaderData() as typeof loader extends (...args: any[]) => Promise<infer T> ? T : any;
   const navigate = useNavigate();
   const [statuses, setStatuses] = useState<any[]>(loaderStatuses);
 
@@ -509,6 +515,7 @@ export default function DevDashboard() {
       setResolveCategory("");
       setResolveCategoryError("");
       setPendingStatusUpdate({ ticketId, targetStatus });
+      setResolveDate(getInitialWorkingDateTime(new Date(), holidays));
       setShowResolveDialog(true);
       return;
     }
@@ -547,9 +554,9 @@ export default function DevDashboard() {
   const handleSubmitResolution = async () => {
     if (!pendingStatusUpdate) return;
     if (resolveDate) {
-      const dateObj = new Date(resolveDate);
-      if (dateObj > new Date()) {
-        setResolutionError("Waktu penyelesaian tidak boleh di masa depan (maksimal sekarang).");
+      const validation = validateWorkingHoursDateTime(resolveDate, holidays);
+      if (!validation.valid) {
+        setResolutionError(validation.error || "Waktu penyelesaian harus di jam kerja (08:00 - 17:00 WIB, Senin - Jumat).");
         return;
       }
     }
@@ -1351,6 +1358,7 @@ export default function DevDashboard() {
         resolutionError={resolutionError}
         resolutionImage={resolutionImage}
         onResolutionImageChange={setResolutionImage}
+        holidays={holidays}
         onSubmit={handleSubmitResolution}
       />
     </div>

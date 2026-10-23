@@ -178,3 +178,22 @@ class BreakLog(db.Model):
             'durationSeconds': self.duration_seconds or 0,
             'logDate': self.log_date.isoformat() if self.log_date else None,
         }
+
+
+class Holiday(db.Model):
+    """Public holidays master data for business hours SLA calculation"""
+    __tablename__ = 'holidays'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    name = db.Column(db.String(100), nullable=False)
+    holiday_date = db.Column(db.Date, nullable=False, unique=True, index=True)
+    is_recurring = db.Column(db.Boolean, default=False, nullable=False)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'holidayDate': self.holiday_date.isoformat() if self.holiday_date else None,
+            'isRecurring': self.is_recurring or False
+        }
+
