@@ -17,8 +17,10 @@ import {
   AlertTriangle,
   Calendar,
   Layers,
-  Sparkles,
-  ClipboardList
+  ClipboardList,
+  Flame,
+  CalendarClock,
+  ExternalLink
 } from "lucide-react";
 import { Button } from "~/components/ui/button/button";
 import { Badge } from "~/components/ui/badge/badge";
@@ -45,18 +47,24 @@ import { settingsApi } from "~/services/settings.service";
 import { requireAuth } from "~/services/session.service";
 import { ReasonDialog } from "~/routes/ticket.$id/components/ReasonDialog";
 import { ResolveDialog } from "~/routes/ticket.$id/components/ResolveDialog";
+import {
+  isWorkingDay,
+  validateWorkingHoursDateTime,
+  getInitialWorkingDateTime,
+} from "~/utils/date";
 import styles from "./style.module.css";
 
 export async function loader({ request }: Route.LoaderArgs) {
   const session = await requireAuth(request);
 
-  // Fetch tickets, agents, statuses, categories, priorities (semua master-driven)
-  const [ticketsRes, agents, statusesRes, categoriesRes, prioritiesRes] = await Promise.all([
-    getTickets({ per_page: 250 }),
+  // Fetch tickets, agents, statuses, categories, priorities, holidays (semua master-driven)
+  const [ticketsRes, agents, statusesRes, categoriesRes, prioritiesRes, holidaysRes] = await Promise.all([
+    getTickets({ per_page: 500 }),
     getAgents(),
     settingsApi.getStatuses(),
     settingsApi.getCategories(),
-    settingsApi.getPriorities()
+    settingsApi.getPriorities(),
+    settingsApi.getHolidays(),
   ]);
 
   return Response.json({
@@ -65,23 +73,24 @@ export async function loader({ request }: Route.LoaderArgs) {
     agents,
     statuses: (statusesRes.data?.data || []).filter((s: any) => s.showOnItHelpdesk !== false),
     categories: categoriesRes.data?.data || [],
-    priorities: (prioritiesRes.data?.data || []).filter((p: any) => p.isActive !== false)
+    priorities: (prioritiesRes.data?.data || []).filter((p: any) => p.isActive !== false),
+    holidays: holidaysRes.data?.data || [],
   });
 }
 
 export default function TicketCalendar() {
-  const { session, initialTickets, agents, statuses, categories, priorities } = useLoaderData() as typeof loader extends (...args: any[]) => Promise<infer T> ? T : any;
+  const { session, initialTickets, agents, statuses, categories, priorities, holidays } = useLoaderData() as typeof loader extends (...args: any[]) => Promise<infer T> ? T : any;
   const navigate = useNavigate();
 
   // Tickets state
   const [tickets, setTickets] = useState<Ticket[]>(initialTickets);
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Filters state
+  // Filters state (strictly for IT Helpdesk - no team workspace dropdown)
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedPriority, setSelectedPriority] = useState("all");
   const [selectedStatus, setSelectedStatus] = useState("all");
-  const [dateField, setDateField] = useState<"deadline" | "created">("deadline"); // "deadline" (SLA) or "created" (Created Date)
+  const [dateField, setDateField] = useState<"deadline" | "created">("deadline"); // "deadline" (SLA Target) or "created" (Created Date)
 
   // Current calendar month view state
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -100,7 +109,7 @@ export default function TicketCalendar() {
   const [statusReason, setStatusReason] = useState("");
   const [resolutionSummary, setResolutionSummary] = useState("");
   const [resolutionError, setResolutionError] = useState("");
-  const [resolveDate, setResolveDate] = useState(new Date().toISOString().split("T")[0]);
+  const [resolveDate, setResolveDate] = useState(() => getInitialWorkingDateTime(new Date(), holidays));
   const [resolutionImage, setResolutionImage] = useState<File | null>(null);
   const [resolveCategory, setResolveCategory] = useState("");
   const [resolveCategoryError, setResolveCategoryError] = useState("");
@@ -201,15 +210,32 @@ export default function TicketCalendar() {
     });
   }, [tickets, searchQuery, selectedCategory, selectedPriority, selectedStatus]);
 
-  // Map tickets to calendar days
+  // Map tickets to calendar days and sort chronologically by deadline/created time
   const ticketsByDay = useMemo(() => {
     const map: Record<string, Ticket[]> = {};
 
     filteredTickets.forEach((ticket) => {
+      // Di mode deadline: gunakan slaDeadline.
+      // Tiket IT tanpa deadline tidak boleh ditampilkan di kalender target deadline.
+      // Di mode created: gunakan createdAt.
       const dateToCompare = dateField === "deadline" ? ticket.slaDeadline : ticket.createdAt;
       if (!dateToCompare) return;
 
       const dateObj = new Date(dateToCompare);
+      if (isNaN(dateObj.getTime())) return;
+
+      // Aturan bisnis: Jika melihat SLA Target Deadline, tanggal akhir pekan (Sabtu/Minggu)
+      // dan hari libur nasional harus kosong untuk tiket IT (tidak boleh ada deadline IT di hari libur).
+      if (dateField === "deadline") {
+        const dayOfWeek = dateObj.getDay();
+        if (dayOfWeek === 0 || dayOfWeek === 6) {
+          return;
+        }
+        if (!isWorkingDay(dateObj, holidays)) {
+          return;
+        }
+      }
+
       const key = `${dateObj.getFullYear()}-${dateObj.getMonth()}-${dateObj.getDate()}`;
 
       if (!map[key]) {
@@ -218,8 +244,79 @@ export default function TicketCalendar() {
       map[key].push(ticket);
     });
 
+    // Urutkan tiket di tiap tanggal secara kronologis berdasarkan jam deadline
+    Object.keys(map).forEach((k) => {
+      map[k].sort((a, b) => {
+        const timeA = new Date(dateField === "deadline" ? a.slaDeadline! : a.createdAt).getTime();
+        const timeB = new Date(dateField === "deadline" ? b.slaDeadline! : b.createdAt).getTime();
+        return timeA - timeB;
+      });
+    });
+
     return map;
-  }, [filteredTickets, dateField]);
+  }, [filteredTickets, dateField, holidays]);
+
+  // Ringkasan beban kerja bulanan untuk visualisasi metrik SLA
+  const monthSummary = useMemo(() => {
+    const inMonth = filteredTickets.filter((t) => {
+      const d = dateField === "deadline" ? t.slaDeadline : t.createdAt;
+      if (!d) return false;
+      const dt = new Date(d);
+      if (isNaN(dt.getTime())) return false;
+      if (dateField === "deadline") {
+        const dayOfWeek = dt.getDay();
+        if (dayOfWeek === 0 || dayOfWeek === 6) return false;
+        if (!isWorkingDay(dt, holidays)) return false;
+      }
+      return dt.getFullYear() === year && dt.getMonth() === month;
+    });
+
+    const total = inMonth.length;
+    const now = Date.now();
+    const overdue = inMonth.filter((t) => {
+      const isDone = ["resolved", "closed", "completed"].includes((t.status || "").toLowerCase());
+      if (isDone) return false;
+      return t.slaDeadline && new Date(t.slaDeadline).getTime() < now;
+    }).length;
+
+    const dueSoon = inMonth.filter((t) => {
+      const isDone = ["resolved", "closed", "completed"].includes((t.status || "").toLowerCase());
+      if (isDone || !t.slaDeadline) return false;
+      const diff = new Date(t.slaDeadline).getTime() - now;
+      return diff > 0 && diff <= 24 * 60 * 60 * 1000;
+    }).length;
+
+    const completed = inMonth.filter((t) =>
+      ["resolved", "closed", "completed"].includes((t.status || "").toLowerCase())
+    ).length;
+
+    // Hitung hari dengan beban penanganan tiket terpadat
+    const dayCounts: Record<number, number> = {};
+    inMonth.forEach((t) => {
+      const d = dateField === "deadline" ? t.slaDeadline : t.createdAt;
+      if (!d) return;
+      const dayNum = new Date(d).getDate();
+      dayCounts[dayNum] = (dayCounts[dayNum] || 0) + 1;
+    });
+
+    let peakDayNum: number | null = null;
+    let peakCount = 0;
+    Object.entries(dayCounts).forEach(([dayStr, c]) => {
+      if (c > peakCount) {
+        peakCount = c;
+        peakDayNum = parseInt(dayStr, 10);
+      }
+    });
+
+    return {
+      total,
+      overdue,
+      dueSoon,
+      completed,
+      peakDayNum,
+      peakCount,
+    };
+  }, [filteredTickets, dateField, year, month, holidays]);
 
   // Helper to check if a day is today
   const isToday = (date: Date) => {
@@ -232,7 +329,6 @@ export default function TicketCalendar() {
   };
 
   // Helper to color priorities — warna diambil dari master, fallback ke peta lama
-  // bila master tidak punya warna (data lama). Custom priority otomatis ikut.
   const getPriorityColor = (priority: string) => {
     const p = (priority || "").toLowerCase();
     const master = (priorities as any[]).find((m: any) => String(m.name).toLowerCase() === p);
@@ -322,14 +418,15 @@ export default function TicketCalendar() {
 
     if (isResolvingWithoutSummary) {
       setPendingStatusUpdate({ ticketId, targetStatus });
+      setResolveDate(getInitialWorkingDateTime(new Date(), holidays));
       setShowResolveDialog(true);
       return;
     }
 
-    const statusConfig = statuses.find((s: any) => s.name.toLowerCase() === targetStatus.toLowerCase());
-    const requiresReason = (statusConfig as any)?.requiresReason || (statusConfig as any)?.requires_reason;
-    if (requiresReason) {
+    const targetMaster = statuses.find((s: any) => s.name.toLowerCase() === targetStatus.toLowerCase());
+    if (targetMaster?.requiresReason) {
       setPendingStatusUpdate({ ticketId, targetStatus });
+      setStatusReason("");
       setShowReasonDialog(true);
       return;
     }
@@ -337,47 +434,53 @@ export default function TicketCalendar() {
     await handleUpdateStatusDirect(ticketId, targetStatus);
   };
 
-  const handleSubmitReason = async () => {
-    if (!pendingStatusUpdate || !statusReason.trim()) return;
-    await handleUpdateStatusDirect(pendingStatusUpdate.ticketId, pendingStatusUpdate.targetStatus, statusReason);
-    setShowReasonDialog(false);
-    setStatusReason("");
-    setPendingStatusUpdate(null);
-  };
-
   const handleSubmitResolution = async () => {
     if (!pendingStatusUpdate) return;
-    if (resolveDate) {
-      const dateObj = new Date(resolveDate);
-      if (dateObj > new Date()) {
-        setResolutionError("Waktu penyelesaian tidak boleh di masa depan (maksimal sekarang).");
-        return;
-      }
-    }
-    if (!resolutionSummary.trim()) {
-      setResolutionError("Resolution summary is required.");
+    setResolutionError("");
+    setResolveCategoryError("");
+
+    if (!resolveDate) {
+      setResolutionError("Waktu penyelesaian wajib diisi.");
       return;
     }
-    setResolutionError("");
-    await handleResolveDirect(pendingStatusUpdate.ticketId, resolutionSummary, resolveDate, resolutionImage);
+    const val = validateWorkingHoursDateTime(resolveDate, holidays);
+    if (!val.valid) {
+      setResolutionError(val.error || "Waktu penyelesaian di luar jam kerja operasional.");
+      return;
+    }
+
+    if (!resolutionSummary || !resolutionSummary.trim()) {
+      setResolutionError("Ringkasan solusi penanganan wajib diisi.");
+      return;
+    }
+
+    await handleResolveDirect(
+      pendingStatusUpdate.ticketId,
+      resolutionSummary,
+      resolveDate,
+      resolutionImage
+    );
     setShowResolveDialog(false);
+    setPendingStatusUpdate(null);
     setResolutionSummary("");
     setResolutionImage(null);
-    setPendingStatusUpdate(null);
   };
 
-  // Handle adding notes — instant UI update like dev-dashboard (fix: notes not showing after post)
+  // Handle add note
   const handleAddNote = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedTicket || !newNoteContent.trim() || isNoteSubmitting) return;
+    if (!selectedTicket || !newNoteContent.trim()) return;
 
     setIsNoteSubmitting(true);
     try {
-      const newNote = await addTicketNote(selectedTicket.id.toString(), newNoteContent, isNoteInternal);
-      if (newNote) {
-        // Directly append to selectedTicket and tickets list for instant feedback
-        setSelectedTicket((prev) => (prev ? { ...prev, notes: [...(prev.notes || []), newNote] } : prev));
-        setTickets((prev) => prev.map((t) => (t.id === selectedTicket.id ? { ...t, notes: [...(t.notes || []), newNote] } : t)));
+      const note = await addTicketNote(selectedTicket.id.toString(), newNoteContent, isNoteInternal);
+      if (note) {
+        const updatedTicket: Ticket = {
+          ...selectedTicket,
+          notes: [...(selectedTicket.notes || []), note]
+        };
+        setSelectedTicket(updatedTicket);
+        setTickets((prev) => prev.map((t) => (t.id === updatedTicket.id ? updatedTicket : t)));
         setNewNoteContent("");
       }
     } catch (err) {
@@ -387,33 +490,25 @@ export default function TicketCalendar() {
     }
   };
 
-  // Quick create task from calendar
+  // Handle Quick Add Task
   const handleQuickAddTask = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!addTaskTitle.trim() || !addTaskDesc.trim() || isTaskSubmitting) return;
+    if (!addTaskTitle.trim() || !addTaskDesc.trim()) return;
 
     setIsTaskSubmitting(true);
     try {
       const newTicket = await createTicket({
         title: addTaskTitle,
         description: addTaskDesc,
+        priority: addTaskPriority,
         category: addTaskCategory,
-        priority: resolvedAddPriority,
-        submitterName: session.userName,
-        submitterEmail: session.userEmail || "dev@company.com",
-        submitterPhone: "",
-        submitterDepartment: "Development"
+        submitterName: session?.name || "IT Staff",
+        submitterEmail: session?.email || "staff@internal.corp",
+        assignedToId: addTaskAssigneeId === "unassigned" ? undefined : addTaskAssigneeId,
       });
 
       if (newTicket) {
-        if (addTaskAssigneeId !== "unassigned") {
-          await assignTicket(newTicket.id.toString(), addTaskAssigneeId);
-        }
-
-        // Refresh
-        const updatedRes = await getTickets({ per_page: 250 });
-        setTickets(updatedRes.tickets);
-
+        setTickets((prev) => [newTicket, ...prev]);
         setIsAddDialogOpen(false);
         setAddTaskTitle("");
         setAddTaskDesc("");
@@ -446,11 +541,11 @@ export default function TicketCalendar() {
       <div className={styles.banner}>
         <div>
           <h2 className={styles.bannerTitle}>
-            <Calendar size={22} className={styles.bannerIcon} />
-            IT Tickets Calendar
+            <CalendarClock size={22} className={styles.bannerIcon} />
+            Kalender Jadwal SLA IT Helpdesk
           </h2>
           <p className={styles.bannerSubtitle}>
-            Browse, manage, and schedule helpdesk tickets and development tasks on a calendar view
+            Pantau jadwal SLA penanganan tiket IT helpdesk secara visual berdasarkan Target Deadline dan Tanggal Dibuat
           </p>
         </div>
         <Button onClick={() => setIsAddDialogOpen(true)} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg">
@@ -459,18 +554,101 @@ export default function TicketCalendar() {
         </Button>
       </div>
 
+      {/* Monthly Workload & SLA Summary Bar */}
+      <div className={styles.summaryGrid}>
+        <div className={styles.summaryCard}>
+          <div className={styles.summaryIconBox} style={{ background: "rgba(59, 130, 246, 0.2)", color: "#60a5fa" }}>
+            <CalendarClock size={22} />
+          </div>
+          <div className={styles.summaryContent}>
+            <span className={styles.summaryLabel}>
+              {dateField === "deadline" ? "Target SLA Bulan Ini" : "Tiket Dibuat Bulan Ini"}
+            </span>
+            <span className={styles.summaryValue}>{monthSummary.total}</span>
+            <span className={styles.summarySubtext}>
+              {monthNames[month]} {year} • IT Helpdesk
+            </span>
+          </div>
+        </div>
+
+        <div className={styles.summaryCard}>
+          <div className={styles.summaryIconBox} style={{ background: monthSummary.peakCount >= 5 ? "rgba(239, 68, 68, 0.2)" : "rgba(245, 158, 11, 0.2)", color: monthSummary.peakCount >= 5 ? "#f87171" : "#fbbf24" }}>
+            <Flame size={22} />
+          </div>
+          <div className={styles.summaryContent}>
+            <span className={styles.summaryLabel}>Hari Paling Padat</span>
+            <span className={styles.summaryValue}>
+              {monthSummary.peakCount > 0 ? `Tgl ${monthSummary.peakDayNum}` : "-"}
+            </span>
+            <span className={styles.summarySubtext}>
+              {monthSummary.peakCount > 0
+                ? `${monthSummary.peakCount} tiket (${monthSummary.peakCount >= 5 ? "🔥 Padat" : monthSummary.peakCount >= 3 ? "⚡ Sedang" : "🌱 Longgar"})`
+                : "Tidak ada jadwal tiket"}
+            </span>
+          </div>
+        </div>
+
+        <div className={styles.summaryCard}>
+          <div className={styles.summaryIconBox} style={{ background: "rgba(245, 158, 11, 0.2)", color: "#f59e0b" }}>
+            <Clock size={22} />
+          </div>
+          <div className={styles.summaryContent}>
+            <span className={styles.summaryLabel}>Mendekati Deadline (&lt; 24j)</span>
+            <span className={styles.summaryValue}>{monthSummary.dueSoon}</span>
+            <span className={styles.summarySubtext}>Perlu diprioritaskan penyelesaiannya</span>
+          </div>
+        </div>
+
+        <div className={styles.summaryCard}>
+          <div className={styles.summaryIconBox} style={{ background: "rgba(239, 68, 68, 0.2)", color: "#ef4444" }}>
+            <AlertTriangle size={22} />
+          </div>
+          <div className={styles.summaryContent}>
+            <span className={styles.summaryLabel}>Lewat Deadline (SLA Overdue)</span>
+            <span className={styles.summaryValue} style={{ color: monthSummary.overdue > 0 ? "#f87171" : "#ffffff" }}>
+              {monthSummary.overdue}
+            </span>
+            <span className={styles.summarySubtext}>
+              {monthSummary.overdue > 0 ? "⚠️ Melebihi batas SLA resolusi" : "Semua SLA terkendali"}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Workload / Density Legend Bar */}
+      <div className={styles.legendBar}>
+        <div className={styles.legendItems}>
+          <span className={styles.legendLabel}>
+            <Layers size={14} />
+            Indikator Beban Kerja Harian:
+          </span>
+          <span className={`${styles.legendPill} ${styles.legendPillLonggar}`}>
+            🌱 Longgar (1-2 tiket)
+          </span>
+          <span className={`${styles.legendPill} ${styles.legendPillSedang}`}>
+            ⚡ Sedang (3-4 tiket)
+          </span>
+          <span className={`${styles.legendPill} ${styles.legendPillPadat}`}>
+            🔥 Padat (≥5 tiket)
+          </span>
+        </div>
+        <div style={{ fontSize: "0.72rem", color: "rgba(255,255,255,0.45)", display: "flex", alignItems: "center", gap: 4 }}>
+          <span>Mode: <strong>{dateField === "deadline" ? "Berdasarkan Target Waktu SLA" : "Berdasarkan Waktu Tiket Dibuat"}</strong></span>
+        </div>
+      </div>
+
       <div className={styles.contentArea}>
         {/* Controls / Filter Bar */}
         <div className={styles.filterBar}>
           <div className={styles.filtersGroup}>
             {/* Search Input */}
-            <div style={{ position: "relative", minWidth: 200 }}>
-              <Search style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.4)" }} size={14} />
+            <div className={styles.searchWrapper}>
+              <Search className={styles.searchIcon} size={15} />
               <Input
                 placeholder="Search tickets..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                style={{ paddingLeft: 30, background: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.1)", color: "#fff", height: 36, borderRadius: 8 }}
+                className={styles.searchInput}
               />
             </div>
 
@@ -522,15 +700,17 @@ export default function TicketCalendar() {
                 type="button"
                 className={`${styles.toggleBtn} ${dateField === "deadline" ? styles.toggleBtnActive : ""}`}
                 onClick={() => setDateField("deadline")}
+                title="Tampilkan berdasarkan Target Waktu SLA"
               >
-                SLA Deadline
+                🎯 Target Deadline
               </button>
               <button
                 type="button"
                 className={`${styles.toggleBtn} ${dateField === "created" ? styles.toggleBtnActive : ""}`}
                 onClick={() => setDateField("created")}
+                title="Tampilkan berdasarkan tanggal pembuatan tiket"
               >
-                Created Date
+                📅 Tanggal Dibuat
               </button>
             </div>
           </div>
@@ -546,7 +726,7 @@ export default function TicketCalendar() {
             <button onClick={handleNextMonth} className={styles.navBtn} title="Next Month">
               <ChevronRight size={16} />
             </button>
-            <button onClick={handleToday} className="px-3 py-1 text-xs bg-slate-800 hover:bg-slate-700 text-white rounded-md border border-slate-700 transition" style={{ marginLeft: 6 }}>
+            <button onClick={handleToday} className={styles.todayBtn} title="Hari ini">
               Today
             </button>
           </div>
@@ -570,36 +750,111 @@ export default function TicketCalendar() {
               const dayTickets = ticketsByDay[dayKey] || [];
               const isCurr = day.isCurrentMonth;
               const isTodayCell = isToday(day.date);
+              const count = dayTickets.length;
+              const isNonWorking = !isWorkingDay(day.date, holidays);
+
+              const densityClass =
+                count >= 5
+                  ? styles.dayCellPadat
+                  : count >= 3
+                  ? styles.dayCellSedang
+                  : count >= 1
+                  ? styles.dayCellLonggar
+                  : "";
 
               return (
                 <div
                   key={idx}
-                  className={`${styles.dayCell} ${!isCurr ? styles.dayCellOutside : ""} ${isTodayCell ? styles.dayCellToday : ""}`}
+                  className={`${styles.dayCell} ${!isCurr ? styles.dayCellOutside : ""} ${isTodayCell ? styles.dayCellToday : ""} ${densityClass}`}
                 >
                   <div className={styles.cellHeader}>
                     <span className={styles.dayNumber}>{day.date.getDate()}</span>
-                    {dayTickets.length > 0 && (
-                      <span className={styles.ticketCountBadge}>
-                        {dayTickets.length}
+                    {dateField === "deadline" && isNonWorking && (
+                      <span
+                        style={{
+                          fontSize: "0.65rem",
+                          padding: "1px 5px",
+                          borderRadius: "4px",
+                          background: "rgba(239, 68, 68, 0.15)",
+                          color: "#f87171",
+                          fontWeight: 500,
+                        }}
+                      >
+                        Libur
                       </span>
                     )}
+                    {count >= 5 ? (
+                      <span className={styles.densityBadgePadat} title="Beban Padat: ≥5 tiket">
+                        🔥 Padat ({count})
+                      </span>
+                    ) : count >= 3 ? (
+                      <span className={styles.densityBadgeSedang} title="Beban Sedang: 3-4 tiket">
+                        ⚡ Sedang ({count})
+                      </span>
+                    ) : count >= 1 ? (
+                      <span className={styles.densityBadgeLonggar} title="Beban Longgar: 1-2 tiket">
+                        🌱 {count} Tiket
+                      </span>
+                    ) : null}
                   </div>
 
                   <div className={styles.cellTickets}>
-                    {dayTickets.map((t) => (
-                      <div
-                        key={t.id}
-                        className={styles.ticketItem}
-                        style={{ borderLeftColor: getPriorityColor(t.priority) }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenDetail(t);
-                        }}
-                        title={`${t.ticketCode || t.id}: ${t.title}`}
-                      >
-                        {t.ticketCode ? `[${t.ticketCode}] ` : ""}{t.title}
-                      </div>
-                    ))}
+                    {dayTickets.map((t) => {
+                      const isDone = ["resolved", "closed", "completed"].includes((t.status || "").toLowerCase());
+                      const isOverdue = t.slaDeadline && new Date(t.slaDeadline).getTime() < Date.now() && !isDone;
+                      const isDueToday = t.slaDeadline && isToday(new Date(t.slaDeadline)) && !isDone;
+
+                      const targetDateStr = dateField === "deadline" ? t.slaDeadline : t.createdAt;
+                      const timeStr = targetDateStr
+                        ? new Date(targetDateStr).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })
+                        : null;
+
+                      return (
+                        <div
+                          key={t.id}
+                          className={styles.ticketItem}
+                          style={{ borderLeftColor: getPriorityColor(t.priority) }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenDetail(t);
+                          }}
+                          title={`${t.ticketCode || t.id}: ${t.title} (${t.status})`}
+                        >
+                          <div className={styles.ticketCardHeader}>
+                            {timeStr ? (
+                              <span className={styles.ticketTime}>
+                                <Clock size={10} />
+                                {timeStr}
+                              </span>
+                            ) : (
+                              <span style={{ fontSize: "0.65rem", color: "rgba(255,255,255,0.45)" }}>
+                                {t.ticketCode || `#${t.id}`}
+                              </span>
+                            )}
+
+                            {isDone ? (
+                              <span className={styles.badgeDone}>✓ Selesai</span>
+                            ) : isOverdue ? (
+                              <span className={styles.badgeOverdue}>⚠️ Overdue</span>
+                            ) : isDueToday ? (
+                              <span className={styles.badgeDueToday}>🎯 Hari Ini</span>
+                            ) : null}
+                          </div>
+
+                          <span className={styles.ticketTitleText}>
+                            {t.ticketCode ? `[${t.ticketCode}] ` : ""}{t.title}
+                          </span>
+
+                          <div className={styles.ticketFooter}>
+                            <span className={styles.ticketAssignee}>
+                              <User size={10} />
+                              {t.assignedTo || "Unassigned"}
+                            </span>
+                            <span style={{ opacity: 0.6 }}>{t.category}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               );
@@ -610,64 +865,74 @@ export default function TicketCalendar() {
 
       {/* Ticket Details Dialog */}
       <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-        <DialogContent className="max-w-4xl bg-slate-900 text-white border border-slate-700 rounded-xl p-6">
+        <DialogContent className={styles.modalContent}>
           {selectedTicket && (
             <>
-              <DialogHeader>
-                <div className="flex items-center gap-3 flex-wrap">
-                  <span className="text-sm font-semibold text-blue-400">
+              <DialogHeader className={styles.modalHeader}>
+                <div className={styles.modalHeaderMeta}>
+                  <span className={styles.modalTicketCode}>
                     {selectedTicket.ticketCode || `Ticket #${selectedTicket.id}`}
                   </span>
-                  <Badge style={{ backgroundColor: getStatusColor(selectedTicket.status), color: "#fff", border: "none" }}>
+                  <Badge style={{ backgroundColor: getStatusColor(selectedTicket.status), color: "#fff", border: "none", padding: "3px 10px", fontSize: "0.75rem", borderRadius: 6 }}>
                     {selectedTicket.status}
                   </Badge>
-                  <Badge style={{ backgroundColor: getPriorityColor(selectedTicket.priority), color: "#fff", border: "none" }}>
+                  <Badge style={{ backgroundColor: getPriorityColor(selectedTicket.priority), color: "#fff", border: "none", padding: "3px 10px", fontSize: "0.75rem", borderRadius: 6, textTransform: "capitalize" }}>
                     {selectedTicket.priority} Priority
                   </Badge>
+                  <span className={styles.modalDivider}>•</span>
+                  <span className={styles.modalCategory}>{selectedTicket.category}</span>
                 </div>
-                <DialogTitle className="text-xl font-bold mt-2 text-white">
+                <DialogTitle className={styles.modalTitle}>
                   {selectedTicket.title}
                 </DialogTitle>
               </DialogHeader>
 
               <div className={styles.modalGrid}>
-                {/* Left Side: Ticket Content & Notes */}
+                {/* Left Side: Description & Notes */}
                 <div className={styles.modalLeft}>
-                  <div>
+                  <div className={styles.modalSection}>
                     <h4 className={styles.sectionTitle}>Description</h4>
                     <div className={styles.ticketDescBox}>
-                      {selectedTicket.description}
+                      {selectedTicket.description || <span style={{ opacity: 0.5, fontStyle: "italic" }}>No description provided.</span>}
                     </div>
                   </div>
 
-                  {/* Notes Segment */}
+                  {/* Notes & Activity List */}
                   <div className={styles.notesSection}>
-                    <h4 className={styles.sectionTitle}>Notes / Log ({selectedTicket.notes.length})</h4>
+                    <h4 className={styles.sectionTitle} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <MessageSquare size={13} />
+                      Activity & Notes ({selectedTicket.notes?.length || 0})
+                    </h4>
+
                     <div className={styles.notesList}>
-                      {selectedTicket.notes.length === 0 ? (
-                        <p className="text-xs text-slate-500 italic">No notes posted yet.</p>
-                      ) : (
+                      {selectedTicket.notes && selectedTicket.notes.length > 0 ? (
                         selectedTicket.notes.map((note) => (
                           <div
                             key={note.id}
                             className={`${styles.noteItem} ${note.isInternal ? styles.noteInternal : ""}`}
                           >
                             <div className={styles.noteHeader}>
-                              <span className={styles.noteAuthor}>{note.author}</span>
-                              <span>{formatDate(note.createdAt)}</span>
+                              <span className={styles.noteAuthor}>{note.author || (note as any).authorName || "Staff"}</span>
+                              <span className={styles.noteDate}>{formatDate(note.createdAt ? new Date(note.createdAt) : undefined)}</span>
                             </div>
-                            <div className={styles.noteContent} dangerouslySetInnerHTML={{ __html: note.content }} />
+                            <div
+                              className={styles.noteContent}
+                              dangerouslySetInnerHTML={{ __html: note.content }}
+                            />
                           </div>
                         ))
+                      ) : (
+                        <p className="text-xs text-slate-500 italic py-2">No notes or activities yet.</p>
                       )}
                     </div>
 
+                    {/* Add Quick Note Form */}
                     <form onSubmit={handleAddNote} className={styles.noteForm}>
-                      <Textarea
-                        placeholder="Type notes or updates here..."
+                      <Input
+                        placeholder="Add a quick note or update..."
                         value={newNoteContent}
                         onChange={(e) => setNewNoteContent(e.target.value)}
-                        className="bg-slate-950 text-white border-slate-800 placeholder-slate-600 rounded-lg min-h-16 text-sm"
+                        className={styles.noteInput}
                       />
                       <div className={styles.noteOptions}>
                         <label className={styles.internalCheckboxLabel}>
@@ -675,16 +940,16 @@ export default function TicketCalendar() {
                             type="checkbox"
                             checked={isNoteInternal}
                             onChange={(e) => setIsNoteInternal(e.target.checked)}
-                            className="rounded border-slate-700 text-blue-500 focus:ring-0 focus:ring-offset-0 bg-slate-950"
                           />
-                          Internal note (Staff visible only)
+                          <span>Internal note (staff only)</span>
                         </label>
                         <Button
                           type="submit"
-                          disabled={!newNoteContent.trim() || isNoteSubmitting}
-                          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-lg text-xs"
+                          disabled={isNoteSubmitting || !newNoteContent.trim()}
+                          size="sm"
+                          className={styles.postNoteBtn}
                         >
-                          {isNoteSubmitting ? "Posting..." : "Post Note"}
+                          Post Note
                         </Button>
                       </div>
                     </form>
@@ -693,63 +958,74 @@ export default function TicketCalendar() {
 
                 {/* Right Side: Meta Details & Actions */}
                 <div className={styles.modalRight}>
-                  <div>
-                    <h4 className={styles.sectionTitle}>Assignee</h4>
-                    <div className="flex flex-col gap-2">
-                      <select
-                        className={styles.assignSelect}
-                        value={selectedTicket.assignedToId?.toString() || "unassigned"}
-                        onChange={(e) => handleAssignChange(e.target.value)}
-                      >
-                        <option value="unassigned" className={styles.selectOption}>Unassigned</option>
-                        {agents.map((agent: Agent) => (
-                          <option key={agent.id} value={agent.id.toString()} className={styles.selectOption}>
-                            {agent.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                  <div className={styles.infoRow}>
+                    <span className={styles.sectionTitle}>Status</span>
+                    <select
+                      className={styles.prioritySelect}
+                      value={selectedTicket.status}
+                      onChange={(e) => handleStatusChange(e.target.value)}
+                    >
+                      {statuses.map((s: any) => (
+                        <option key={s.id} value={s.name} className={styles.selectOption}>
+                          {s.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
-                  <div>
-                    <h4 className={styles.sectionTitle}>Update Status</h4>
-                    <div className="flex flex-col gap-2">
-                      <select
-                        className={styles.assignSelect}
-                        value={selectedTicket.status}
-                        onChange={(e) => handleStatusChange(e.target.value)}
-                      >
-                        {statuses.map((s: any) => (
-                          <option key={s.id} value={s.name} className={styles.selectOption}>
-                            {s.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                  <div className={styles.infoRow}>
+                    <span className={styles.sectionTitle}>Assignee</span>
+                    <select
+                      className={styles.prioritySelect}
+                      value={selectedTicket.assignedToId ? selectedTicket.assignedToId.toString() : "unassigned"}
+                      onChange={(e) => handleAssignChange(e.target.value)}
+                    >
+                      <option value="unassigned" className={styles.selectOption}>Unassigned</option>
+                      {agents.map((agent: Agent) => (
+                        <option key={agent.id} value={agent.id.toString()} className={styles.selectOption}>
+                          {agent.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
-                  <div className="flex flex-col gap-3 mt-2 text-xs">
-                    <div className={styles.infoRow}>
-                      <span className={styles.sectionTitle}>Category</span>
-                      <span className={styles.infoVal}>{selectedTicket.category}</span>
-                    </div>
+                  <div className={styles.infoRow}>
+                    <span className={styles.sectionTitle}>Priority</span>
+                    <span className={styles.infoVal} style={{ textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                      {selectedTicket.priority}
+                    </span>
+                  </div>
 
-                    <div className={styles.infoRow}>
-                      <span className={styles.sectionTitle}>Submitter</span>
-                      <span className={styles.infoVal}>{selectedTicket.submitterName}</span>
+                  <div className={styles.infoRow}>
+                    <span className={styles.sectionTitle}>Submitter</span>
+                    <span className={styles.infoVal}>{selectedTicket.submitterName}</span>
+                    {selectedTicket.submitterEmail && (
                       <span className={styles.infoSubVal}>{selectedTicket.submitterEmail}</span>
-                    </div>
-
-                    <div className={styles.infoRow}>
-                      <span className={styles.sectionTitle}>Created At</span>
-                      <span className={styles.infoVal}>{formatDate(selectedTicket.createdAt)}</span>
-                    </div>
-
-                    <div className={styles.infoRow}>
-                      <span className={styles.sectionTitle}>SLA Deadline</span>
-                      <span className={styles.infoVal}>{formatDate(selectedTicket.slaDeadline)}</span>
-                    </div>
+                    )}
                   </div>
+
+                  <div className={styles.infoRow}>
+                    <span className={styles.sectionTitle}>Target SLA Deadline</span>
+                    <span className={styles.infoVal} style={{ color: selectedTicket.slaDeadline ? "#60a5fa" : undefined }}>
+                      {selectedTicket.slaDeadline ? formatDate(new Date(selectedTicket.slaDeadline)) : "-"}
+                    </span>
+                  </div>
+
+                  <div className={styles.infoRow}>
+                    <span className={styles.sectionTitle}>Created At</span>
+                    <span className={styles.infoVal}>
+                      {formatDate(new Date(selectedTicket.createdAt))}
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/ticket/${selectedTicket.ticketCode || selectedTicket.id}`)}
+                    className={styles.openTicketBtn}
+                  >
+                    <span>Open Full Ticket View</span>
+                    <ExternalLink size={14} />
+                  </button>
                 </div>
               </div>
             </>
@@ -757,21 +1033,26 @@ export default function TicketCalendar() {
         </DialogContent>
       </Dialog>
 
+      {/* Reason Dialog for Status Updates that require reason */}
       <ReasonDialog
         open={showReasonDialog}
         onOpenChange={(open) => {
           setShowReasonDialog(open);
-          if (!open) {
-            setStatusReason("");
-            setPendingStatusUpdate(null);
-          }
+          if (!open) setPendingStatusUpdate(null);
         }}
+        targetStatus={pendingStatusUpdate?.targetStatus || ""}
         reason={statusReason}
         onReasonChange={setStatusReason}
-        onSubmit={handleSubmitReason}
-        targetStatus={pendingStatusUpdate?.targetStatus || ""}
+        onSubmit={async () => {
+          if (!pendingStatusUpdate || !statusReason.trim()) return;
+          await handleUpdateStatusDirect(pendingStatusUpdate.ticketId, pendingStatusUpdate.targetStatus, statusReason);
+          setShowReasonDialog(false);
+          setPendingStatusUpdate(null);
+          setStatusReason("");
+        }}
       />
 
+      {/* Resolve Dialog for Resolution Summary & Business Hours Validation */}
       <ResolveDialog
         open={showResolveDialog}
         onOpenChange={(open) => {
@@ -796,6 +1077,7 @@ export default function TicketCalendar() {
         resolutionError={resolutionError}
         resolutionImage={resolutionImage}
         onResolutionImageChange={setResolutionImage}
+        holidays={holidays}
         onSubmit={handleSubmitResolution}
       />
 

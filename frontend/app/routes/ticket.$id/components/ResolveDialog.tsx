@@ -18,7 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "~/components/ui/dialog/dialog";
-import { toDatetimeLocalString } from "~/utils/date";
+import { toDatetimeLocalString, validateWorkingHoursDateTime, type HolidayLike } from "~/utils/date";
 import type { Category } from "~/services/settings.service";
 import styles from "../style.module.css";
 
@@ -89,6 +89,8 @@ interface ResolveDialogProps {
   resolutionImage?: File | null;
   /** Callback saat file gambar dipilih */
   onResolutionImageChange?: (file: File | null) => void;
+  /** Daftar hari libur nasional untuk validasi jam kerja */
+  holidays?: HolidayLike[];
   /** Callback submit form resolve */
   onSubmit: () => void;
 }
@@ -111,6 +113,7 @@ export function ResolveDialog({
   resolutionError,
   resolutionImage,
   onResolutionImageChange,
+  holidays,
   onSubmit,
 }: ResolveDialogProps) {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -119,6 +122,8 @@ export function ResolveDialog({
       onResolutionImageChange(file);
     }
   };
+
+  const dateValidation = resolveDate ? validateWorkingHoursDateTime(resolveDate, holidays) : { valid: true };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -169,7 +174,7 @@ export function ResolveDialog({
                   width: "100%",
                   padding: "var(--space-2)",
                   borderRadius: "var(--radius-sm)",
-                  border: "1px solid var(--color-neutral-4)",
+                  border: !dateValidation.valid ? "1px solid #ef4444" : "1px solid var(--color-neutral-4)",
                   marginTop: "var(--space-1)",
                   backgroundColor: "var(--color-neutral-1)",
                   color: "var(--color-neutral-12)",
@@ -180,6 +185,12 @@ export function ResolveDialog({
                 onChange={(e) => onResolveDateChange(e.target.value)}
                 required
               />
+              <span style={{ fontSize: "0.72rem", color: "var(--color-neutral-10)", marginTop: "4px", display: "block" }}>
+                Jam kerja: 08:00 - 17:00 WIB (Senin - Jumat)
+              </span>
+              {!dateValidation.valid && dateValidation.error && (
+                <p style={errorTextStyle}>{dateValidation.error}</p>
+              )}
             </div>
 
             {/* Category Update */}
@@ -305,7 +316,7 @@ export function ResolveDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={onSubmit} disabled={!resolutionSummary.trim() || !resolveDate}>
+          <Button onClick={onSubmit} disabled={!resolutionSummary.trim() || !resolveDate || !dateValidation.valid}>
             Resolve Ticket
           </Button>
         </DialogFooter>

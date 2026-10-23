@@ -253,7 +253,7 @@ export function TicketInfoCard({
               </span>
               <div className={styles.collaboratorsList}>
                 {ticket.collaborators.map((c, i) => {
-                  const collaboratorId = ticket.collaboratorIds[i];
+                  const collaboratorId = ticket.collaboratorIds ? ticket.collaboratorIds[i] : undefined;
                   return (
                     <Badge key={i} variant="secondary" className={styles.collaboratorBadge}>
                       {collaboratorId ? (
