@@ -8,6 +8,36 @@
 export interface HolidayLike {
   holidayDate: string; // YYYY-MM-DD
   isRecurring?: boolean;
+  name?: string;
+  [key: string]: any;
+}
+
+interface HolidayLookup {
+  exact: Map<string, HolidayLike>;
+  recurring: Map<string, HolidayLike>;
+}
+
+const holidayLookupCache = new WeakMap<HolidayLike[], HolidayLookup>();
+
+export function getHolidayLookup(holidays?: HolidayLike[]): HolidayLookup | null {
+  if (!holidays || holidays.length === 0) return null;
+  let cached = holidayLookupCache.get(holidays);
+  if (!cached) {
+    const exact = new Map<string, HolidayLike>();
+    const recurring = new Map<string, HolidayLike>();
+    for (const h of holidays) {
+      if (h.isRecurring && h.holidayDate) {
+        const parts = h.holidayDate.split("-");
+        const monthDayKey = parts.length === 3 ? `${parts[1]}-${parts[2]}` : h.holidayDate;
+        recurring.set(monthDayKey, h);
+      } else if (h.holidayDate) {
+        exact.set(h.holidayDate, h);
+      }
+    }
+    cached = { exact, recurring };
+    holidayLookupCache.set(holidays, cached);
+  }
+  return cached;
 }
 
 /**
@@ -43,32 +73,37 @@ export function toDatetimeLocalString(date: Date): string {
 }
 
 /**
+ * Dapatkan data hari libur nasional / cuti bersama khusus pada tanggal tertentu jika ada.
+ * Mengembalikan objek HolidayLike atau undefined jika bukan hari libur nasional/cuti bersama.
+ */
+export function getSpecialHoliday(date: Date, holidays?: HolidayLike[]): HolidayLike | undefined {
+  if (!holidays || holidays.length === 0) return undefined;
+  const lookup = getHolidayLookup(holidays);
+  if (!lookup) return undefined;
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const dStr = String(date.getDate()).padStart(2, "0");
+  const dateKey = `${year}-${month}-${dStr}`;
+
+  const match = lookup.exact.get(dateKey);
+  if (match) return match;
+
+  const monthDayKey = `${month}-${dStr}`;
+  return lookup.recurring.get(monthDayKey);
+}
+
+/**
  * Periksa apakah tanggal tertentu merupakan hari kerja (Senin - Jumat) dan bukan hari libur nasional.
  */
 export function isWorkingDay(date: Date, holidays?: HolidayLike[]): boolean {
   const day = date.getDay();
-  if (day === 0 || day === 6) { // 0 = Minggu, 6 = Sabtu
+  if (day === 0 || day === 6) {
+    // 0 = Minggu, 6 = Sabtu
     return false;
   }
 
-  if (holidays && holidays.length > 0) {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const dStr = String(date.getDate()).padStart(2, "0");
-    const dateKey = `${year}-${month}-${dStr}`;
-    const monthDayKey = `${month}-${dStr}`;
-
-    const isHol = holidays.some((h) => {
-      if (h.isRecurring) {
-        return h.holidayDate.endsWith(monthDayKey);
-      }
-      return h.holidayDate === dateKey;
-    });
-
-    if (isHol) return false;
-  }
-
-  return true;
+  return !getSpecialHoliday(date, holidays);
 }
 
 /**
@@ -93,7 +128,7 @@ export function isWithinWorkingHours(date: Date = new Date(), holidays?: Holiday
 export function calculateBusinessDurationMinutes(
   start: Date | string,
   end: Date | string,
-  holidays?: HolidayLike[]
+  holidays?: HolidayLike[],
 ): number {
   if (!start || !end) return 0;
   let cur = new Date(start);
@@ -143,11 +178,7 @@ export function calculateBusinessDurationMinutes(
  * @param holidays - Daftar hari libur dari master data
  * @returns Contoh: "6h 40m"
  */
-export function formatDuration(
-  start: Date | string,
-  end: Date | string,
-  holidays?: HolidayLike[]
-): string {
+export function formatDuration(start: Date | string, end: Date | string, holidays?: HolidayLike[]): string {
   const mins = calculateBusinessDurationMinutes(start, end, holidays);
   const hours = Math.floor(mins / 60);
   const minutes = mins % 60;
@@ -167,7 +198,7 @@ export function formatDuration(
 export function formatTimeRemaining(
   deadline: Date | string | undefined,
   pausedAt?: Date | string,
-  holidays?: HolidayLike[]
+  holidays?: HolidayLike[],
 ): string {
   if (!deadline) return "Not started";
 
@@ -207,7 +238,7 @@ export function formatTimeRemaining(
  */
 export function validateWorkingHoursDateTime(
   dateInput: Date | string,
-  holidays?: HolidayLike[]
+  holidays?: HolidayLike[],
 ): { valid: boolean; error?: string } {
   if (!dateInput) {
     return { valid: false, error: "Waktu penyelesaian wajib diisi." };
@@ -251,8 +282,8 @@ export function validateWorkingHoursDateTime(
   const hours = d.getHours();
   const minutes = d.getMinutes();
   const totalMins = hours * 60 + minutes;
-  const startMins = 8 * 60;   // 08:00
-  const endMins = 17 * 60;    // 17:00
+  const startMins = 8 * 60; // 08:00
+  const endMins = 17 * 60; // 17:00
 
   if (totalMins < startMins || totalMins > endMins) {
     const formattedHour = String(hours).padStart(2, "0") + ":" + String(minutes).padStart(2, "0");

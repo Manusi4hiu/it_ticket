@@ -1,247 +1,264 @@
 import { apiRequest } from "./api.service";
 
 export interface Category {
-    id: string;
-    name: string;
-    description?: string;
-    isActive: boolean;
-    teamId?: number | null;
-    teamCode?: string | null;
+  id: string;
+  name: string;
+  description?: string;
+  isActive: boolean;
+  teamId?: number | null;
+  teamCode?: string | null;
 }
 
 export interface Priority {
-    id: string;
-    name: string;
-    level: number;
-    color: string;
-    slaHours: number;
-    responseTimeMinutes: number;
-    description?: string;
-    isActive: boolean;
+  id: string;
+  name: string;
+  level: number;
+  color: string;
+  slaHours: number;
+  responseTimeMinutes: number;
+  description?: string;
+  isActive: boolean;
 }
 
 export interface Status {
-    id: string | number;
-    name: string;
-    color: string;
-    order: number;
-    filterGroup?: string | null;
-    isDefault: boolean;
-    requiresReason: boolean;
-    pausesSla: boolean;
-    showOnDevboard: boolean;
-    showOnItHelpdesk: boolean;
-    teamId?: number | null;
-    teamCode?: string | null;
+  id: string | number;
+  name: string;
+  color: string;
+  order: number;
+  filterGroup?: string | null;
+  isDefault: boolean;
+  requiresReason: boolean;
+  pausesSla: boolean;
+  showOnDevboard: boolean;
+  showOnItHelpdesk: boolean;
+  teamId?: number | null;
+  teamCode?: string | null;
 }
 
 export interface SLAPolicy {
-    id: string;
-    priorityId?: string;
-    categoryId?: string;
-    priorityName?: string;
-    categoryName?: string;
-    responseTimeMinutes: number;
-    resolutionTimeHours: number;
+  id: string;
+  priorityId?: string;
+  categoryId?: string;
+  priorityName?: string;
+  categoryName?: string;
+  responseTimeMinutes: number;
+  resolutionTimeHours: number;
 }
 
 export interface BreakSetting {
-    id: string;
-    name: string;
-    maxBreakMinutes: number;
-    dailyMaxMinutes: number;
-    weeklyMaxMinutes: number;
-    monthlyMaxMinutes: number;
-    description?: string;
+  id: string;
+  name: string;
+  maxBreakMinutes: number;
+  dailyMaxMinutes: number;
+  weeklyMaxMinutes: number;
+  monthlyMaxMinutes: number;
+  description?: string;
+}
+
+export interface HolidaySyncMeta {
+  source: string;
+  lastSyncedAt?: string | null;
+  cronSchedule: string;
+  totalHolidays: number;
+  storageMode: string;
 }
 
 export interface Holiday {
-    id: string | number;
-    name: string;
-    holidayDate: string; // YYYY-MM-DD
-    isRecurring: boolean;
+  id: string | number;
+  name: string;
+  holidayDate: string; // YYYY-MM-DD
+  isRecurring: boolean;
 }
 
 export interface CreateHolidayPayload {
-    name: string;
-    holidayDate?: string;
-    startDate?: string;
-    endDate?: string;
-    isRecurring?: boolean;
+  name: string;
+  holidayDate?: string;
+  startDate?: string;
+  endDate?: string;
+  isRecurring?: boolean;
 }
 
 export const settingsApi = {
-    // Categories
-    getCategories: async () => {
-        return apiRequest<{ success: boolean; data: Category[] }>('/settings/categories');
-    },
-    createCategory: async (data: Partial<Category>) => {
-        return apiRequest<{ success: boolean; data: Category }>('/settings/categories', {
-            method: 'POST',
-            body: JSON.stringify(data)
-        });
-    },
-    updateCategory: async (id: string, data: Partial<Category>) => {
-        return apiRequest<{ success: boolean; data: Category }>(`/settings/categories/${id}`, {
-            method: 'PUT',
-            body: JSON.stringify(data)
-        });
-    },
-    deleteCategory: async (id: string) => {
-        return apiRequest(`/settings/categories/${id}`, { method: 'DELETE' });
-    },
+  // Categories
+  getCategories: async () => {
+    return apiRequest<{ success: boolean; data: Category[] }>("/settings/categories");
+  },
+  createCategory: async (data: Partial<Category>) => {
+    return apiRequest<{ success: boolean; data: Category }>("/settings/categories", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+  updateCategory: async (id: string, data: Partial<Category>) => {
+    return apiRequest<{ success: boolean; data: Category }>(`/settings/categories/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
+  deleteCategory: async (id: string) => {
+    return apiRequest(`/settings/categories/${id}`, { method: "DELETE" });
+  },
 
-    // Priorities
-    getPriorities: async () => {
-        return apiRequest<{ success: boolean; data: Priority[] }>('/settings/priorities');
-    },
-    createPriority: async (data: Partial<Priority>) => {
-        return apiRequest<{ success: boolean; data: Priority }>('/settings/priorities', {
-            method: 'POST',
-            body: JSON.stringify(data)
-        });
-    },
-    updatePriority: async (id: string, data: Partial<Priority>) => {
-        return apiRequest<{ success: boolean; data: Priority }>(`/settings/priorities/${id}`, {
-            method: 'PUT',
-            body: JSON.stringify(data)
-        });
-    },
-    deletePriority: async (id: string) => {
-        return apiRequest(`/settings/priorities/${id}`, { method: 'DELETE' });
-    },
+  // Priorities
+  getPriorities: async () => {
+    return apiRequest<{ success: boolean; data: Priority[] }>("/settings/priorities");
+  },
+  createPriority: async (data: Partial<Priority>) => {
+    return apiRequest<{ success: boolean; data: Priority }>("/settings/priorities", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+  updatePriority: async (id: string, data: Partial<Priority>) => {
+    return apiRequest<{ success: boolean; data: Priority }>(`/settings/priorities/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
+  deletePriority: async (id: string) => {
+    return apiRequest(`/settings/priorities/${id}`, { method: "DELETE" });
+  },
 
-    // SLA Policies
-    getSLAPolicies: async () => {
-        return apiRequest<{ success: boolean; data: SLAPolicy[] }>('/settings/sla-policies');
-    },
-    createSLAPolicy: async (data: Partial<SLAPolicy>) => {
-        return apiRequest<{ success: boolean; data: SLAPolicy }>('/settings/sla-policies', {
-            method: 'POST',
-            body: JSON.stringify(data)
-        });
-    },
-    updateSLAPolicy: async (id: string, data: Partial<SLAPolicy>) => {
-        return apiRequest<{ success: boolean; data: SLAPolicy }>(`/settings/sla-policies/${id}`, {
-            method: 'PUT',
-            body: JSON.stringify(data)
-        });
-    },
-    deleteSLAPolicy: async (id: string) => {
-        return apiRequest(`/settings/sla-policies/${id}`, { method: 'DELETE' });
-    },
+  // SLA Policies
+  getSLAPolicies: async () => {
+    return apiRequest<{ success: boolean; data: SLAPolicy[] }>("/settings/sla-policies");
+  },
+  createSLAPolicy: async (data: Partial<SLAPolicy>) => {
+    return apiRequest<{ success: boolean; data: SLAPolicy }>("/settings/sla-policies", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+  updateSLAPolicy: async (id: string, data: Partial<SLAPolicy>) => {
+    return apiRequest<{ success: boolean; data: SLAPolicy }>(`/settings/sla-policies/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
+  deleteSLAPolicy: async (id: string) => {
+    return apiRequest(`/settings/sla-policies/${id}`, { method: "DELETE" });
+  },
 
-    // Departments
-    getDepartments: async (page?: number, limit?: number) => {
-        const url = page !== undefined && limit !== undefined
-            ? `/settings/departments?page=${page}&limit=${limit}`
-            : '/settings/departments';
-        return apiRequest<{ success: boolean; data: Department[] }>(url);
-    },
-    // Teams
-    getTeams: async () => {
-        return apiRequest<{ success: boolean; data: Team[] }>('/settings/teams');
-    },
-    createDepartment: async (data: Partial<Department>) => {
-        return apiRequest<{ success: boolean; data: Department }>('/settings/departments', {
-            method: 'POST',
-            body: JSON.stringify(data)
-        });
-    },
-    updateDepartment: async (id: string, data: Partial<Department>) => {
-        return apiRequest<{ success: boolean; data: Department }>(`/settings/departments/${id}`, {
-            method: 'PUT',
-            body: JSON.stringify(data)
-        });
-    },
-    deleteDepartment: async (id: string) => {
-        return apiRequest(`/settings/departments/${id}`, { method: 'DELETE' });
-    },
-    // Statuses
-    getStatuses: async () => {
-        return apiRequest<{ success: boolean; data: Status[] }>('/settings/statuses');
-    },
-    createStatus: async (data: Partial<Status>) => {
-        return apiRequest<{ success: boolean; data: Status }>('/settings/statuses', {
-            method: 'POST',
-            body: JSON.stringify(data)
-        });
-    },
-    updateStatus: async (id: string, data: Partial<Status>) => {
-        return apiRequest<{ success: boolean; data: Status }>(`/settings/statuses/${id}`, {
-            method: 'PUT',
-            body: JSON.stringify(data)
-        });
-    },
-    deleteStatus: async (id: string) => {
-        return apiRequest<{ success: boolean; error?: string }>(`/settings/statuses/${id}`, { method: 'DELETE' });
-    },
-    reorderStatuses: async (order: Array<string | number>) => {
-        return apiRequest<{ success: boolean; data: Status[] }>('/settings/statuses/reorder', {
-            method: 'PUT',
-            body: JSON.stringify({ order })
-        });
-    },
-    // Break Setting (satu baris)
-    getBreakSetting: async () => {
-        return apiRequest<{ success: boolean; data: BreakSetting }>('/settings/break');
-    },
-    updateBreakSetting: async (data: Partial<BreakSetting>) => {
-        return apiRequest<{ success: boolean; data: BreakSetting }>('/settings/break', {
-            method: 'PUT',
-            body: JSON.stringify(data)
-        });
-    },
-    // System Logs
-    getLogs: async () => {
-        return apiRequest<{ success: boolean; data: SystemLog[] }>('/settings/logs');
-    },
-    // Holidays
-    getHolidays: async () => {
-        return apiRequest<{ success: boolean; data: Holiday[] }>('/settings/holidays');
-    },
-    createHoliday: async (data: CreateHolidayPayload | Partial<Holiday>) => {
-        return apiRequest<{ success: boolean; data: Holiday }>('/settings/holidays', {
-            method: 'POST',
-            body: JSON.stringify(data)
-        });
-    },
-    updateHoliday: async (id: string | number, data: Partial<Holiday>) => {
-        return apiRequest<{ success: boolean; data: Holiday }>(`/settings/holidays/${id}`, {
-            method: 'PUT',
-            body: JSON.stringify(data)
-        });
-    },
-    deleteHoliday: async (id: string | number) => {
-        return apiRequest<{ success: boolean }>(`/settings/holidays/${id}`, { method: 'DELETE' });
-    }
+  // Departments
+  getDepartments: async (page?: number, limit?: number) => {
+    const url =
+      page !== undefined && limit !== undefined
+        ? `/settings/departments?page=${page}&limit=${limit}`
+        : "/settings/departments";
+    return apiRequest<{ success: boolean; data: Department[] }>(url);
+  },
+  // Teams
+  getTeams: async () => {
+    return apiRequest<{ success: boolean; data: Team[] }>("/settings/teams");
+  },
+  createDepartment: async (data: Partial<Department>) => {
+    return apiRequest<{ success: boolean; data: Department }>("/settings/departments", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+  updateDepartment: async (id: string, data: Partial<Department>) => {
+    return apiRequest<{ success: boolean; data: Department }>(`/settings/departments/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
+  deleteDepartment: async (id: string) => {
+    return apiRequest(`/settings/departments/${id}`, { method: "DELETE" });
+  },
+  // Statuses
+  getStatuses: async () => {
+    return apiRequest<{ success: boolean; data: Status[] }>("/settings/statuses");
+  },
+  createStatus: async (data: Partial<Status>) => {
+    return apiRequest<{ success: boolean; data: Status }>("/settings/statuses", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+  updateStatus: async (id: string, data: Partial<Status>) => {
+    return apiRequest<{ success: boolean; data: Status }>(`/settings/statuses/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
+  deleteStatus: async (id: string) => {
+    return apiRequest<{ success: boolean; error?: string }>(`/settings/statuses/${id}`, { method: "DELETE" });
+  },
+  reorderStatuses: async (order: Array<string | number>) => {
+    return apiRequest<{ success: boolean; data: Status[] }>("/settings/statuses/reorder", {
+      method: "PUT",
+      body: JSON.stringify({ order }),
+    });
+  },
+  // Break Setting (satu baris)
+  getBreakSetting: async () => {
+    return apiRequest<{ success: boolean; data: BreakSetting }>("/settings/break");
+  },
+  updateBreakSetting: async (data: Partial<BreakSetting>) => {
+    return apiRequest<{ success: boolean; data: BreakSetting }>("/settings/break", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
+  // System Logs
+  getLogs: async () => {
+    return apiRequest<{ success: boolean; data: SystemLog[] }>("/settings/logs");
+  },
+  // Holidays
+  getHolidays: async () => {
+    return apiRequest<{ success: boolean; data: Holiday[]; meta?: HolidaySyncMeta }>("/settings/holidays");
+  },
+  syncHolidays: async () => {
+    return apiRequest<{ success: boolean; message: string; count: number; meta?: HolidaySyncMeta; data: Holiday[] }>(
+      "/settings/holidays/sync",
+      {
+        method: "POST",
+      },
+    );
+  },
+  createHoliday: async (data: CreateHolidayPayload | Partial<Holiday>) => {
+    return apiRequest<{ success: boolean; data: Holiday }>("/settings/holidays", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+  updateHoliday: async (id: string | number, data: Partial<Holiday>) => {
+    return apiRequest<{ success: boolean; data: Holiday }>(`/settings/holidays/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
+  deleteHoliday: async (id: string | number) => {
+    return apiRequest<{ success: boolean }>(`/settings/holidays/${id}`, { method: "DELETE" });
+  },
 };
 
 export interface SystemLog {
-    id: string;
-    timestamp: string;
-    action: string;
-    details: string;
-    ipAddress: string;
-    userId?: string;
-    userName: string;
-    targetId?: string;
-    metadata?: string;
+  id: string;
+  timestamp: string;
+  action: string;
+  details: string;
+  ipAddress: string;
+  userId?: string;
+  userName: string;
+  targetId?: string;
+  metadata?: string;
 }
 
 export interface Department {
-    id: string;
-    name: string;
-    code?: string;
-    description?: string;
-    isActive: boolean;
+  id: string;
+  name: string;
+  code?: string;
+  description?: string;
+  isActive: boolean;
 }
 
 export interface Team {
-    id: string | number;
-    name: string;
-    code: string;
-    slug?: string | null;
-    description?: string | null;
-    isActive: boolean;
+  id: string | number;
+  name: string;
+  code: string;
+  slug?: string | null;
+  description?: string | null;
+  isActive: boolean;
 }

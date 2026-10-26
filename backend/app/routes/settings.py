@@ -351,7 +351,41 @@ def update_break_setting():
 @settings_bp.route('/holidays', methods=['GET'])
 def get_holidays():
     holidays = MasterDataService.get_holidays()
-    return jsonify({'success': True, 'data': [h.to_dict() for h in holidays]})
+    meta = MasterDataService.get_holiday_sync_metadata()
+    return jsonify({'success': True, 'data': [h.to_dict() for h in holidays], 'meta': meta})
+
+@settings_bp.route('/holidays/sync', methods=['POST'])
+@admin_required
+def sync_holidays():
+    count, error = MasterDataService.sync_holidays_from_api()
+    if error:
+        return jsonify({'success': False, 'error': error}), 502
+    holidays = MasterDataService.get_holidays()
+    meta = MasterDataService.get_holiday_sync_metadata()
+    return jsonify({
+        'success': True,
+        'message': f'Berhasil menyinkronkan {count} hari libur nasional & cuti bersama dari API ke database dan file project server.',
+        'count': count,
+        'meta': meta,
+        'data': [h.to_dict() for h in holidays]
+    })
+
+@settings_bp.route('/holidays/cron-test', methods=['POST'])
+@admin_required
+def test_holiday_cron():
+    """Trigger annual holiday cron logic to test end-of-year execution"""
+    from app.services.holiday_cron_service import run_annual_holiday_sync
+    from flask import current_app
+    success, result = run_annual_holiday_sync(current_app._get_current_object())
+    if not success:
+        return jsonify({'success': False, 'error': result}), 500
+    meta = MasterDataService.get_holiday_sync_metadata()
+    return jsonify({
+        'success': True,
+        'message': f'Cron job simulasi berhasil dieksekusi. Menyinkronkan {result} hari libur dan mencatat log sistem.',
+        'count': result,
+        'meta': meta
+    })
 
 @settings_bp.route('/holidays', methods=['POST'])
 @admin_required

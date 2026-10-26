@@ -97,4 +97,11 @@ def create_app(config_name=None):
     @app.route('/api/health')
     def health_check():
         return {'status': 'healthy', 'message': 'IT Ticket Backend is running'}
+    # Start annual holiday cron scheduler (runs once per year on Dec 31)
+    try:
+        from app.services.holiday_cron_service import start_holiday_cron_scheduler
+        start_holiday_cron_scheduler(app)
+    except Exception as e:
+        print(f"Warning: Failed to start holiday cron scheduler: {e}")
+
     return app

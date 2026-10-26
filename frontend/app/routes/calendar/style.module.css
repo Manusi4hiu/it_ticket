@@ -833,3 +833,54 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+
+/* Special Holiday & Weekend Calendar Highlighting */
+.dayNumberHoliday {
+  color: #f87171 !important;
+  font-weight: 700;
+}
+
+.dayCellSpecialHoliday {
+  background: rgba(239, 68, 68, 0.035);
+}
+
+.holidayBanner {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 6px;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: 5px;
+  font-size: 0.67rem;
+  font-weight: 600;
+  color: #fca5a5;
+  line-height: 1.25;
+  width: 100%;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  cursor: default;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.holidayBanner:hover {
+  background: rgba(239, 68, 68, 0.18);
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+.holidayBannerDot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #f87171;
+  flex-shrink: 0;
+  box-shadow: 0 0 5px rgba(239, 68, 68, 0.7);
+}
+
+.holidayBannerText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  letter-spacing: -0.01em;
+}

@@ -414,103 +414,393 @@ class MasterDataService:
         return setting, None
 
     # --- Holidays ---
+
     @staticmethod
     def get_holidays():
-        """Get all public holidays ordered by date"""
-        return Holiday.query.order_by(Holiday.holiday_date.asc()).all()
+        """
+        Get all public holidays ordered by date.
+        Never calls external API on normal requests.
+        If table is empty, seeds from the local project file (backend/app/data/holidays_indonesia.json).
+        """
+        try:
+            holidays = Holiday.query.order_by(Holiday.holiday_date.asc()).all()
+            if not holidays:
+                MasterDataService.seed_holidays_from_local_json()
+                holidays = Holiday.query.order_by(Holiday.holiday_date.asc()).all()
+            return holidays
+        except Exception as e:
+            print(f"Error checking/seeding holidays: {e}")
+            return Holiday.query.order_by(Holiday.holiday_date.asc()).all()
+
+    @staticmethod
+    def seed_holidays_from_local_json():
+        """Seed holidays from persistent project file backend/app/data/holidays_indonesia.json"""
+        import os
+        import json
+        json_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'holidays_indonesia.json')
+        if not os.path.exists(json_path):
+            return 0
+        try:
+            with open(json_path, 'r', encoding='utf-8') as f:
+                content = json.load(f)
+            items = content.get('holidays', []) if isinstance(content, dict) else content
+            added = 0
+            existing_dates = {row[0] for row in db.session.query(Holiday.holiday_date).all()}
+            for item in items:
+                d_str = item.get('holidayDate') or item.get('date')
+                name = item.get('name')
+                if not d_str or not name:
+                    continue
+                h_date = datetime.strptime(d_str, '%Y-%m-%d').date()
+                if h_date not in existing_dates:
+                    db.session.add(Holiday(name=name, holiday_date=h_date, is_recurring=False))
+                    existing_dates.add(h_date)
+                    added += 1
+            db.session.commit()
+            print(f"Seeded {added} holidays from local project file {json_path}")
+            return added
+        except Exception as e:
+            print(f"Error seeding holidays from local JSON: {e}")
+            return 0
+
+    @staticmethod
+    def get_holiday_sync_metadata():
+        """Read sync metadata from backend/app/data/holidays_indonesia.json"""
+        import os
+        import json
+        json_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'holidays_indonesia.json')
+        if os.path.exists(json_path):
+            try:
+                with open(json_path, 'r', encoding='utf-8') as f:
+                    content = json.load(f)
+                return {
+                    'source': content.get('source', 'https://use.api.co.id'),
+                    'lastSyncedAt': content.get('last_synced_at'),
+                    'cronSchedule': content.get('cron_schedule', 'Setiap 31 Desember 23:59 WIB (Tahunan)'),
+                    'totalHolidays': content.get('total_holidays', Holiday.query.count()),
+                    'storageMode': 'Local Project Storage (JSON & PostgreSQL)'
+                }
+            except Exception:
+                pass
+        return {
+            'source': 'https://use.api.co.id',
+            'lastSyncedAt': None,
+            'cronSchedule': 'Setiap 31 Desember 23:59 WIB (Tahunan)',
+            'totalHolidays': Holiday.query.count(),
+            'storageMode': 'Local Project Storage (JSON & PostgreSQL)'
+        }
+
+    @staticmethod
+    def sync_holidays_from_api(target_years=None):
+        """
+        Fetch public holidays and collective leave from Indonesian Holiday API:
+        Primary: https://use.api.co.id/holidays/indonesia (api.co.id)
+        Fallback 1: https://titimangsa.sangkan.dev/v1/holidays?year={year}
+        Fallback 2: https://raw.githubusercontent.com/guangrei/APIHariLibur_V2/main/calendar.min.json
+        and sync them into the Holiday table and backend/app/data/holidays_indonesia.json.
+        """
+        import os
+        import urllib.request
+        import json
+
+        base_url = os.getenv('HOLIDAY_API_BASE_URL', 'https://use.api.co.id').rstrip('/')
+        api_key = os.getenv('HOLIDAY_API_KEY', '8e6OfjeYSpBOQ0of7V3WL37kPbJpc8PqN2ZIfmqfJ3FT9cl4et')
+
+        if not target_years:
+            curr_year = datetime.now().year
+            target_years = [curr_year - 1, curr_year, curr_year + 1]
+
+        holidays_map = {}
+
+        # 1. Primary: api.co.id Indonesian Holidays API
+        if api_key:
+            for y in target_years:
+                try:
+                    url = f"{base_url}/holidays/indonesia?year={y}"
+                    req = urllib.request.Request(url, headers={
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+                        'x-api-co-id': api_key
+                    })
+                    with urllib.request.urlopen(req, timeout=10) as resp:
+                        res = json.loads(resp.read().decode('utf-8'))
+                        if res.get('is_success') and isinstance(res.get('data'), list):
+                            for item in res.get('data', []):
+                                if item.get('is_holiday') or item.get('is_joint_holiday') or item.get('type') in ('Public Holiday', 'Joint Holiday', 'National Holiday'):
+                                    d_str = item.get('date')
+                                    name = item.get('name')
+                                    if d_str and name:
+                                        holidays_map[d_str] = str(name).strip()
+                except Exception as e:
+                    print(f"api.co.id fetch failed for year {y}: {e}")
+
+        # 2. Secondary Fallback: Titimangsa API
+        if not holidays_map:
+            for y in target_years:
+                try:
+                    url = f"https://titimangsa.sangkan.dev/v1/holidays?year={y}"
+                    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
+                    with urllib.request.urlopen(req, timeout=5) as resp:
+                        payload = json.loads(resp.read().decode('utf-8'))
+                        for item in payload.get('data', []):
+                            d_str = item.get('date')
+                            name = item.get('localName') or item.get('name')
+                            if d_str and name:
+                                holidays_map[d_str] = str(name).strip()
+                except Exception:
+                    pass
+
+        # 3. Tertiary Fallback: Guangrei APIHariLibur
+        if not holidays_map:
+            try:
+                url = "https://raw.githubusercontent.com/guangrei/APIHariLibur_V2/main/calendar.min.json"
+                req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
+                with urllib.request.urlopen(req, timeout=5) as resp:
+                    data = json.loads(resp.read().decode('utf-8'))
+                    for d_str, val in data.items():
+                        if isinstance(val, dict) and val.get('holiday') is True:
+                            summary_list = val.get('summary', [])
+                            name = summary_list[0] if summary_list else None
+                            if d_str not in holidays_map and name:
+                                holidays_map[d_str] = str(name).strip()
+            except Exception:
+                pass
+
+        if not holidays_map:
+            return 0, "Gagal mengambil data dari API hari libur (koneksi terputus atau API tidak merespons)."
+
+        existing_holidays = {h.holiday_date: h for h in Holiday.query.all()}
+        count_added = 0
+        count_updated = 0
+        for d_str, name in holidays_map.items():
+            try:
+                h_date = datetime.strptime(d_str, '%Y-%m-%d').date()
+            except ValueError:
+                continue
+
+            existing = existing_holidays.get(h_date)
+            if existing:
+                if existing.name != name:
+                    existing.name = name
+                    count_updated += 1
+            else:
+                new_h = Holiday(
+                    name=name,
+                    holiday_date=h_date,
+                    is_recurring=False
+                )
+                db.session.add(new_h)
+                existing_holidays[h_date] = new_h
+                count_added += 1
+
+        db.session.commit()
+
+        # Persist to local project file backend/app/data/holidays_indonesia.json
+        try:
+            all_holidays = Holiday.query.order_by(Holiday.holiday_date.asc()).all()
+            data_dir = os.path.join(os.path.dirname(__file__), '..', 'data')
+            os.makedirs(data_dir, exist_ok=True)
+            json_file = os.path.join(data_dir, 'holidays_indonesia.json')
+            payload = {
+                "description": "Hari Libur Nasional & Cuti Bersama Indonesia (api.co.id)",
+                "source": "https://use.api.co.id",
+                "last_synced_at": datetime.now().isoformat(),
+                "cron_schedule": "Setiap 31 Desember 23:59 WIB (Tahunan)",
+                "total_holidays": len(all_holidays),
+                "holidays": [h.to_dict() for h in all_holidays]
+            }
+            with open(json_file, 'w', encoding='utf-8') as f:
+                json.dump(payload, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            print(f"Warning: Failed to persist holidays to local JSON file: {e}")
+
+        return len(holidays_map), None
 
     @staticmethod
     def create_holiday(data):
+
         name = data.get('name')
+
         if not name or not str(name).strip():
+
             return None, 'Name is required'
+
         
+
         name = str(name).strip()
+
         is_recurring = bool(data.get('isRecurring', False))
 
+
+
         start_date_str = data.get('startDate') or data.get('start_date') or data.get('holidayDate') or data.get('holiday_date')
+
         end_date_str = data.get('endDate') or data.get('end_date') or start_date_str
 
+
+
         if not start_date_str:
+
             return None, 'Holiday date or start date is required'
 
+
+
         try:
+
             start_date = datetime.strptime(str(start_date_str).strip(), '%Y-%m-%d').date()
+
         except ValueError:
+
             return None, 'Start date must be YYYY-MM-DD'
 
+
+
         try:
+
             end_date = datetime.strptime(str(end_date_str).strip(), '%Y-%m-%d').date() if end_date_str else start_date
+
         except ValueError:
+
             return None, 'End date must be YYYY-MM-DD'
 
+
+
         if end_date < start_date:
+
             return None, 'End date cannot be earlier than start date'
 
+
+
         # If single date
+
         if start_date == end_date:
+
             if Holiday.query.filter_by(holiday_date=start_date).first():
+
                 return None, 'Holiday date already exists'
 
+
+
             holiday = Holiday(
+
                 name=name,
+
                 holiday_date=start_date,
+
                 is_recurring=is_recurring
+
             )
+
             db.session.add(holiday)
+
             db.session.commit()
+
             return holiday, None
 
+
+
         # Range of dates:
+
         created_holidays = []
+
         cur = start_date
+
         while cur <= end_date:
+
             existing = Holiday.query.filter_by(holiday_date=cur).first()
+
             if not existing:
+
                 h = Holiday(
+
                     name=name,
+
                     holiday_date=cur,
+
                     is_recurring=is_recurring
+
                 )
+
                 db.session.add(h)
+
                 created_holidays.append(h)
+
             else:
+
                 existing.name = name
+
                 existing.is_recurring = is_recurring
+
                 created_holidays.append(existing)
+
             cur += timedelta(days=1)
 
+
+
         db.session.commit()
+
         return (created_holidays[0] if created_holidays else None), None
 
-    @staticmethod
-    def update_holiday(id, data):
-        holiday = Holiday.query.get(id)
-        if not holiday:
-            return None, 'Holiday not found'
-        if 'name' in data and data['name']:
-            holiday.name = str(data['name']).strip()
-        holiday_date_str = data.get('holidayDate') or data.get('holiday_date')
-        if holiday_date_str:
-            try:
-                h_date = datetime.strptime(str(holiday_date_str).strip(), '%Y-%m-%d').date()
-                existing = Holiday.query.filter_by(holiday_date=h_date).first()
-                if existing and existing.id != holiday.id:
-                    return None, 'Holiday date already exists'
-                holiday.holiday_date = h_date
-            except ValueError:
-                return None, 'Holiday date must be YYYY-MM-DD'
-        if 'isRecurring' in data:
-            holiday.is_recurring = bool(data['isRecurring'])
-        db.session.commit()
-        return holiday, None
+
 
     @staticmethod
-    def delete_holiday(id):
+
+    def update_holiday(id, data):
+
         holiday = Holiday.query.get(id)
+
         if not holiday:
-            return False
-        db.session.delete(holiday)
+
+            return None, 'Holiday not found'
+
+        if 'name' in data and data['name']:
+
+            holiday.name = str(data['name']).strip()
+
+        holiday_date_str = data.get('holidayDate') or data.get('holiday_date')
+
+        if holiday_date_str:
+
+            try:
+
+                h_date = datetime.strptime(str(holiday_date_str).strip(), '%Y-%m-%d').date()
+
+                existing = Holiday.query.filter_by(holiday_date=h_date).first()
+
+                if existing and existing.id != holiday.id:
+
+                    return None, 'Holiday date already exists'
+
+                holiday.holiday_date = h_date
+
+            except ValueError:
+
+                return None, 'Holiday date must be YYYY-MM-DD'
+
+        if 'isRecurring' in data:
+
+            holiday.is_recurring = bool(data['isRecurring'])
+
         db.session.commit()
+
+        return holiday, None
+
+
+
+    @staticmethod
+
+    def delete_holiday(id):
+
+        holiday = Holiday.query.get(id)
+
+        if not holiday:
+
+            return False
+
+        db.session.delete(holiday)
+
+        db.session.commit()
+
         return True
+
+
 

@@ -1,0 +1,477 @@
+{
+  "description": "Hari Libur Nasional & Cuti Bersama Indonesia (api.co.id)",
+  "source": "https://use.api.co.id",
+  "last_synced_at": "2026-10-26T15:01:40.410776",
+  "cron_schedule": "Setiap 31 Desember 23:59 WIB (Tahunan)",
+  "total_holidays": 78,
+  "holidays": [
+    {
+      "id": 17,
+      "name": "New Year's Day",
+      "holidayDate": "2025-01-01",
+      "isRecurring": false
+    },
+    {
+      "id": 18,
+      "name": "Ascension of the Prophet Muhammad",
+      "holidayDate": "2025-01-27",
+      "isRecurring": false
+    },
+    {
+      "id": 19,
+      "name": "Chinese New Year Joint Holiday",
+      "holidayDate": "2025-01-28",
+      "isRecurring": false
+    },
+    {
+      "id": 20,
+      "name": "Chinese New Year's Day",
+      "holidayDate": "2025-01-29",
+      "isRecurring": false
+    },
+    {
+      "id": 21,
+      "name": "Joint Holiday for Bali's Day of Silence and Hindu New Year (Nyepi)",
+      "holidayDate": "2025-03-28",
+      "isRecurring": false
+    },
+    {
+      "id": 22,
+      "name": "Bali's Day of Silence and Hindu New Year (Nyepi)",
+      "holidayDate": "2025-03-29",
+      "isRecurring": false
+    },
+    {
+      "id": 23,
+      "name": "Idul Fitri",
+      "holidayDate": "2025-03-31",
+      "isRecurring": false
+    },
+    {
+      "id": 24,
+      "name": "Idul Fitri Holiday",
+      "holidayDate": "2025-04-01",
+      "isRecurring": false
+    },
+    {
+      "id": 25,
+      "name": "Idul Fitri Joint Holiday",
+      "holidayDate": "2025-04-02",
+      "isRecurring": false
+    },
+    {
+      "id": 26,
+      "name": "Idul Fitri Joint Holiday",
+      "holidayDate": "2025-04-03",
+      "isRecurring": false
+    },
+    {
+      "id": 27,
+      "name": "Idul Fitri Joint Holiday",
+      "holidayDate": "2025-04-04",
+      "isRecurring": false
+    },
+    {
+      "id": 28,
+      "name": "Idul Fitri Joint Holiday",
+      "holidayDate": "2025-04-07",
+      "isRecurring": false
+    },
+    {
+      "id": 29,
+      "name": "Good Friday",
+      "holidayDate": "2025-04-18",
+      "isRecurring": false
+    },
+    {
+      "id": 30,
+      "name": "Easter Sunday",
+      "holidayDate": "2025-04-20",
+      "isRecurring": false
+    },
+    {
+      "id": 31,
+      "name": "International Labor Day",
+      "holidayDate": "2025-05-01",
+      "isRecurring": false
+    },
+    {
+      "id": 32,
+      "name": "Waisak Day (Buddha's Anniversary)",
+      "holidayDate": "2025-05-12",
+      "isRecurring": false
+    },
+    {
+      "id": 33,
+      "name": "Joint Holiday for Waisak Day",
+      "holidayDate": "2025-05-13",
+      "isRecurring": false
+    },
+    {
+      "id": 34,
+      "name": "Ascension Day of Jesus Christ",
+      "holidayDate": "2025-05-29",
+      "isRecurring": false
+    },
+    {
+      "id": 35,
+      "name": "Joint Holiday after Ascension Day",
+      "holidayDate": "2025-05-30",
+      "isRecurring": false
+    },
+    {
+      "id": 36,
+      "name": "Pancasila Day",
+      "holidayDate": "2025-06-01",
+      "isRecurring": false
+    },
+    {
+      "id": 37,
+      "name": "Idul Adha",
+      "holidayDate": "2025-06-06",
+      "isRecurring": false
+    },
+    {
+      "id": 38,
+      "name": "Joint Holiday for Idul Adha",
+      "holidayDate": "2025-06-09",
+      "isRecurring": false
+    },
+    {
+      "id": 39,
+      "name": "Muharram / Islamic New Year",
+      "holidayDate": "2025-06-27",
+      "isRecurring": false
+    },
+    {
+      "id": 40,
+      "name": "Indonesian Independence Day",
+      "holidayDate": "2025-08-17",
+      "isRecurring": false
+    },
+    {
+      "id": 41,
+      "name": "Indonesian Independence Day observed",
+      "holidayDate": "2025-08-18",
+      "isRecurring": false
+    },
+    {
+      "id": 42,
+      "name": "Maulid Nabi Muhammad",
+      "holidayDate": "2025-09-05",
+      "isRecurring": false
+    },
+    {
+      "id": 43,
+      "name": "Christmas Day",
+      "holidayDate": "2025-12-25",
+      "isRecurring": false
+    },
+    {
+      "id": 44,
+      "name": "Boxing Day",
+      "holidayDate": "2025-12-26",
+      "isRecurring": false
+    },
+    {
+      "id": 1,
+      "name": "New Year's Day",
+      "holidayDate": "2026-01-01",
+      "isRecurring": true
+    },
+    {
+      "id": 45,
+      "name": "Ascension of the Prophet Muhammad (Tentative Date)",
+      "holidayDate": "2026-01-16",
+      "isRecurring": false
+    },
+    {
+      "id": 46,
+      "name": "Chinese New Year Joint Holiday",
+      "holidayDate": "2026-02-16",
+      "isRecurring": false
+    },
+    {
+      "id": 47,
+      "name": "Chinese New Year's Day",
+      "holidayDate": "2026-02-17",
+      "isRecurring": false
+    },
+    {
+      "id": 48,
+      "name": "Joint Holiday for Bali's Day of Silence and Hindu New Year (Nyepi)",
+      "holidayDate": "2026-03-18",
+      "isRecurring": false
+    },
+    {
+      "id": 49,
+      "name": "Bali's Day of Silence and Hindu New Year (Nyepi)",
+      "holidayDate": "2026-03-19",
+      "isRecurring": false
+    },
+    {
+      "id": 50,
+      "name": "Idul Fitri Joint Holiday",
+      "holidayDate": "2026-03-20",
+      "isRecurring": false
+    },
+    {
+      "id": 51,
+      "name": "Idul Fitri (Tentative Date)",
+      "holidayDate": "2026-03-21",
+      "isRecurring": false
+    },
+    {
+      "id": 52,
+      "name": "Idul Fitri Holiday (Tentative Date)",
+      "holidayDate": "2026-03-22",
+      "isRecurring": false
+    },
+    {
+      "id": 53,
+      "name": "Idul Fitri Joint Holiday",
+      "holidayDate": "2026-03-23",
+      "isRecurring": false
+    },
+    {
+      "id": 54,
+      "name": "Idul Fitri Joint Holiday",
+      "holidayDate": "2026-03-24",
+      "isRecurring": false
+    },
+    {
+      "id": 55,
+      "name": "Good Friday",
+      "holidayDate": "2026-04-03",
+      "isRecurring": false
+    },
+    {
+      "id": 56,
+      "name": "Easter Sunday",
+      "holidayDate": "2026-04-05",
+      "isRecurring": false
+    },
+    {
+      "id": 2,
+      "name": "International Labor Day",
+      "holidayDate": "2026-05-01",
+      "isRecurring": true
+    },
+    {
+      "id": 57,
+      "name": "Ascension Day of Jesus Christ",
+      "holidayDate": "2026-05-14",
+      "isRecurring": false
+    },
+    {
+      "id": 58,
+      "name": "Joint Holiday after Ascension Day",
+      "holidayDate": "2026-05-15",
+      "isRecurring": false
+    },
+    {
+      "id": 59,
+      "name": "Idul Adha (Tentative Date)",
+      "holidayDate": "2026-05-27",
+      "isRecurring": false
+    },
+    {
+      "id": 60,
+      "name": "Joint Holiday for Idul Adha",
+      "holidayDate": "2026-05-28",
+      "isRecurring": false
+    },
+    {
+      "id": 61,
+      "name": "Waisak Day (Buddha's Anniversary) (Tentative Date)",
+      "holidayDate": "2026-05-31",
+      "isRecurring": false
+    },
+    {
+      "id": 3,
+      "name": "Pancasila Day",
+      "holidayDate": "2026-06-01",
+      "isRecurring": true
+    },
+    {
+      "id": 62,
+      "name": "Muharram / Islamic New Year (Tentative Date)",
+      "holidayDate": "2026-06-16",
+      "isRecurring": false
+    },
+    {
+      "id": 4,
+      "name": "Indonesian Independence Day",
+      "holidayDate": "2026-08-17",
+      "isRecurring": true
+    },
+    {
+      "id": 63,
+      "name": "Maulid Nabi Muhammad (Tentative Date)",
+      "holidayDate": "2026-08-25",
+      "isRecurring": false
+    },
+    {
+      "id": 5,
+      "name": "Hari Pahlawan",
+      "holidayDate": "2026-11-10",
+      "isRecurring": true
+    },
+    {
+      "id": 64,
+      "name": "Christmas Eve Joint Holiday",
+      "holidayDate": "2026-12-24",
+      "isRecurring": false
+    },
+    {
+      "id": 6,
+      "name": "Christmas Day",
+      "holidayDate": "2026-12-25",
+      "isRecurring": true
+    },
+    {
+      "id": 65,
+      "name": "Hari Tahun Baru",
+      "holidayDate": "2027-01-01",
+      "isRecurring": false
+    },
+    {
+      "id": 66,
+      "name": "Isra Mikraj Nabi Muhammad (belum pasti)",
+      "holidayDate": "2027-01-05",
+      "isRecurring": false
+    },
+    {
+      "id": 67,
+      "name": "Cuti Bersama Tahun Baru Imlek",
+      "holidayDate": "2027-02-05",
+      "isRecurring": false
+    },
+    {
+      "id": 68,
+      "name": "Tahun Baru Imlek",
+      "holidayDate": "2027-02-06",
+      "isRecurring": false
+    },
+    {
+      "id": 69,
+      "name": "Hari Suci Nyepi (Tahun Baru Saka)",
+      "holidayDate": "2027-03-08",
+      "isRecurring": false
+    },
+    {
+      "id": 70,
+      "name": "Cuti Bersama Idul Fitri",
+      "holidayDate": "2027-03-09",
+      "isRecurring": false
+    },
+    {
+      "id": 71,
+      "name": "Hari Idul Fitri (belum pasti)",
+      "holidayDate": "2027-03-10",
+      "isRecurring": false
+    },
+    {
+      "id": 72,
+      "name": "Hari Idul Fitri (belum pasti)",
+      "holidayDate": "2027-03-11",
+      "isRecurring": false
+    },
+    {
+      "id": 73,
+      "name": "Cuti Bersama Idul Fitri",
+      "holidayDate": "2027-03-12",
+      "isRecurring": false
+    },
+    {
+      "id": 74,
+      "name": "Cuti Bersama Idul Fitri",
+      "holidayDate": "2027-03-15",
+      "isRecurring": false
+    },
+    {
+      "id": 75,
+      "name": "Joint Holiday for Good Friday",
+      "holidayDate": "2027-03-25",
+      "isRecurring": false
+    },
+    {
+      "id": 76,
+      "name": "Wafat Isa Almasih",
+      "holidayDate": "2027-03-26",
+      "isRecurring": false
+    },
+    {
+      "id": 77,
+      "name": "Hari Buruh Internasional / Pekerja",
+      "holidayDate": "2027-05-01",
+      "isRecurring": false
+    },
+    {
+      "id": 78,
+      "name": "Kenaikan Isa Al Masih",
+      "holidayDate": "2027-05-06",
+      "isRecurring": false
+    },
+    {
+      "id": 79,
+      "name": "Idul Adha (Lebaran Haji) (belum pasti)",
+      "holidayDate": "2027-05-17",
+      "isRecurring": false
+    },
+    {
+      "id": 80,
+      "name": "Idul Adha (Lebaran Haji)",
+      "holidayDate": "2027-05-18",
+      "isRecurring": false
+    },
+    {
+      "id": 81,
+      "name": "Cuti Bersama Waisak",
+      "holidayDate": "2027-05-19",
+      "isRecurring": false
+    },
+    {
+      "id": 82,
+      "name": "Hari Raya Waisak",
+      "holidayDate": "2027-05-20",
+      "isRecurring": false
+    },
+    {
+      "id": 83,
+      "name": "Hari Lahir Pancasila",
+      "holidayDate": "2027-06-01",
+      "isRecurring": false
+    },
+    {
+      "id": 84,
+      "name": "Satu Muharam / Tahun Baru Hijriah (belum pasti)",
+      "holidayDate": "2027-06-06",
+      "isRecurring": false
+    },
+    {
+      "id": 85,
+      "name": "Maulid Nabi Muhammad (belum pasti)",
+      "holidayDate": "2027-08-15",
+      "isRecurring": false
+    },
+    {
+      "id": 86,
+      "name": "Hari Proklamasi Kemerdekaan R.I.",
+      "holidayDate": "2027-08-17",
+      "isRecurring": false
+    },
+    {
+      "id": 87,
+      "name": "Cuti Bersama Natal (Malam Natal)",
+      "holidayDate": "2027-12-24",
+      "isRecurring": false
+    },
+    {
+      "id": 88,
+      "name": "Hari Raya Natal",
+      "holidayDate": "2027-12-25",
+      "isRecurring": false
+    }
+  ]
+}
