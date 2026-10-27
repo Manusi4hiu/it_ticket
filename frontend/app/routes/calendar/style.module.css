@@ -1,304 +1,606 @@
 ﻿.container {
+
   display: flex;
+
   flex-direction: column;
+
   padding: 24px;
+
   color: #f3f4f6;
+
   gap: 20px;
+
   overflow: visible;
+
   box-sizing: border-box;
+
   flex-shrink: 0;
+
   background: radial-gradient(circle at top right, rgba(99, 102, 241, 0.05), transparent 40%),
+
               radial-gradient(circle at bottom left, rgba(139, 92, 246, 0.05), transparent 40%);
+
 }
+
+
 
 /* Banner / Title block */
+
 .banner {
+
   display: flex;
+
   justify-content: space-between;
+
   align-items: center;
+
   background: rgba(10, 25, 47, 0.4);
+
   backdrop-filter: blur(16px);
+
   border: 1px solid rgba(59, 130, 246, 0.15);
+
   border-radius: 16px;
+
   padding: 16px 24px;
+
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+
 }
+
+
 
 .bannerTitle {
+
   font-family: 'Outfit', 'Inter', sans-serif;
+
   font-size: 1.25rem;
+
   font-weight: 700;
+
   margin: 0;
+
   color: #ffffff;
+
   letter-spacing: -0.3px;
+
   display: flex;
+
   align-items: center;
+
   gap: 10px;
+
 }
+
+
 
 .segBtn:hover {
+
   color: #e5e7eb;
+
   background: rgba(255, 255, 255, 0.04);
+
 }
+
+
 
 .segOn {
+
   background: rgba(59, 130, 246, 0.2);
+
   border-color: rgba(59, 130, 246, 0.6);
+
   box-shadow: 0 0 12px rgba(59, 130, 246, 0.35);
+
   color: #fff;
+
   font-weight: 600;
+
 }
+
+
 
 .bannerSubtitle {
+
   font-size: 0.8rem;
+
   color: rgba(255, 255, 255, 0.5);
+
   margin: 4px 0 0 0;
+
 }
+
+
 
 /* Main Layout: Filters top and Grid bottom */
+
 .contentArea {
+
   display: flex;
+
   flex-direction: column;
+
   gap: 16px;
+
   overflow: visible;
+
 }
+
+
 
 /* Controls / Filter Bar */
+
 .filterBar {
+
   display: flex;
+
   flex-wrap: wrap;
+
   align-items: center;
+
   justify-content: space-between;
+
   background: rgba(15, 23, 42, 0.45);
+
   backdrop-filter: blur(12px);
+
   border: 1px solid rgba(255, 255, 255, 0.08);
+
   border-radius: 12px;
+
   padding: 10px 16px;
+
   gap: 12px;
+
 }
+
+
 
 .filtersGroup {
+
   display: flex;
+
   align-items: center;
+
   gap: 10px;
+
   flex-wrap: wrap;
+
   flex: 1;
+
   min-width: 0;
+
 }
+
+
 
 .searchWrapper {
+
   position: relative;
+
   min-width: 180px;
+
   max-width: 220px;
+
   flex: 1 1 180px;
+
 }
+
+
 
 .searchIcon {
+
   position: absolute;
+
   left: 10px;
+
   top: 50%;
+
   transform: translateY(-50%);
+
   color: rgba(255, 255, 255, 0.4);
+
   pointer-events: none;
+
 }
+
+
 
 .searchInput {
+
   width: 100%;
+
   height: 36px !important;
+
   min-height: 36px !important;
+
   padding-left: 32px !important;
+
   padding-right: 12px !important;
+
   font-size: 0.8rem !important;
+
   background: rgba(15, 23, 42, 0.6) !important;
+
   border: 1px solid rgba(255, 255, 255, 0.12) !important;
+
   border-radius: 8px !important;
+
   color: #ffffff !important;
+
   box-sizing: border-box !important;
+
   transition: all 0.2s ease !important;
+
 }
+
+
 
 .searchInput:focus {
+
   border-color: #3b82f6 !important;
+
   box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2) !important;
+
   outline: none !important;
+
 }
+
+
 
 .filterDropdownsRow {
+
   display: flex;
+
   align-items: center;
+
   gap: 8px;
+
   flex-wrap: wrap;
+
 }
+
+
 
 .selectTriggerCompact {
+
   height: 36px !important;
+
   min-height: 36px !important;
+
   max-height: 36px !important;
+
   min-width: 125px;
+
   max-width: 155px;
+
   font-size: 0.8rem !important;
+
   padding: 0 10px !important;
+
   background: rgba(15, 23, 42, 0.6) !important;
+
   border: 1px solid rgba(255, 255, 255, 0.12) !important;
+
   border-radius: 8px !important;
+
   color: #f3f4f6 !important;
+
   gap: 6px !important;
+
   display: inline-flex !important;
+
   align-items: center !important;
+
   justify-content: space-between !important;
+
   box-sizing: border-box !important;
+
   transition: all 0.2s ease !important;
+
 }
+
+
 
 .selectTriggerCompact:hover {
+
   border-color: rgba(59, 130, 246, 0.4) !important;
+
   background: rgba(15, 23, 42, 0.8) !important;
+
 }
+
+
 
 .selectTriggerCompact:focus {
+
   border-color: #3b82f6 !important;
+
   box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2) !important;
+
 }
+
+
 
 .selectTriggerCompact svg {
+
   width: 14px !important;
+
   height: 14px !important;
+
   color: rgba(255, 255, 255, 0.5) !important;
+
 }
+
+
 
 .filterLabel {
+
   font-size: 0.75rem;
+
   font-weight: 600;
+
   color: rgba(255, 255, 255, 0.5);
+
   text-transform: uppercase;
+
   letter-spacing: 0.5px;
+
 }
+
+
 
 /* Custom Toggle Widget for Date Selection */
+
 .dateFieldToggle {
+
   display: inline-flex;
+
   align-items: center;
+
   height: 36px;
+
   background: rgba(15, 23, 42, 0.6);
+
   border: 1px solid rgba(255, 255, 255, 0.12);
+
   border-radius: 8px;
+
   padding: 2px;
+
   gap: 2px;
+
   box-sizing: border-box;
+
 }
+
+
 
 .toggleBtn {
+
   font-size: 0.75rem;
+
   font-weight: 500;
+
   padding: 0 10px;
+
   height: 30px;
+
   line-height: 30px;
+
   border: none;
+
   background: transparent;
+
   color: rgba(255, 255, 255, 0.6);
+
   cursor: pointer;
+
   border-radius: 6px;
+
   transition: all 0.2s ease;
+
   white-space: nowrap;
+
   display: inline-flex;
+
   align-items: center;
+
   justify-content: center;
+
   user-select: none;
+
 }
+
+
 
 .toggleBtn:hover {
+
   color: #ffffff;
+
   background: rgba(255, 255, 255, 0.06);
+
 }
+
+
 
 .toggleBtnActive {
+
   background: #2563eb !important;
+
   color: #ffffff !important;
+
   font-weight: 600;
+
   box-shadow: 0 2px 6px rgba(37, 99, 235, 0.35);
+
 }
+
+
 
 .calendarNav {
+
   display: inline-flex;
+
   align-items: center;
+
   gap: 4px;
+
   height: 36px;
+
   background: rgba(15, 23, 42, 0.6);
+
   border: 1px solid rgba(255, 255, 255, 0.12);
+
   padding: 2px 6px;
+
   border-radius: 8px;
+
   box-sizing: border-box;
+
 }
+
+
 
 .navBtn {
+
   display: flex;
+
   align-items: center;
+
   justify-content: center;
+
   width: 28px;
+
   height: 28px;
+
   border-radius: 6px;
+
   border: none;
+
   background: transparent;
+
   color: rgba(255, 255, 255, 0.7);
+
   cursor: pointer;
+
   transition: all 0.2s ease;
+
 }
+
+
 
 .navBtn:hover {
+
   background: rgba(255, 255, 255, 0.1);
+
   color: #ffffff;
+
 }
+
+
 
 .currentMonthText {
+
   font-size: 0.85rem;
+
   font-weight: 600;
+
   color: #ffffff;
+
   min-width: 120px;
+
   text-align: center;
+
 }
+
+
 
 .todayBtn {
+
   height: 28px;
+
   padding: 0 10px;
+
   font-size: 0.75rem;
+
   font-weight: 600;
+
   background: rgba(255, 255, 255, 0.08);
+
   border: 1px solid rgba(255, 255, 255, 0.12);
+
   color: #ffffff;
+
   border-radius: 6px;
+
   cursor: pointer;
+
   transition: all 0.2s ease;
+
   display: inline-flex;
+
   align-items: center;
+
   justify-content: center;
+
 }
+
+
 
 .todayBtn:hover {
+
   background: rgba(255, 255, 255, 0.16);
+
   border-color: rgba(255, 255, 255, 0.22);
+
 }
+
+
 
 /* Calendar Grid Container */
+
 .calendarWrapper {
+
   flex: 1;
+
   display: flex;
+
   flex-direction: column;
+
   background: rgba(10, 25, 47, 0.2);
+
   border: 1px solid rgba(255, 255, 255, 0.08);
+
   border-radius: 16px;
+
   overflow: visible;
+
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
+
 }
 
+
+
 /* Day Names Header */
+
 .daysHeader {
+
   display: grid;
+
   grid-template-columns: repeat(7, 1fr);
+
   background: rgba(15, 23, 42, 0.6);
+
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+
   padding: 10px 0;
+
   text-align: center;
+
 }
+
+
 
 .dayName {
   font-size: 0.75rem;
@@ -308,755 +610,1611 @@
   letter-spacing: 1px;
 }
 
-/* Day Grid — fixed row height, tidak melebar */
-.daysGrid {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  grid-auto-rows: 150px;
-  align-items: stretch;
+.dayNameWeekend {
+  color: #f87171 !important;
 }
+
+
+
+/* Day Grid — fixed row height, tidak melebar */
+
+.daysGrid {
+
+  display: grid;
+
+  grid-template-columns: repeat(7, 1fr);
+
+  grid-auto-rows: 150px;
+
+  align-items: stretch;
+
+}
+
+
 
 /* Day Cell — fixed 150px, isi scroll seperti Kanban */
+
 .dayCell {
+
   border-right: 1px solid rgba(255, 255, 255, 0.05);
+
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+
   padding: 8px;
+
   display: flex;
+
   flex-direction: column;
+
   gap: 6px;
+
   height: 150px;
+
   max-height: 150px;
+
   min-height: 150px;
+
   background: rgba(10, 25, 47, 0.1);
+
   transition: background 0.2s ease;
+
   position: relative;
+
   overflow: hidden;
+
 }
+
+
 
 .dayCell:nth-child(7n) {
+
   border-right: none;
+
 }
+
+
 
 .dayCell:hover {
+
   background: rgba(59, 130, 246, 0.03);
+
 }
+
+
 
 .dayCellOutside {
+
   opacity: 0.25;
+
 }
+
+
 
 .dayCellToday {
+
   background: rgba(59, 130, 246, 0.08) !important;
+
 }
+
+
 
 .dayCellToday::before {
+
   content: '';
+
   position: absolute;
+
   top: 0;
+
   left: 0;
+
   right: 0;
+
   height: 3px;
+
   background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+
   box-shadow: 0 2px 10px rgba(59, 130, 246, 0.4);
+
 }
+
+
 
 /* Cell Header (number and indicators) */
+
 .cellHeader {
+
   display: flex;
+
   justify-content: space-between;
+
   align-items: center;
+
 }
+
+
 
 .dayNumber {
+
   font-size: 0.85rem;
+
   font-weight: 600;
+
   color: rgba(255, 255, 255, 0.7);
+
   width: 24px;
+
   height: 24px;
+
   display: flex;
+
   align-items: center;
+
   justify-content: center;
+
   border-radius: 50%;
+
 }
+
+
 
 .dayCellToday .dayNumber {
+
   color: #ffffff;
+
   font-weight: 700;
+
   background: #3b82f6;
+
   box-shadow: 0 0 8px rgba(59, 130, 246, 0.5);
+
 }
+
+
+
+.dayNumberHoliday {
+
+  color: #f87171 !important;
+
+  font-weight: 700;
+
+}
+
+
+
+.dayCellSpecialHoliday {
+
+  background: rgba(239, 68, 68, 0.035);
+
+}
+
+
+
+.holidayBanner {
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 5px;
+
+  padding: 2px 6px;
+
+  background: rgba(239, 68, 68, 0.12);
+
+  border: 1px solid rgba(239, 68, 68, 0.25);
+
+  border-radius: 5px;
+
+  font-size: 0.67rem;
+
+  font-weight: 600;
+
+  color: #fca5a5;
+
+  line-height: 1.25;
+
+  width: 100%;
+
+  box-sizing: border-box;
+
+  flex-shrink: 0;
+
+  cursor: default;
+
+  transition: background 0.15s ease, border-color 0.15s ease;
+
+}
+
+
+
+.holidayBanner:hover {
+
+  background: rgba(239, 68, 68, 0.18);
+
+  border-color: rgba(239, 68, 68, 0.4);
+
+}
+
+
+
+.holidayBannerDot {
+
+  width: 5px;
+
+  height: 5px;
+
+  border-radius: 50%;
+
+  background: #f87171;
+
+  flex-shrink: 0;
+
+  box-shadow: 0 0 5px rgba(239, 68, 68, 0.7);
+
+}
+
+
+
+.holidayBannerText {
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+
+  white-space: nowrap;
+
+  letter-spacing: -0.01em;
+
+}
+
+
 
 .ticketCountBadge {
+
   font-size: 0.65rem;
+
   font-weight: 700;
+
   padding: 2px 6px;
+
   border-radius: 10px;
+
   background: rgba(255, 255, 255, 0.1);
+
   color: rgba(255, 255, 255, 0.6);
+
 }
+
+
 
 .dayCellToday .ticketCountBadge {
+
   background: rgba(255, 255, 255, 0.2);
+
   color: #fff;
+
 }
+
+
 
 /* Tickets inside cell — fixed, scroll seperti Kanban */
+
 .cellTickets {
+
   display: flex;
+
   flex-direction: column;
+
   gap: 5px;
+
   width: 100%;
+
   min-width: 0;
+
   flex: 1;
+
   min-height: 0;
+
   overflow-y: auto;
+
   overflow-x: hidden;
+
   padding-right: 2px;
+
   overscroll-behavior: contain;
+
 }
+
+
 
 .cellTickets::-webkit-scrollbar {
+
   width: 4px;
+
 }
+
 .cellTickets::-webkit-scrollbar-track {
+
   background: transparent;
+
 }
+
 .cellTickets::-webkit-scrollbar-thumb {
+
   background: rgba(148, 163, 184, 0.2);
+
   border-radius: 2px;
+
 }
+
 .cellTickets::-webkit-scrollbar-thumb:hover {
+
   background: rgba(148, 163, 184, 0.35);
+
 }
+
+
 
 /* Calendar Ticket Item — full title visible, wrap not truncate */
+
 .ticketItem {
+
   flex-shrink: 0;
+
   font-size: 0.72rem;
+
   line-height: 1.35;
+
   padding: 6px 8px;
+
   border-radius: 6px;
+
   background: rgba(30, 41, 59, 0.85);
+
   border-left: 3px solid #6b7280;
+
   color: #ffffff;
+
   cursor: pointer;
+
   transition: all 0.2s ease;
+
   white-space: normal;
+
   overflow-wrap: anywhere;
+
   word-break: break-word;
+
   text-align: left;
+
   display: block;
+
   width: 100%;
+
   user-select: none;
+
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+
 }
 
+
+
 .ticketItem:hover {
+
   transform: translateX(2px);
+
   background: rgba(30, 41, 59, 0.95);
+
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+
 }
+
+
+
+
 
 
 
 /* ── Ticket Detail Modal — Modern Card & Clean Layout ── */
+
 .modalContent {
+
   background: #0b1329 !important;
+
   border: 1px solid rgba(255, 255, 255, 0.12) !important;
+
   border-radius: 16px !important;
+
   max-width: 920px !important;
+
   width: 95vw !important;
+
   max-height: 86vh !important;
+
   padding: 24px !important;
+
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(255, 255, 255, 0.08) inset !important;
+
   color: #f1f5f9 !important;
+
   display: flex !important;
+
   flex-direction: column !important;
+
   gap: 16px !important;
+
   overflow: hidden !important;
+
 }
+
+
 
 .modalHeader {
+
   display: flex;
+
   flex-direction: column;
+
   gap: 8px;
+
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+
   padding-bottom: 14px;
+
 }
+
+
 
 .modalHeaderMeta {
+
   display: flex;
+
   align-items: center;
+
   gap: 8px;
+
   flex-wrap: wrap;
+
 }
+
+
 
 .modalTicketCode {
+
   font-family: monospace;
+
   font-size: 0.82rem;
+
   font-weight: 700;
+
   color: #60a5fa;
+
   background: rgba(59, 130, 246, 0.15);
+
   padding: 2px 8px;
+
   border-radius: 6px;
+
   border: 1px solid rgba(59, 130, 246, 0.3);
+
   letter-spacing: 0.5px;
+
 }
+
+
 
 .modalDivider {
+
   color: rgba(255, 255, 255, 0.25);
+
   font-size: 0.8rem;
+
 }
+
+
 
 .modalCategory {
+
   font-size: 0.8rem;
+
   color: rgba(255, 255, 255, 0.6);
+
   font-weight: 500;
+
 }
+
+
 
 .modalTitle {
+
   font-size: 1.15rem;
+
   font-weight: 700;
+
   color: #ffffff;
+
   line-height: 1.4;
+
   margin: 0;
+
   word-break: break-word;
+
 }
+
+
 
 .modalGrid {
+
   display: grid;
+
   grid-template-columns: minmax(0, 1.6fr) 300px;
+
   gap: 20px;
+
   align-items: start;
+
   flex: 1;
+
   min-height: 0;
+
   overflow-y: auto;
+
   padding-right: 4px;
+
 }
+
+
 
 .modalLeft {
+
   display: flex;
+
   flex-direction: column;
+
   gap: 16px;
+
   min-width: 0;
+
 }
+
+
 
 .modalSection {
+
   display: flex;
+
   flex-direction: column;
+
   gap: 6px;
+
 }
+
+
 
 .ticketDescBox {
+
   background: rgba(15, 23, 42, 0.7);
+
   border: 1px solid rgba(255, 255, 255, 0.08);
+
   border-radius: 10px;
+
   padding: 12px 14px;
+
   font-size: 0.84rem;
+
   line-height: 1.6;
+
   color: #cbd5e1;
+
   max-height: 140px;
+
   overflow-y: auto;
+
   white-space: pre-wrap;
+
   word-break: break-word;
+
 }
+
+
 
 .ticketDescBox::-webkit-scrollbar,
+
 .notesList::-webkit-scrollbar,
+
 .modalGrid::-webkit-scrollbar {
+
   width: 5px;
+
 }
+
 .ticketDescBox::-webkit-scrollbar-thumb,
+
 .notesList::-webkit-scrollbar-thumb,
+
 .modalGrid::-webkit-scrollbar-thumb {
+
   background: rgba(148, 163, 184, 0.25);
+
   border-radius: 3px;
+
 }
+
+
 
 .notesSection {
+
   display: flex;
+
   flex-direction: column;
+
   gap: 10px;
+
   border-top: 1px solid rgba(255, 255, 255, 0.08);
+
   padding-top: 14px;
+
 }
+
+
 
 .notesList {
+
   display: flex;
+
   flex-direction: column;
+
   gap: 8px;
+
   max-height: 170px;
+
   overflow-y: auto;
+
   padding-right: 4px;
+
   overscroll-behavior: contain;
+
 }
+
+
 
 .noteItem {
+
   background: rgba(15, 23, 42, 0.6);
+
   border: 1px solid rgba(255, 255, 255, 0.06);
+
   border-radius: 8px;
+
   padding: 10px 12px;
+
   display: flex;
+
   flex-direction: column;
+
   gap: 4px;
+
 }
+
+
 
 .noteInternal {
+
   border-left: 3px solid #f59e0b;
+
   background: linear-gradient(90deg, rgba(245, 158, 11, 0.08), rgba(15, 23, 42, 0.6));
+
 }
+
+
 
 .noteHeader {
+
   display: flex;
+
   justify-content: space-between;
+
   align-items: center;
+
   font-size: 0.72rem;
+
   color: #94a3b8;
+
 }
+
+
 
 .noteAuthor {
+
   font-weight: 600;
+
   color: #e2e8f0;
+
 }
+
+
 
 .noteDate {
+
   font-size: 0.7rem;
+
   color: #64748b;
+
 }
+
+
 
 .noteContent {
+
   font-size: 0.8rem;
+
   color: #e2e8f0;
+
   line-height: 1.5;
+
   word-break: break-word;
+
 }
+
+
 
 .noteForm {
+
   display: flex;
+
   flex-direction: column;
+
   gap: 8px;
+
   background: rgba(15, 23, 42, 0.45);
+
   border: 1px solid rgba(255, 255, 255, 0.07);
+
   border-radius: 10px;
+
   padding: 10px 12px;
+
 }
+
+
 
 .noteInput {
+
   background: rgba(10, 15, 30, 0.8) !important;
+
   border: 1px solid rgba(255, 255, 255, 0.12) !important;
+
   border-radius: 8px !important;
+
   color: #ffffff !important;
+
   font-size: 0.8rem !important;
+
   height: 36px !important;
+
 }
+
+
 
 .noteOptions {
+
   display: flex;
+
   align-items: center;
+
   justify-content: space-between;
+
   gap: 8px;
+
   flex-wrap: wrap;
+
 }
+
+
 
 .internalCheckboxLabel {
+
   display: inline-flex;
+
   align-items: center;
+
   gap: 6px;
+
   font-size: 0.72rem;
+
   color: #94a3b8;
+
   cursor: pointer;
+
   user-select: none;
+
 }
+
+
 
 .postNoteBtn {
+
   background: #2563eb !important;
+
   color: #ffffff !important;
+
   font-size: 0.75rem !important;
+
   font-weight: 600 !important;
+
   height: 30px !important;
+
   padding: 0 14px !important;
+
   border-radius: 6px !important;
+
 }
+
 .postNoteBtn:hover {
+
   background: #1d4ed8 !important;
+
 }
+
+
 
 .modalRight {
+
   display: flex;
+
   flex-direction: column;
+
   gap: 10px;
+
   background: rgba(15, 23, 42, 0.65);
+
   border: 1px solid rgba(255, 255, 255, 0.08);
+
   border-radius: 12px;
+
   padding: 14px;
+
 }
+
+
 
 .sectionTitle {
+
   font-size: 0.68rem;
+
   font-weight: 700;
+
   text-transform: uppercase;
+
   color: #94a3b8;
+
   letter-spacing: 0.5px;
+
   margin: 0;
+
   line-height: 1;
+
 }
+
+
 
 .infoRow {
+
   display: flex;
+
   flex-direction: column;
+
   gap: 4px;
+
   padding: 8px 10px;
+
   background: rgba(255, 255, 255, 0.03);
+
   border: 1px solid rgba(255, 255, 255, 0.05);
+
   border-radius: 8px;
+
 }
+
+
 
 .infoVal {
+
   font-size: 0.82rem;
+
   color: #f1f5f9;
+
   font-weight: 600;
+
   line-height: 1.35;
+
   word-break: break-word;
+
 }
+
+
 
 .infoSubVal {
+
   font-size: 0.72rem;
+
   color: #94a3b8;
+
   word-break: break-word;
+
 }
+
+
 
 .assignSelect, .prioritySelect {
+
   width: 100%;
+
   background: rgba(10, 15, 30, 0.7);
+
   border: 1px solid rgba(255, 255, 255, 0.12);
+
   color: white;
+
   border-radius: 6px;
+
   padding: 6px 10px;
+
   outline: none;
+
   font-size: 0.8rem;
+
   cursor: pointer;
+
   transition: border-color 0.2s;
+
 }
+
+
 
 .assignSelect:focus, .prioritySelect:focus {
+
   border-color: #3b82f6;
+
 }
+
+
 
 .selectOption {
+
   background: #1e1b4b;
+
   color: white;
+
 }
+
+
 
 .openTicketBtn {
+
   display: flex;
+
   align-items: center;
+
   justify-content: center;
+
   gap: 8px;
+
   width: 100%;
+
   padding: 9px 12px;
+
   margin-top: 4px;
+
   background: rgba(37, 99, 235, 0.15);
+
   border: 1px solid rgba(59, 130, 246, 0.35);
+
   border-radius: 8px;
+
   color: #60a5fa;
+
   font-size: 0.78rem;
+
   font-weight: 600;
+
   cursor: pointer;
+
   transition: all 0.2s ease;
+
 }
+
+
 
 .openTicketBtn:hover {
+
   background: #2563eb;
+
   border-color: #2563eb;
+
   color: #ffffff;
+
   box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+
 }
+
+
 
 /* Quick Add Task Styles */
+
 .formGroup {
+
   display: flex;
+
   flex-direction: column;
+
   gap: 6px;
+
   margin-bottom: 12px;
+
 }
+
+
 
 .formLabel {
+
   font-size: 0.75rem;
+
   font-weight: 600;
+
   color: rgba(255, 255, 255, 0.6);
+
 }
+
+
 
 /* Responsive Overrides */
+
 @media (max-width: 820px) {
+
   .modalGrid {
+
     grid-template-columns: 1fr;
+
   }
+
 }
+
+
 
 /* ─────────────────────────────────────────────────────────────
+
    TAMPILAN KALENDER BERBASIS DEADLINE & KEPADATAN RILIS
+
    ───────────────────────────────────────────────────────────── */
 
+
+
 /* Summary Grid */
+
 .summaryGrid {
+
   display: grid;
+
   grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+
   gap: 12px;
+
 }
+
+
 
 .summaryCard {
+
   background: rgba(15, 23, 42, 0.45);
+
   backdrop-filter: blur(12px);
+
   border: 1px solid rgba(255, 255, 255, 0.08);
+
   border-radius: 12px;
+
   padding: 14px 18px;
+
   display: flex;
+
   align-items: center;
+
   gap: 14px;
+
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+
   transition: transform 0.2s ease, border-color 0.2s ease;
+
 }
+
+
 
 .summaryCard:hover {
+
   transform: translateY(-2px);
+
   border-color: rgba(255, 255, 255, 0.16);
+
 }
+
+
 
 .summaryIconBox {
+
   width: 42px;
+
   height: 42px;
+
   border-radius: 10px;
+
   display: flex;
+
   align-items: center;
+
   justify-content: center;
+
   flex-shrink: 0;
+
 }
+
+
 
 .summaryContent {
+
   display: flex;
+
   flex-direction: column;
+
   min-width: 0;
+
 }
+
+
 
 .summaryLabel {
+
   font-size: 0.72rem;
+
   font-weight: 600;
+
   text-transform: uppercase;
+
   letter-spacing: 0.5px;
+
   color: rgba(255, 255, 255, 0.55);
+
 }
+
+
 
 .summaryValue {
+
   font-size: 1.25rem;
+
   font-weight: 700;
+
   color: #ffffff;
+
   line-height: 1.2;
+
   margin-top: 2px;
+
 }
+
+
 
 .summarySubtext {
+
   font-size: 0.7rem;
+
   color: rgba(255, 255, 255, 0.4);
+
   margin-top: 2px;
+
   white-space: nowrap;
+
   overflow: hidden;
+
   text-overflow: ellipsis;
+
 }
+
+
 
 /* Workload Legend Bar */
+
 .legendBar {
+
   display: flex;
+
   align-items: center;
+
   justify-content: space-between;
+
   gap: 12px;
+
   flex-wrap: wrap;
+
   padding: 8px 16px;
+
   background: rgba(10, 25, 47, 0.25);
+
   border: 1px solid rgba(255, 255, 255, 0.06);
+
   border-radius: 10px;
+
 }
+
+
 
 .legendItems {
+
   display: flex;
+
   align-items: center;
+
   gap: 16px;
+
   flex-wrap: wrap;
+
 }
+
+
 
 .legendLabel {
+
   font-size: 0.74rem;
+
   font-weight: 600;
+
   color: rgba(255, 255, 255, 0.5);
+
   display: flex;
+
   align-items: center;
+
   gap: 6px;
+
 }
+
+
 
 .legendPill {
+
   display: inline-flex;
+
   align-items: center;
+
   gap: 6px;
+
   font-size: 0.72rem;
+
   font-weight: 600;
+
   padding: 3px 10px;
+
   border-radius: 999px;
+
 }
+
+
 
 .legendPillLonggar {
+
   background: rgba(16, 185, 129, 0.15);
+
   color: #34d399;
+
   border: 1px solid rgba(16, 185, 129, 0.3);
+
 }
+
+
 
 .legendPillSedang {
+
   background: rgba(245, 158, 11, 0.15);
+
   color: #fbbf24;
+
   border: 1px solid rgba(245, 158, 11, 0.3);
+
 }
+
+
 
 .legendPillPadat {
+
   background: rgba(239, 68, 68, 0.18);
+
   color: #f87171;
+
   border: 1px solid rgba(239, 68, 68, 0.35);
+
 }
+
+
 
 /* Day Cell Density Highlights */
+
 .dayCellPadat {
+
   background: rgba(239, 68, 68, 0.07) !important;
+
   border-top: 2px solid #ef4444 !important;
+
 }
+
+
 
 .dayCellSedang {
+
   background: rgba(245, 158, 11, 0.05) !important;
+
   border-top: 2px solid #f59e0b !important;
+
 }
+
+
 
 .dayCellLonggar {
+
   background: rgba(16, 185, 129, 0.03) !important;
+
 }
+
+
 
 /* Density Badges in Cell Header */
+
 .densityBadgePadat {
+
   font-size: 0.65rem;
+
   font-weight: 700;
+
   padding: 1px 6px;
+
   border-radius: 999px;
+
   background: rgba(239, 68, 68, 0.25);
+
   color: #fca5a5;
+
   border: 1px solid rgba(239, 68, 68, 0.45);
+
 }
+
+
 
 .densityBadgeSedang {
+
   font-size: 0.65rem;
+
   font-weight: 700;
+
   padding: 1px 6px;
+
   border-radius: 999px;
+
   background: rgba(245, 158, 11, 0.2);
+
   color: #fde047;
+
   border: 1px solid rgba(245, 158, 11, 0.4);
+
 }
+
+
 
 .densityBadgeLonggar {
+
   font-size: 0.65rem;
+
   font-weight: 600;
+
   padding: 1px 6px;
+
   border-radius: 999px;
+
   background: rgba(16, 185, 129, 0.15);
+
   color: #6ee7b7;
+
   border: 1px solid rgba(16, 185, 129, 0.3);
+
 }
+
+
 
 /* Enhanced Ticket Item */
+
 .ticketCardHeader {
+
   display: flex;
+
   align-items: center;
+
   justify-content: space-between;
+
   gap: 4px;
+
   margin-bottom: 3px;
+
 }
+
+
 
 .ticketTime {
+
   display: inline-flex;
+
   align-items: center;
+
   gap: 3px;
+
   font-size: 0.68rem;
+
   font-weight: 700;
+
   color: #93c5fd;
+
   background: rgba(59, 130, 246, 0.2);
+
   padding: 1px 5px;
+
   border-radius: 4px;
+
   white-space: nowrap;
+
 }
+
+
 
 .badgeOverdue {
+
   display: inline-flex;
+
   align-items: center;
+
   font-size: 0.62rem;
+
   font-weight: 700;
+
   color: #fca5a5;
+
   background: rgba(239, 68, 68, 0.3);
+
   border: 1px solid rgba(239, 68, 68, 0.4);
+
   padding: 0 4px;
+
   border-radius: 3px;
+
   text-transform: uppercase;
+
 }
+
+
 
 .badgeDone {
+
   display: inline-flex;
+
   align-items: center;
+
   font-size: 0.62rem;
+
   font-weight: 700;
+
   color: #86efac;
+
   background: rgba(34, 197, 94, 0.2);
+
   padding: 0 4px;
+
   border-radius: 3px;
+
 }
+
+
 
 .badgeDueToday {
+
   display: inline-flex;
+
   align-items: center;
+
   font-size: 0.62rem;
+
   font-weight: 700;
+
   color: #fef08a;
+
   background: rgba(234, 179, 8, 0.25);
+
   padding: 0 4px;
+
   border-radius: 3px;
+
 }
+
+
 
 .badgeCoc {
+
   display: inline-flex;
+
   align-items: center;
+
   font-size: 0.6rem;
+
   font-weight: 700;
+
   color: #c084fc;
+
   background: rgba(168, 85, 247, 0.2);
+
   padding: 0 4px;
+
   border-radius: 3px;
+
 }
+
+
 
 .ticketTitleText {
+
   font-size: 0.73rem;
+
   font-weight: 500;
+
   color: #f1f5f9;
+
   display: block;
+
 }
+
+
 
 .ticketFooter {
+
   display: flex;
+
   align-items: center;
+
   justify-content: space-between;
+
   margin-top: 3px;
+
   padding-top: 3px;
+
   border-top: 1px solid rgba(255, 255, 255, 0.05);
+
   font-size: 0.64rem;
+
   color: rgba(255, 255, 255, 0.5);
+
 }
 
+
+
 .ticketAssignee {
+
   display: inline-flex;
+
   align-items: center;
+
   gap: 3px;
+
   overflow: hidden;
+
   text-overflow: ellipsis;
+
   white-space: nowrap;
+
 }
+

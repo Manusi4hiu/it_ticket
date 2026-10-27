@@ -52,7 +52,7 @@ def _get_working_hours_config():
     holidays_set = set()
     recurring_holidays_set = set()
     try:
-        for h in Holiday.query.all():
+        for h in Holiday.query.filter(Holiday.is_active != False).all():
             if h.is_recurring:
                 recurring_holidays_set.add((h.holiday_date.month, h.holiday_date.day))
             else:
