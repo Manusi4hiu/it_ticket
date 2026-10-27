@@ -1,7 +1,7 @@
 from app import db
 from app.models.ticket import Ticket, TicketNote
 from app.models.user import User
-from app.models.master_data import Department, Status, Priority, Category, SLAPolicy
+from app.models.master_data import Department, Status, Priority, Category, SLAPolicy, BreakSetting, Holiday
 from app.utils.logging import log_activity
 from app.utils.security import sanitize_html, NOTE_ALLOWED_TAGS
 from datetime import datetime, timedelta, timezone
@@ -16,6 +16,51 @@ def _report_tz():
     Consistency lebih penting daripada flexibility untuk multi-timezone.
     """
     return timezone(timedelta(hours=7))
+
+
+def _is_working_day(d, holidays_set, recurring_holidays_set):
+    """Check if date d is an operational working day (Mon-Fri and not a holiday)."""
+    if d.weekday() >= 5:  # Saturday=5, Sunday=6
+        return False
+    if d in holidays_set:
+        return False
+    if (d.month, d.day) in recurring_holidays_set:
+        return False
+    return True
+
+
+def _get_working_hours_config():
+    """Retrieve operational working hours and registered holidays.
+    
+    Returns:
+        start_h, start_m, end_h, end_m, holidays_set, recurring_holidays_set
+    """
+    start_h, start_m = 8, 0
+    end_h, end_m = 17, 0
+    try:
+        bs = BreakSetting.query.first()
+        if bs:
+            if bs.work_start_time and ':' in bs.work_start_time:
+                parts = bs.work_start_time.split(':')
+                start_h, start_m = int(parts[0]), int(parts[1])
+            if bs.work_end_time and ':' in bs.work_end_time:
+                parts = bs.work_end_time.split(':')
+                end_h, end_m = int(parts[0]), int(parts[1])
+    except Exception as e:
+        print(f"Error loading break setting for SLA: {e}")
+
+    holidays_set = set()
+    recurring_holidays_set = set()
+    try:
+        for h in Holiday.query.filter(Holiday.is_active != False).all():
+            if h.is_recurring:
+                recurring_holidays_set.add((h.holiday_date.month, h.holiday_date.day))
+            else:
+                holidays_set.add(h.holiday_date)
+    except Exception as e:
+        print(f"Error loading holidays for SLA: {e}")
+
+    return start_h, start_m, end_h, end_m, holidays_set, recurring_holidays_set
 
 
 def _parse_window_bounds(start, end, days, tz):
@@ -123,18 +168,30 @@ def _build_trend(base_query, trend_days, tz):
 def _auto_assign_resolver(ticket, actor):
     """Auto-assign saat status berubah: tiap perubahan status ke non-New berarti
     aktor mengambil alih/mengerjakan tiket -> tiket unassigned diisi assignee
-    = aktor. Tak ada tiket non-New yang unassigned (status hanya bisa berubah
-    lewat campur tangan user). Status New = pool, boleh unassigned.
+    = aktor. Tak ada tiket non-New yang unassigned.
 
-    Sengaja TIDAK menyentuh taken_at (awal pengerjaan tak diketahui;
-    avg resolution fallback ke created_at) dan sla_deadline. Management
-    dikecualikan (view-only, tak boleh jadi assignee).
+    Menginisialisasi taken_at dan sla_deadline (berdasarkan jam kerja operasional & libur)
+    karena SLA pengerjaan mulai berjalan sejak tiket diambil/dikerjakan.
+    Management dikecualikan (view-only, tak boleh jadi assignee).
 
     Returns True bila assignment dilakukan.
     """
     if (ticket.assigned_to_id is None and actor is not None
             and getattr(actor, 'role', None) != 'Management'):
         ticket.assigned_to_id = actor.id
+        now_utc = datetime.now(timezone.utc)
+        if not ticket.taken_at:
+            ticket.taken_at = now_utc
+        if not ticket.sla_deadline:
+            hours = TicketService.get_sla_hours_for_ticket(ticket.priority, ticket.category)
+            ticket.sla_deadline = TicketService.calculate_business_deadline(now_utc, hours=hours)
+        if not ticket.first_responded_at:
+            ticket.first_responded_at = now_utc
+            if ticket.response_deadline:
+                dl_aware = ticket.response_deadline if ticket.response_deadline.tzinfo else ticket.response_deadline.replace(tzinfo=timezone.utc)
+                ticket.response_sla_status = 'breached' if now_utc > dl_aware else 'good'
+            else:
+                ticket.response_sla_status = 'good'
         return True
     return False
 
@@ -245,6 +302,215 @@ class TicketService:
         return sla_hours_map.get(priority_name.lower() if priority_name else 'medium', 24)
 
     @staticmethod
+    def get_response_time_minutes_for_ticket(priority_name, category_name=None):
+        """Get Response SLA minutes dynamically from Priority or SLAPolicy, falling back to defaults"""
+        try:
+            p_obj = Priority.query.filter(Priority.name.ilike(priority_name)).first() if priority_name else None
+            c_obj = Category.query.filter(Category.name.ilike(category_name)).first() if category_name else None
+
+            if p_obj and c_obj:
+                policy = SLAPolicy.query.filter_by(priority_id=p_obj.id, category_id=c_obj.id).first()
+                if policy and policy.response_time_minutes:
+                    return policy.response_time_minutes
+
+            if p_obj:
+                policy = SLAPolicy.query.filter_by(priority_id=p_obj.id, category_id=None).first()
+                if policy and policy.response_time_minutes:
+                    return policy.response_time_minutes
+
+            if c_obj:
+                policy = SLAPolicy.query.filter_by(priority_id=None, category_id=c_obj.id).first()
+                if policy and policy.response_time_minutes:
+                    return policy.response_time_minutes
+
+            if p_obj and p_obj.response_time_minutes:
+                return p_obj.response_time_minutes
+        except Exception as e:
+            print(f"Error resolving dynamic response minutes: {e}")
+
+        # Hardcoded defaults fallback: Critical 15m, High 30m, Medium 60m, Low 240m
+        response_minutes_map = {'critical': 15, 'high': 30, 'medium': 60, 'low': 240}
+        return response_minutes_map.get(priority_name.lower() if priority_name else 'medium', 60)
+
+    @staticmethod
+    def calculate_business_deadline(start_dt, hours=0, minutes=0):
+        """Calculate deadline considering operational working hours (e.g. 08:00 - 17:00 WIB),
+        skipping non-working hours, weekends (Sat/Sun), and registered public holidays.
+        
+        Always returns a timezone-aware UTC datetime.
+        """
+        if not start_dt:
+            start_dt = datetime.now(timezone.utc)
+        if start_dt.tzinfo is None:
+            start_dt = start_dt.replace(tzinfo=timezone.utc)
+
+        duration_minutes = int((hours or 0) * 60 + (minutes or 0))
+        if duration_minutes <= 0:
+            return start_dt
+
+        wib_tz = timezone(timedelta(hours=7))
+        cur = start_dt.astimezone(wib_tz)
+
+        start_h, start_m, end_h, end_m, holidays_set, recurring_holidays_set = _get_working_hours_config()
+        daily_work_mins = (end_h * 60 + end_m) - (start_h * 60 + start_m)
+        if daily_work_mins <= 0:
+            return (start_dt + timedelta(minutes=duration_minutes)).astimezone(timezone.utc)
+
+        # 1. Snap cur to a valid working moment
+        while True:
+            cur_date = cur.date()
+            if not _is_working_day(cur_date, holidays_set, recurring_holidays_set):
+                next_day = cur_date + timedelta(days=1)
+                cur = cur.replace(year=next_day.year, month=next_day.month, day=next_day.day,
+                                  hour=start_h, minute=start_m, second=0, microsecond=0)
+                continue
+
+            work_start = cur.replace(hour=start_h, minute=start_m, second=0, microsecond=0)
+            work_end = cur.replace(hour=end_h, minute=end_m, second=0, microsecond=0)
+
+            if cur < work_start:
+                cur = work_start
+                break
+            elif cur >= work_end:
+                next_day = cur_date + timedelta(days=1)
+                cur = cur.replace(year=next_day.year, month=next_day.month, day=next_day.day,
+                                  hour=start_h, minute=start_m, second=0, microsecond=0)
+                continue
+            else:
+                break
+
+        # 2. Advance duration_minutes within operating hours
+        remaining = duration_minutes
+        while remaining > 0:
+            cur_date = cur.date()
+            if not _is_working_day(cur_date, holidays_set, recurring_holidays_set):
+                next_day = cur_date + timedelta(days=1)
+                cur = cur.replace(year=next_day.year, month=next_day.month, day=next_day.day,
+                                  hour=start_h, minute=start_m, second=0, microsecond=0)
+                continue
+
+            work_start = cur.replace(hour=start_h, minute=start_m, second=0, microsecond=0)
+            work_end = cur.replace(hour=end_h, minute=end_m, second=0, microsecond=0)
+
+            if cur < work_start:
+                cur = work_start
+            elif cur >= work_end:
+                next_day = cur_date + timedelta(days=1)
+                cur = cur.replace(year=next_day.year, month=next_day.month, day=next_day.day,
+                                  hour=start_h, minute=start_m, second=0, microsecond=0)
+                continue
+
+            mins_left_today = int((work_end - cur).total_seconds() / 60)
+            if remaining <= mins_left_today:
+                cur = cur + timedelta(minutes=remaining)
+                remaining = 0
+                break
+            else:
+                remaining -= mins_left_today
+                next_day = cur_date + timedelta(days=1)
+                cur = cur.replace(year=next_day.year, month=next_day.month, day=next_day.day,
+                                  hour=start_h, minute=start_m, second=0, microsecond=0)
+
+        return cur.astimezone(timezone.utc)
+
+    @staticmethod
+    def calculate_business_duration_minutes(start_dt, end_dt):
+        """Calculate how many business minutes elapsed between start_dt and end_dt."""
+        if not start_dt or not end_dt:
+            return 0
+        if start_dt.tzinfo is None:
+            start_dt = start_dt.replace(tzinfo=timezone.utc)
+        if end_dt.tzinfo is None:
+            end_dt = end_dt.replace(tzinfo=timezone.utc)
+        if end_dt <= start_dt:
+            return 0
+
+        wib_tz = timezone(timedelta(hours=7))
+        cur = start_dt.astimezone(wib_tz)
+        target = end_dt.astimezone(wib_tz)
+
+        start_h, start_m, end_h, end_m, holidays_set, recurring_holidays_set = _get_working_hours_config()
+        daily_work_mins = (end_h * 60 + end_m) - (start_h * 60 + start_m)
+        if daily_work_mins <= 0:
+            return int((end_dt - start_dt).total_seconds() / 60)
+
+        elapsed = 0
+        while cur < target:
+            cur_date = cur.date()
+            if not _is_working_day(cur_date, holidays_set, recurring_holidays_set):
+                next_day = cur_date + timedelta(days=1)
+                cur = cur.replace(year=next_day.year, month=next_day.month, day=next_day.day,
+                                  hour=start_h, minute=start_m, second=0, microsecond=0)
+                continue
+
+            work_start = cur.replace(hour=start_h, minute=start_m, second=0, microsecond=0)
+            work_end = cur.replace(hour=end_h, minute=end_m, second=0, microsecond=0)
+
+            if cur < work_start:
+                cur = work_start
+            if cur >= work_end:
+                next_day = cur_date + timedelta(days=1)
+                cur = cur.replace(year=next_day.year, month=next_day.month, day=next_day.day,
+                                  hour=start_h, minute=start_m, second=0, microsecond=0)
+                continue
+
+            window_end = min(work_end, target)
+            if cur < window_end:
+                elapsed += int((window_end - cur).total_seconds() / 60)
+                cur = window_end
+            if cur >= work_end:
+                next_day = cur_date + timedelta(days=1)
+                cur = cur.replace(year=next_day.year, month=next_day.month, day=next_day.day,
+                                  hour=start_h, minute=start_m, second=0, microsecond=0)
+
+        return elapsed
+
+
+    @staticmethod
+    def validate_resolved_at_working_hours(dt):
+        """Validate that a resolved_at datetime falls within business hours and working days.
+        - Must not be in the future (with 2 min grace).
+        - Must be Monday - Friday.
+        - Must not be a registered holiday.
+        - Must be within work hours (e.g. 08:00 - 17:00 WIB).
+        Returns normalized UTC naive datetime.
+        """
+        if not dt:
+            return dt
+        
+        now_utc = datetime.now(timezone.utc)
+        if dt.tzinfo is not None:
+            dt_utc = dt.astimezone(timezone.utc)
+        else:
+            dt_utc = dt.replace(tzinfo=timezone.utc)
+
+        if dt_utc > now_utc + timedelta(minutes=2):
+            raise ValueError("Waktu penyelesaian tidak boleh di masa depan (maksimal waktu sekarang).")
+
+        wib_tz = timezone(timedelta(hours=7))
+        dt_wib = dt_utc.astimezone(wib_tz)
+
+        start_h, start_m, end_h, end_m, holidays_set, recurring_holidays_set = _get_working_hours_config()
+        
+        cur_date = dt_wib.date()
+        if dt_wib.weekday() >= 5:  # Saturday=5, Sunday=6
+            day_name = "Sabtu" if dt_wib.weekday() == 5 else "Minggu"
+            raise ValueError(f"Waktu penyelesaian tidak bisa di hari libur akhir pekan ({day_name}). Hanya bisa di hari kerja (Senin - Jumat).")
+
+        if not _is_working_day(cur_date, holidays_set, recurring_holidays_set):
+            raise ValueError(f"Waktu penyelesaian jatuh pada hari libur nasional ({cur_date.strftime('%d-%m-%Y')}).")
+
+        cur_time_mins = dt_wib.hour * 60 + dt_wib.minute
+        start_mins = start_h * 60 + start_m
+        end_mins = end_h * 60 + end_m
+
+        if cur_time_mins < start_mins or cur_time_mins > end_mins:
+            raise ValueError(f"Waktu penyelesaian hanya bisa dipilih pada jam kerja ({start_h:02d}:{start_m:02d} - {end_h:02d}:{end_m:02d} WIB). Jam yang dipilih: {dt_wib.strftime('%H:%M')} WIB.")
+
+        return dt_utc.replace(tzinfo=None)
+
+
+    @staticmethod
     def create_ticket(data, image_url=None, idempotency_key=None, is_authenticated=False, **kwargs):
         """
         Create a new ticket using the provided data and optional image URL.
@@ -326,15 +592,23 @@ class TicketService:
 
         # Transaction for Atomicity
         try:
-            # SLA only runs when the ticket is claimed/assigned
+            now_utc = datetime.now(timezone.utc)
+            # Response SLA starts from creation time using operational business hours
+            resp_minutes = TicketService.get_response_time_minutes_for_ticket(priority, category)
+            response_deadline = TicketService.calculate_business_deadline(now_utc, minutes=resp_minutes)
+            first_responded_at = None
+            response_sla_status = 'good'
+
+            # Resolution SLA only runs when the ticket is claimed/assigned
             sla_deadline = None
             if assigned_to_id:
                 hours = TicketService.get_sla_hours_for_ticket(priority, category)
-                sla_deadline = datetime.now(timezone.utc) + timedelta(hours=hours)
-                sla_taken_at = datetime.now(timezone.utc)
+                sla_deadline = TicketService.calculate_business_deadline(now_utc, hours=hours)
+                sla_taken_at = now_utc
+                first_responded_at = now_utc
             else:
                 sla_taken_at = None
-            
+
             # Fetch department info
             dept_code = "TKT"
             dept_name = data.get('submitterDepartment')
@@ -382,6 +656,9 @@ class TicketService:
                 sla_deadline=sla_deadline,
                 sla_status='good',
                 taken_at=sla_taken_at,
+                response_deadline=response_deadline,
+                first_responded_at=first_responded_at,
+                response_sla_status=response_sla_status,
                 ticket_code=ticket_code,
                 code_counter=new_counter,
                 assigned_to_id=assigned_to_id
@@ -633,16 +910,13 @@ class TicketService:
 
                 # SLA Logic
                 if old_status and TicketService._status_pauses_sla(old_status) and ticket.sla_paused_at and ticket.sla_deadline:
-                    paused_at_aware = ticket.sla_paused_at
-                    if paused_at_aware.tzinfo is None:
-                        paused_at_aware = paused_at_aware.replace(tzinfo=timezone.utc)
-                    time_paused = datetime.now(timezone.utc) - paused_at_aware
-                    
-                    sla_deadline_aware = ticket.sla_deadline
-                    if sla_deadline_aware.tzinfo is None:
-                        sla_deadline_aware = sla_deadline_aware.replace(tzinfo=timezone.utc)
-                        
-                    ticket.sla_deadline = sla_deadline_aware + time_paused
+                    paused_at_aware = ticket.sla_paused_at if ticket.sla_paused_at.tzinfo else ticket.sla_paused_at.replace(tzinfo=timezone.utc)
+                    sla_deadline_aware = ticket.sla_deadline if ticket.sla_deadline.tzinfo else ticket.sla_deadline.replace(tzinfo=timezone.utc)
+                    now_utc = datetime.now(timezone.utc)
+                    remaining_mins = TicketService.calculate_business_duration_minutes(paused_at_aware, sla_deadline_aware)
+                    if remaining_mins > 0:
+                        ticket.sla_deadline = TicketService.calculate_business_deadline(now_utc, minutes=remaining_mins)
+                    ticket.sla_paused_at = None
                     
                 if new_status and TicketService._status_pauses_sla(new_status):
                     ticket.sla_paused_at = datetime.now(timezone.utc)
@@ -751,22 +1025,9 @@ class TicketService:
             ticket.resolution_image_url = data['resolutionImageUrl']
 
         if 'resolvedAt' in data and data['resolvedAt']:
-            try:
-                clean_str = str(data['resolvedAt']).replace('Z', '+00:00')
-                dt_parsed = datetime.fromisoformat(clean_str)
-                now_utc = datetime.now(timezone.utc)
-                if dt_parsed.tzinfo is not None:
-                    if dt_parsed > now_utc + timedelta(minutes=2):
-                        raise ValueError("Waktu penyelesaian (resolved at) tidak boleh di masa depan.")
-                    ticket.resolved_at = dt_parsed.astimezone(timezone.utc).replace(tzinfo=None)
-                else:
-                    if dt_parsed > datetime.utcnow() + timedelta(minutes=2):
-                        raise ValueError("Waktu penyelesaian (resolved at) tidak boleh di masa depan.")
-                    ticket.resolved_at = dt_parsed
-            except ValueError as ve:
-                if "masa depan" in str(ve):
-                    raise ve
-                pass
+            clean_str = str(data['resolvedAt']).replace('Z', '+00:00')
+            dt_parsed = datetime.fromisoformat(clean_str)
+            ticket.resolved_at = TicketService.validate_resolved_at_working_hours(dt_parsed)
 
         if 'assignedToId' in data:
             prev_assigned_id = ticket.assigned_to_id
@@ -835,28 +1096,73 @@ class TicketService:
                 ticket.status = new_status_name
                 
             if ticket.assigned_to_id:
+                now_utc = datetime.now(timezone.utc)
                 if not prev_assigned_id or not ticket.sla_deadline:
                     hours = TicketService.get_sla_hours_for_ticket(ticket.priority, ticket.category)
-                    ticket.sla_deadline = datetime.now(timezone.utc) + timedelta(hours=hours)
+                    ticket.sla_deadline = TicketService.calculate_business_deadline(now_utc, hours=hours)
                 # Set taken_at only on first assignment
                 if not prev_assigned_id and not ticket.taken_at:
-                    ticket.taken_at = datetime.now(timezone.utc)
+                    ticket.taken_at = now_utc
+                # Record first response if not yet recorded
+                if not ticket.first_responded_at:
+                    ticket.first_responded_at = now_utc
+                    if ticket.response_deadline:
+                        dl_aware = ticket.response_deadline if ticket.response_deadline.tzinfo else ticket.response_deadline.replace(tzinfo=timezone.utc)
+                        ticket.response_sla_status = 'breached' if now_utc > dl_aware else 'good'
+                    else:
+                        ticket.response_sla_status = 'good'
             else:
                 ticket.sla_deadline = None
                 ticket.taken_at = None
         elif (priority_changed or category_changed) and ticket.assigned_to_id:
-            # Recalculate deadline from taken_at preserving elapsed time
+            # Recalculate deadline from taken_at preserving business hours
             hours = TicketService.get_sla_hours_for_ticket(ticket.priority, ticket.category)
             base_time = ticket.taken_at or ticket.created_at or datetime.now(timezone.utc)
-            ticket.sla_deadline = base_time + timedelta(hours=hours)
+            ticket.sla_deadline = TicketService.calculate_business_deadline(base_time, hours=hours)
             
         if 'collaboratorIds' in data:
-            # Clear existing collaborators and add new ones
+            old_collab_names = set(u.full_name for u in ticket.collaborators)
+            # Clear existing collaborators and add new ones (exclude primary assignee)
             ticket.collaborators = []
             for uid in data['collaboratorIds']:
                 user = User.query.get(uid)
-                if user:
+                if user and (not ticket.assigned_to_id or user.id != ticket.assigned_to_id):
                     ticket.collaborators.append(user)
+            
+            new_collab_names = set(u.full_name for u in ticket.collaborators)
+            added_collabs = new_collab_names - old_collab_names
+            removed_collabs = old_collab_names - new_collab_names
+            change_msgs = []
+            if added_collabs:
+                change_msgs.append('Menambahkan collaborator: ' + ', '.join(sorted(added_collabs)))
+            if removed_collabs:
+                change_msgs.append('Menghapus collaborator: ' + ', '.join(sorted(removed_collabs)))
+            if change_msgs:
+                try:
+                    note_author_id = int(user_id) if user_id else (actor.id if actor else (ticket.assigned_to_id or 1))
+                    ticket.notes.append(TicketNote(
+                        ticket_id=ticket.id,
+                        content='; '.join(change_msgs),
+                        author_id=note_author_id,
+                        is_internal=True
+                    ))
+                except Exception as ne:
+                    print('Warning: Failed to add collaborator note:', ne)
+
+        # Guard: Tiket yang sudah di-assign tapi belum memiliki SLA deadline wajib diinisialisasi
+        if ticket.assigned_to_id and not ticket.sla_deadline and str(ticket.status).strip().lower() not in ('resolved', 'closed'):
+            now_utc = datetime.now(timezone.utc)
+            if not ticket.taken_at:
+                ticket.taken_at = now_utc
+            hours = TicketService.get_sla_hours_for_ticket(ticket.priority, ticket.category)
+            ticket.sla_deadline = TicketService.calculate_business_deadline(now_utc, hours=hours)
+            if not ticket.first_responded_at:
+                ticket.first_responded_at = now_utc
+                if ticket.response_deadline:
+                    dl_aware = ticket.response_deadline if ticket.response_deadline.tzinfo else ticket.response_deadline.replace(tzinfo=timezone.utc)
+                    ticket.response_sla_status = 'breached' if now_utc > dl_aware else 'good'
+                else:
+                    ticket.response_sla_status = 'good'
 
         ticket.updated_at = datetime.now(timezone.utc)
         ticket.sla_status = TicketService.calculate_sla_status(ticket.sla_deadline, ticket.resolved_at, ticket.sla_paused_at, ticket.assigned_user)
@@ -994,13 +1300,23 @@ class TicketService:
             ticket.assigned_to_id = user_id
 
             # Postpone SLA deadline calculation until it is assigned (taken)
+            now_utc = datetime.now(timezone.utc)
             if not ticket.sla_deadline:
                 hours = TicketService.get_sla_hours_for_ticket(ticket.priority, ticket.category)
-                ticket.sla_deadline = datetime.now(timezone.utc) + timedelta(hours=hours)
+                ticket.sla_deadline = TicketService.calculate_business_deadline(now_utc, hours=hours)
             # Set taken_at only on first assignment (marker "pernah diambil" —
             # tidak pernah direset, karena dipakai oleh LOCK status New)
             if not ticket.taken_at:
-                ticket.taken_at = datetime.now(timezone.utc)
+                ticket.taken_at = now_utc
+
+            # Record first response if not yet recorded
+            if not ticket.first_responded_at:
+                ticket.first_responded_at = now_utc
+                if ticket.response_deadline:
+                    dl_aware = ticket.response_deadline if ticket.response_deadline.tzinfo else ticket.response_deadline.replace(tzinfo=timezone.utc)
+                    ticket.response_sla_status = 'breached' if now_utc > dl_aware else 'good'
+                else:
+                    ticket.response_sla_status = 'good'
 
             # Timestamp oper — dipakai notification bell assignee baru
             if is_transfer:
@@ -1159,22 +1475,29 @@ class TicketService:
         
         # If moving out of a paused state
         if old_status and TicketService._status_pauses_sla(old_status) and ticket.sla_paused_at and ticket.sla_deadline:
-            paused_at_aware = ticket.sla_paused_at
-            if paused_at_aware.tzinfo is None:
-                paused_at_aware = paused_at_aware.replace(tzinfo=timezone.utc)
-            time_paused = datetime.now(timezone.utc) - paused_at_aware
-            
-            sla_deadline_aware = ticket.sla_deadline
-            if sla_deadline_aware.tzinfo is None:
-                sla_deadline_aware = sla_deadline_aware.replace(tzinfo=timezone.utc)
-                
-            ticket.sla_deadline = sla_deadline_aware + time_paused
+            paused_at_aware = ticket.sla_paused_at if ticket.sla_paused_at.tzinfo else ticket.sla_paused_at.replace(tzinfo=timezone.utc)
+            sla_deadline_aware = ticket.sla_deadline if ticket.sla_deadline.tzinfo else ticket.sla_deadline.replace(tzinfo=timezone.utc)
+            now_utc = datetime.now(timezone.utc)
+            remaining_mins = TicketService.calculate_business_duration_minutes(paused_at_aware, sla_deadline_aware)
+            if remaining_mins > 0:
+                ticket.sla_deadline = TicketService.calculate_business_deadline(now_utc, minutes=remaining_mins)
+            ticket.sla_paused_at = None
             
         # If moving into a paused state
         if new_status and TicketService._status_pauses_sla(new_status):
             ticket.sla_paused_at = datetime.now(timezone.utc)
         else:
             ticket.sla_paused_at = None
+
+        # Record first response if transitioning from New to active working state
+        if not ticket.first_responded_at and str(old_status_name).strip().lower() == 'new' and str(status).strip().lower() != 'new':
+            now_utc = datetime.now(timezone.utc)
+            ticket.first_responded_at = now_utc
+            if ticket.response_deadline:
+                dl_aware = ticket.response_deadline if ticket.response_deadline.tzinfo else ticket.response_deadline.replace(tzinfo=timezone.utc)
+                ticket.response_sla_status = 'breached' if now_utc > dl_aware else 'good'
+            else:
+                ticket.response_sla_status = 'good'
             
         # Log status change as note if status actually changed — tidy Reason.
         # KHUSUS transisi ke Resolved/Closed: format "Ticket resolved on <tanggal resolved>"
@@ -1246,12 +1569,8 @@ class TicketService:
             # Custom resolvedAt dari UI dipakai bila ada, selain itu now (UTC naive).
             _stamp = None
             if resolved_at_str:
-                try:
-                    dt_parsed = datetime.fromisoformat(str(resolved_at_str).replace('Z', '+00:00'))
-                    _stamp = (dt_parsed.astimezone(timezone.utc).replace(tzinfo=None)
-                              if dt_parsed.tzinfo is not None else dt_parsed)
-                except ValueError:
-                    _stamp = None
+                dt_parsed = datetime.fromisoformat(str(resolved_at_str).replace('Z', '+00:00'))
+                _stamp = TicketService.validate_resolved_at_working_hours(dt_parsed)
             ticket.resolved_at = _stamp or datetime.now(timezone.utc).replace(tzinfo=None)
 
         if status.lower() == 'resolved':
@@ -1273,6 +1592,21 @@ class TicketService:
                 is_internal=True,
                 is_system_note=True
             )
+
+        # Guard: Tiket yang sudah di-assign tapi belum memiliki SLA deadline wajib diinisialisasi
+        if ticket.assigned_to_id and not ticket.sla_deadline and str(status).strip().lower() not in ('resolved', 'closed'):
+            now_utc = datetime.now(timezone.utc)
+            if not ticket.taken_at:
+                ticket.taken_at = now_utc
+            hours = TicketService.get_sla_hours_for_ticket(ticket.priority, ticket.category)
+            ticket.sla_deadline = TicketService.calculate_business_deadline(now_utc, hours=hours)
+            if not ticket.first_responded_at:
+                ticket.first_responded_at = now_utc
+                if ticket.response_deadline:
+                    dl_aware = ticket.response_deadline if ticket.response_deadline.tzinfo else ticket.response_deadline.replace(tzinfo=timezone.utc)
+                    ticket.response_sla_status = 'breached' if now_utc > dl_aware else 'good'
+                else:
+                    ticket.response_sla_status = 'good'
 
         ticket.updated_at = datetime.now(timezone.utc)
         ticket.sla_status = TicketService.calculate_sla_status(ticket.sla_deadline, ticket.resolved_at, ticket.sla_paused_at, ticket.assigned_user)
@@ -1334,6 +1668,19 @@ class TicketService:
         )
         
         db.session.add(note)
+
+        # Record first response if an Agent/Admin writes a note on an unresponded ticket
+        if not is_system_note and author_id and not ticket.first_responded_at:
+            author = User.query.get(author_id)
+            if author and getattr(author, 'role', None) in ('Agent', 'Administrator'):
+                now_utc = datetime.now(timezone.utc)
+                ticket.first_responded_at = now_utc
+                if ticket.response_deadline:
+                    dl_aware = ticket.response_deadline if ticket.response_deadline.tzinfo else ticket.response_deadline.replace(tzinfo=timezone.utc)
+                    ticket.response_sla_status = 'breached' if now_utc > dl_aware else 'good'
+                else:
+                    ticket.response_sla_status = 'good'
+
         ticket.updated_at = datetime.now(timezone.utc)
         db.session.commit()
         return note
@@ -1471,9 +1818,9 @@ class TicketService:
             if start_time and getattr(start_time, 'tzinfo', None) is not None:
                 start_time = start_time.astimezone(timezone.utc).replace(tzinfo=None)
             if end_time and start_time:
-                diff = (end_time - start_time).total_seconds() / 3600
-                if diff >= 0:
-                    res_times.append(diff)
+                biz_mins = TicketService.calculate_business_duration_minutes(start_time, end_time)
+                if biz_mins >= 0:
+                    res_times.append(biz_mins / 60.0)
         
         avg_res_time = sum(res_times) / len(res_times) if res_times else 0
         

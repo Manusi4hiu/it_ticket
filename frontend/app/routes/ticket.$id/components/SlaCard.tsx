@@ -9,7 +9,15 @@
 
 import { CheckCircle, Clock, AlertTriangle } from "lucide-react";
 import { Button } from "~/components/ui/button/button";
-import { formatDate, formatDuration, formatTimeRemaining, toDatetimeLocalString } from "~/utils/date";
+import {
+  formatDate,
+  formatDuration,
+  formatTimeRemaining,
+  toDatetimeLocalString,
+  isWithinWorkingHours,
+  validateWorkingHoursDateTime,
+  type HolidayLike,
+} from "~/utils/date";
 import type { Ticket } from "~/services/ticket.service";
 import type { CurrentUser } from "../types";
 import styles from "../style.module.css";
@@ -31,6 +39,7 @@ interface SlaCardProps {
   onOpenEditResolvedAt: () => void;
   onSaveResolvedAt: () => void;
   onCancelEditResolvedAt: () => void;
+  holidays?: HolidayLike[];
 }
 
 // ─────────────────────────────────────────────
@@ -71,7 +80,7 @@ function getSLAIcon(ticket: Ticket) {
 }
 
 /** Return label judul SLA card. */
-function getSLATitle(ticket: Ticket): React.ReactNode {
+function getSLATitle(ticket: Ticket, holidays?: HolidayLike[]): React.ReactNode {
   const isResolved =
     ticket.status.toLowerCase() === "resolved" ||
     ticket.status.toLowerCase() === "closed";
@@ -79,6 +88,11 @@ function getSLATitle(ticket: Ticket): React.ReactNode {
   if (isResolved) return "Resolution Time";
   if (!ticket.slaDeadline) return "SLA Pending";
   if (ticket.slaPausedAt) return "SLA Paused";
+
+  const now = new Date();
+  if (!isWithinWorkingHours(now, holidays)) {
+    return "SLA Paused (Luar Jam Kerja)";
+  }
 
   return (
     <>
@@ -125,6 +139,7 @@ export function SlaCard({
   onOpenEditResolvedAt,
   onSaveResolvedAt,
   onCancelEditResolvedAt,
+  holidays,
 }: SlaCardProps) {
   const isResolved =
     ticket.status.toLowerCase() === "resolved" ||
@@ -146,7 +161,7 @@ export function SlaCard({
             styles[`slaTitle${slaStatusKey}`] ?? ""
           }`}
         >
-          {getSLATitle(ticket)}
+          {getSLATitle(ticket, holidays)}
         </h3>
       </div>
 
@@ -155,8 +170,8 @@ export function SlaCard({
         className={`${styles.slaTime} ${styles[`slaTime${slaStatusKey}`] ?? ""}`}
       >
         {isResolved
-          ? formatDuration(ticket.takenAt ?? ticket.createdAt, ticket.resolvedAt || ticket.updatedAt)
-          : formatTimeRemaining(ticket.slaDeadline, ticket.slaPausedAt)}
+          ? formatDuration(ticket.takenAt ?? ticket.createdAt, ticket.resolvedAt || ticket.updatedAt, holidays)
+          : formatTimeRemaining(ticket.slaDeadline, ticket.slaPausedAt, holidays)}
       </div>
 
       {/* Deadline / Working Time Detail */}
@@ -175,6 +190,7 @@ export function SlaCard({
             onOpenEditResolvedAt={onOpenEditResolvedAt}
             onSaveResolvedAt={onSaveResolvedAt}
             onCancelEditResolvedAt={onCancelEditResolvedAt}
+            holidays={holidays}
           />
         ) : !ticket.slaDeadline ? (
           <>Awaiting IT User Assignment</>
@@ -199,6 +215,7 @@ interface ResolvedTimeSectionProps {
   onOpenEditResolvedAt: () => void;
   onSaveResolvedAt: () => void;
   onCancelEditResolvedAt: () => void;
+  holidays?: HolidayLike[];
 }
 
 /** Detail waktu resolve untuk ticket yang sudah selesai. */
@@ -211,14 +228,18 @@ function ResolvedTimeSection({
   onOpenEditResolvedAt,
   onSaveResolvedAt,
   onCancelEditResolvedAt,
+  holidays,
 }: ResolvedTimeSectionProps) {
+  const editValidation = editResolvedAtValue ? validateWorkingHoursDateTime(editResolvedAtValue, holidays) : { valid: true };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
       <div>
         Total working time:{" "}
         {formatDuration(
           ticket.takenAt ?? ticket.createdAt,
-          ticket.resolvedAt || ticket.updatedAt
+          ticket.resolvedAt || ticket.updatedAt,
+          holidays
         )}
       </div>
 
@@ -226,39 +247,54 @@ function ResolvedTimeSection({
         <div
           style={{
             display: "flex",
-            alignItems: "center",
-            gap: "var(--space-2)",
+            flexDirection: "column",
+            gap: "var(--space-1)",
             marginTop: "var(--space-1)",
           }}
         >
-          <input
-            type="datetime-local"
-            value={editResolvedAtValue}
-            max={toDatetimeLocalString(new Date())}
-            onChange={(e) => onEditResolvedAtChange(e.target.value)}
-            className={styles.input}
+          <div
             style={{
-              padding: "var(--space-1)",
-              fontSize: "0.8rem",
-              borderRadius: "var(--radius-sm)",
-              border: "1px solid var(--color-neutral-4)",
+              display: "flex",
+              alignItems: "center",
+              gap: "var(--space-2)",
             }}
-          />
-          <Button
-            size="sm"
-            onClick={onSaveResolvedAt}
-            style={{ padding: "0 8px", height: "28px" }}
           >
-            Save
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={onCancelEditResolvedAt}
-            style={{ padding: "0 8px", height: "28px" }}
-          >
-            Cancel
-          </Button>
+            <input
+              type="datetime-local"
+              value={editResolvedAtValue}
+              max={toDatetimeLocalString(new Date())}
+              onChange={(e) => onEditResolvedAtChange(e.target.value)}
+              className={styles.input}
+              style={{
+                padding: "var(--space-1)",
+                fontSize: "0.8rem",
+                borderRadius: "var(--radius-sm)",
+                border: !editValidation.valid ? "1px solid #ef4444" : "1px solid var(--color-neutral-4)",
+              }}
+            />
+            <Button
+              size="sm"
+              onClick={onSaveResolvedAt}
+              disabled={!editResolvedAtValue || !editValidation.valid}
+              style={{ padding: "0 8px", height: "28px" }}
+            >
+              Save
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onCancelEditResolvedAt}
+              style={{ padding: "0 8px", height: "28px" }}
+            >
+              Cancel
+            </Button>
+          </div>
+          <span style={{ fontSize: "0.7rem", color: "var(--color-neutral-10)" }}>
+            08:00 - 17:00 WIB (Senin - Jumat)
+          </span>
+          {!editValidation.valid && editValidation.error && (
+            <span style={{ fontSize: "0.7rem", color: "#ef4444" }}>{editValidation.error}</span>
+          )}
         </div>
       ) : (
         <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
