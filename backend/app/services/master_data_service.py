@@ -423,14 +423,12 @@ class MasterDataService:
         If table is empty, seeds from the local project file (backend/app/data/holidays_indonesia.json).
         """
         try:
-            holidays = Holiday.query.order_by(Holiday.holiday_date.asc()).all()
-            if not holidays:
+            count = Holiday.query.count()
+            if count == 0:
                 MasterDataService.seed_holidays_from_local_json()
-                holidays = Holiday.query.order_by(Holiday.holiday_date.asc()).all()
-            return holidays
         except Exception as e:
             print(f"Error checking/seeding holidays: {e}")
-            return Holiday.query.order_by(Holiday.holiday_date.asc()).all()
+        return Holiday.query.order_by(Holiday.holiday_date.asc()).all()
 
     @staticmethod
     def seed_holidays_from_local_json():
@@ -445,7 +443,7 @@ class MasterDataService:
                 content = json.load(f)
             items = content.get('holidays', []) if isinstance(content, dict) else content
             added = 0
-            existing_dates = {row[0] for row in db.session.query(Holiday.holiday_date).all()}
+            existing_dates = {h.holiday_date for h in Holiday.query.all()}
             for item in items:
                 d_str = item.get('holidayDate') or item.get('date')
                 name = item.get('name')
@@ -462,6 +460,29 @@ class MasterDataService:
         except Exception as e:
             print(f"Error seeding holidays from local JSON: {e}")
             return 0
+
+    @staticmethod
+    def _save_holidays_to_local_json():
+        """Persist current holidays in database to local JSON file for project backup."""
+        import os
+        import json
+        try:
+            all_holidays = Holiday.query.order_by(Holiday.holiday_date.asc()).all()
+            data_dir = os.path.join(os.path.dirname(__file__), '..', 'data')
+            os.makedirs(data_dir, exist_ok=True)
+            json_file = os.path.join(data_dir, 'holidays_indonesia.json')
+            payload = {
+                "description": "Hari Libur Nasional & Cuti Bersama Indonesia (api.co.id)",
+                "source": "https://use.api.co.id",
+                "last_synced_at": datetime.now().isoformat(),
+                "cron_schedule": "Setiap 31 Desember 23:59 WIB (Tahunan)",
+                "total_holidays": len(all_holidays),
+                "holidays": [h.to_dict() for h in all_holidays]
+            }
+            with open(json_file, 'w', encoding='utf-8') as f:
+                json.dump(payload, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            print(f"Warning: Failed to persist holidays to local JSON file: {e}")
 
     @staticmethod
     def get_holiday_sync_metadata():
@@ -525,11 +546,14 @@ class MasterDataService:
                         res = json.loads(resp.read().decode('utf-8'))
                         if res.get('is_success') and isinstance(res.get('data'), list):
                             for item in res.get('data', []):
-                                if item.get('is_holiday') or item.get('is_joint_holiday') or item.get('type') in ('Public Holiday', 'Joint Holiday', 'National Holiday'):
-                                    d_str = item.get('date')
-                                    name = item.get('name')
-                                    if d_str and name:
-                                        holidays_map[d_str] = str(name).strip()
+                                # Ambil hari libur resmi/cuti bersama (is_active=True) dan hari nasional/observance (is_active=False)
+                                d_str = item.get('date')
+                                name = item.get('name')
+                                if d_str and name:
+                                    is_real_holiday = (item.get('is_holiday') is True or item.get('is_joint_holiday') is True)
+                                    is_observance = item.get('is_observance') is True or item.get('type') == 'Observance'
+                                    is_active = True if (is_real_holiday and not is_observance) else False
+                                    holidays_map[d_str] = (str(name).strip(), is_active)
                 except Exception as e:
                     print(f"api.co.id fetch failed for year {y}: {e}")
 
@@ -571,22 +595,27 @@ class MasterDataService:
         existing_holidays = {h.holiday_date: h for h in Holiday.query.all()}
         count_added = 0
         count_updated = 0
-        for d_str, name in holidays_map.items():
+        for d_str, val in holidays_map.items():
             try:
                 h_date = datetime.strptime(d_str, '%Y-%m-%d').date()
             except ValueError:
                 continue
+
+            name = val[0] if isinstance(val, (tuple, list)) else val
+            is_active = val[1] if isinstance(val, (tuple, list)) and len(val) > 1 else True
 
             existing = existing_holidays.get(h_date)
             if existing:
                 if existing.name != name:
                     existing.name = name
                     count_updated += 1
+                # Jangan overwrite is_active jika sudah pernah disesuaikan oleh admin
             else:
                 new_h = Holiday(
                     name=name,
                     holiday_date=h_date,
-                    is_recurring=False
+                    is_recurring=False,
+                    is_active=is_active
                 )
                 db.session.add(new_h)
                 existing_holidays[h_date] = new_h
@@ -594,24 +623,7 @@ class MasterDataService:
 
         db.session.commit()
 
-        # Persist to local project file backend/app/data/holidays_indonesia.json
-        try:
-            all_holidays = Holiday.query.order_by(Holiday.holiday_date.asc()).all()
-            data_dir = os.path.join(os.path.dirname(__file__), '..', 'data')
-            os.makedirs(data_dir, exist_ok=True)
-            json_file = os.path.join(data_dir, 'holidays_indonesia.json')
-            payload = {
-                "description": "Hari Libur Nasional & Cuti Bersama Indonesia (api.co.id)",
-                "source": "https://use.api.co.id",
-                "last_synced_at": datetime.now().isoformat(),
-                "cron_schedule": "Setiap 31 Desember 23:59 WIB (Tahunan)",
-                "total_holidays": len(all_holidays),
-                "holidays": [h.to_dict() for h in all_holidays]
-            }
-            with open(json_file, 'w', encoding='utf-8') as f:
-                json.dump(payload, f, indent=2, ensure_ascii=False)
-        except Exception as e:
-            print(f"Warning: Failed to persist holidays to local JSON file: {e}")
+        MasterDataService._save_holidays_to_local_json()
 
         return len(holidays_map), None
 
@@ -629,6 +641,16 @@ class MasterDataService:
         name = str(name).strip()
 
         is_recurring = bool(data.get('isRecurring', False))
+
+        is_active = True
+        if 'isActive' in data and data['isActive'] is not None:
+            is_active = bool(data['isActive'])
+        elif 'is_active' in data and data['is_active'] is not None:
+            is_active = bool(data['is_active'])
+        elif 'isHoliday' in data and data['isHoliday'] is not None:
+            is_active = bool(data['isHoliday'])
+        elif 'is_holiday' in data and data['is_holiday'] is not None:
+            is_active = bool(data['is_holiday'])
 
 
 
@@ -686,13 +708,16 @@ class MasterDataService:
 
                 holiday_date=start_date,
 
-                is_recurring=is_recurring
+                is_recurring=is_recurring,
+
+                is_active=is_active
 
             )
 
             db.session.add(holiday)
 
             db.session.commit()
+            MasterDataService._save_holidays_to_local_json()
 
             return holiday, None
 
@@ -716,7 +741,9 @@ class MasterDataService:
 
                     holiday_date=cur,
 
-                    is_recurring=is_recurring
+                    is_recurring=is_recurring,
+
+                    is_active=is_active
 
                 )
 
@@ -737,7 +764,7 @@ class MasterDataService:
 
 
         db.session.commit()
-
+        MasterDataService._save_holidays_to_local_json()
         return (created_holidays[0] if created_holidays else None), None
 
 
@@ -776,12 +803,21 @@ class MasterDataService:
 
                 return None, 'Holiday date must be YYYY-MM-DD'
 
-        if 'isRecurring' in data:
+        if 'isRecurring' in data and data['isRecurring'] is not None:
 
             holiday.is_recurring = bool(data['isRecurring'])
 
-        db.session.commit()
+        if 'isActive' in data and data['isActive'] is not None:
+            holiday.is_active = bool(data['isActive'])
+        elif 'is_active' in data and data['is_active'] is not None:
+            holiday.is_active = bool(data['is_active'])
+        elif 'isHoliday' in data and data['isHoliday'] is not None:
+            holiday.is_active = bool(data['isHoliday'])
+        elif 'is_holiday' in data and data['is_holiday'] is not None:
+            holiday.is_active = bool(data['is_holiday'])
 
+        db.session.commit()
+        MasterDataService._save_holidays_to_local_json()
         return holiday, None
 
 
@@ -799,6 +835,7 @@ class MasterDataService:
         db.session.delete(holiday)
 
         db.session.commit()
+        MasterDataService._save_holidays_to_local_json()
 
         return True
 

@@ -115,7 +115,7 @@ function getSLATitle(ticket: Ticket, holidays?: HolidayLike[]): React.ReactNode 
   const isGraphicDesign = isGraphicDesignTicket(ticket);
 
   if (!ticket.slaDeadline) return isGraphicDesign ? "Deadline Pending" : "SLA Pending";
-  if (ticket.slaPausedAt) return isGraphicDesign ? "Deadline Paused" : "SLA Paused";
+  if (ticket.slaPausedAt && !isGraphicDesign) return "SLA Paused";
 
   const status = ticket.slaStatus?.toLowerCase();
   const isBreached = status === "breached" || (isGraphicDesign && ticket.ticketCode === "HR-028");
@@ -191,7 +191,7 @@ export function SlaCard({
   const slaStatusKey =
     effectiveStatus.charAt(0).toUpperCase() + effectiveStatus.slice(1);
 
-  const rawTimeRemaining = formatTimeRemaining(ticket.slaDeadline, ticket.slaPausedAt, holidays);
+  const rawTimeRemaining = formatTimeRemaining(ticket.slaDeadline, isGraphicDesign ? undefined : ticket.slaPausedAt, holidays);
   const timeDisplay = isResolved
     ? formatDuration(ticket.takenAt ?? ticket.createdAt, ticket.resolvedAt || ticket.updatedAt, holidays)
     : !ticket.slaDeadline

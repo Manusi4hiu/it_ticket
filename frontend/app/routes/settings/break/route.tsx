@@ -48,7 +48,18 @@ import {
   AlertCircle,
   Building2,
   Sparkles,
+  Pencil,
+  Trash2,
+  Plus,
 } from "lucide-react";
+
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "~/components/ui/dialog/dialog";
 
 import { settingsApi } from "~/services/settings.service";
 
@@ -92,13 +103,104 @@ export async function action({ request }: Route.ActionArgs) {
     return Response.json(
       {
         success: true,
-
         message:
           res.data?.message ||
           `Berhasil menyinkronkan ${res.data?.count ?? 0} hari libur nasional & cuti bersama dari API Indonesia.`,
       },
       { status: 200 },
     );
+  }
+
+  if (intent === "create_holiday") {
+    const name = (formData.get("name") as string)?.trim();
+    const mode = formData.get("dateMode") as string;
+    const isRecurring = formData.get("isRecurring") === "true" || formData.get("isRecurring") === "on";
+
+    if (!name) {
+      return Response.json({ error: "Nama hari libur wajib diisi." }, { status: 400 });
+    }
+
+    let payload: any = { name, isRecurring };
+
+    if (mode === "range") {
+      const startDate = (formData.get("startDate") as string)?.trim();
+      const endDate = (formData.get("endDate") as string)?.trim();
+      if (!startDate || !endDate) {
+        return Response.json({ error: "Tanggal mulai dan selesai wajib diisi." }, { status: 400 });
+      }
+      payload.startDate = startDate;
+      payload.endDate = endDate;
+    } else {
+      const holidayDate = (formData.get("holidayDate") as string)?.trim();
+      if (!holidayDate) {
+        return Response.json({ error: "Tanggal libur wajib diisi." }, { status: 400 });
+      }
+      payload.holidayDate = holidayDate;
+    }
+
+    const isHoliday = formData.get("isHoliday") !== "false" && formData.get("isActive") !== "false";
+    payload.isActive = isHoliday;
+    payload.isHoliday = isHoliday;
+
+    const res = await settingsApi.createHoliday(payload);
+    if (!res.success) {
+      return Response.json({ error: res.error || "Gagal menambahkan hari libur." }, { status: 400 });
+    }
+
+    return Response.json({ success: true, message: `Hari libur "${name}" berhasil ditambahkan.` }, { status: 200 });
+  }
+
+  if (intent === "update_holiday") {
+    const id = formData.get("id") as string;
+    const name = (formData.get("name") as string)?.trim();
+    const holidayDate = (formData.get("holidayDate") as string)?.trim();
+    const isRecurring = formData.get("isRecurring") === "true" || formData.get("isRecurring") === "on";
+
+    if (!id || !name || !holidayDate) {
+      return Response.json({ error: "ID, nama, dan tanggal hari libur wajib diisi." }, { status: 400 });
+    }
+
+    const isHoliday = formData.get("isHoliday") !== "false" && formData.get("isActive") !== "false";
+    const res = await settingsApi.updateHoliday(id, { name, holidayDate, isRecurring, isActive: isHoliday, isHoliday });
+    if (!res.success) {
+      return Response.json({ error: res.error || "Gagal memperbarui hari libur." }, { status: 400 });
+    }
+
+    return Response.json({ success: true, message: `Hari libur "${name}" (${holidayDate}) berhasil diperbarui.` }, { status: 200 });
+  }
+
+  if (intent === "toggle_holiday_status") {
+    const id = formData.get("id") as string;
+    const currentStatus = formData.get("currentStatus") === "true";
+    const newStatus = !currentStatus;
+    const name = (formData.get("name") as string) || "Hari Libur";
+
+    const res = await settingsApi.updateHoliday(id, { isActive: newStatus, isHoliday: newStatus });
+    if (!res.success) {
+      return Response.json({ error: res.error || "Gagal mengubah status hari libur." }, { status: 400 });
+    }
+
+    return Response.json(
+      {
+        success: true,
+        message: `Status "${name}" berhasil diubah menjadi: ${newStatus ? "Libur (SLA Paused)" : "Bukan Libur (SLA Berjalan)"}.`,
+      },
+      { status: 200 },
+    );
+  }
+
+  if (intent === "delete_holiday") {
+    const id = formData.get("id") as string;
+    if (!id) {
+      return Response.json({ error: "ID hari libur tidak valid." }, { status: 400 });
+    }
+
+    const res = await settingsApi.deleteHoliday(id);
+    if (!res.success) {
+      return Response.json({ error: res.error || "Gagal menghapus hari libur." }, { status: 400 });
+    }
+
+    return Response.json({ success: true, message: "Hari libur berhasil dihapus dari kalender kerja sistem." }, { status: 200 });
   }
 
   const num = (k: string) => parseInt(formData.get(k) as string);
@@ -182,27 +284,6 @@ const indonesianDateFormatter = new Intl.DateTimeFormat("id-ID", {
   year: "numeric",
 });
 
-const indonesianDateCache = new Map<string, string>();
-function formatIndonesianDate(dateStr: string): string {
-  if (!dateStr) return "-";
-  let cached = indonesianDateCache.get(dateStr);
-  if (!cached) {
-    try {
-      const parts = dateStr.split("-");
-      if (parts.length === 3) {
-        const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-        cached = indonesianDateFormatter.format(d);
-        indonesianDateCache.set(dateStr, cached);
-      } else {
-        cached = dateStr;
-      }
-    } catch {
-      cached = dateStr;
-    }
-  }
-  return cached;
-}
-
 export default function BreakSettings() {
   const { setting, holidays, meta } = useLoaderData() as {
     setting: BreakSetting | null;
@@ -229,6 +310,28 @@ export default function BreakSettings() {
   const [searchQuery, setSearchQuery] = useState("");
 
   const [selectedYear, setSelectedYear] = useState<string>("2026");
+
+  const [isHolidayDialogOpen, setIsHolidayDialogOpen] = useState(false);
+
+  const [editingHoliday, setEditingHoliday] = useState<Holiday | null>(null);
+
+  const [dateMode, setDateMode] = useState<"single" | "range">("single");
+
+  const [isHolidayStatus, setIsHolidayStatus] = useState<boolean>(true);
+
+  const handleOpenCreate = () => {
+    setEditingHoliday(null);
+    setDateMode("single");
+    setIsHolidayStatus(true);
+    setIsHolidayDialogOpen(true);
+  };
+
+  const handleOpenEdit = (holiday: Holiday) => {
+    setEditingHoliday(holiday);
+    setDateMode("single");
+    setIsHolidayStatus(holiday.isActive !== false && holiday.isHoliday !== false);
+    setIsHolidayDialogOpen(true);
+  };
 
   // Extract available years from holidays
 
@@ -263,7 +366,23 @@ export default function BreakSettings() {
     });
   }, [holidays, selectedYear, searchQuery]);
 
-  // Utilized global memoized formatIndonesianDate
+  // Helper formatting date to Indonesian
+
+  const formatIndonesianDate = (dateStr: string) => {
+    try {
+      const parts = dateStr.split("-");
+
+      if (parts.length === 3) {
+        const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+
+        return indonesianDateFormatter.format(d);
+      }
+    } catch (e) {
+      // fallback
+    }
+
+    return dateStr;
+  };
 
   return (
     <div>
@@ -768,40 +887,51 @@ export default function BreakSettings() {
               </div>
             </div>
 
-            {/* TOMBOL SINKRONISASI API */}
-
-            <Form method="post">
-              <input type="hidden" name="intent" value="sync_holidays" />
-
+            {/* TOMBOL AKSI HARI LIBUR: TAMBAH MANUAL & SINKRONISASI API */}
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
               <Button
-                type="submit"
-                variant="outline"
-                disabled={isSyncing}
+                type="button"
+                onClick={handleOpenCreate}
                 style={{
-                  borderColor: "rgba(59, 130, 246, 0.4)",
-
-                  background: "rgba(59, 130, 246, 0.1)",
-
-                  color: "#93c5fd",
-
+                  background: "rgba(16, 185, 129, 0.15)",
+                  border: "1px solid rgba(16, 185, 129, 0.35)",
+                  color: "#34d399",
                   fontWeight: 600,
-
                   fontSize: "0.85rem",
-
                   height: 40,
-
                   display: "flex",
-
                   alignItems: "center",
-
                   gap: 8,
                 }}
               >
-                <RefreshCw size={15} className={isSyncing ? "animate-spin" : ""} />
-
-                {isSyncing ? "Menyinkronkan API..." : "Sinkronkan dari API Hari Libur"}
+                <Plus size={15} />
+                Tambah Hari Libur
               </Button>
-            </Form>
+
+              <Form method="post">
+                <input type="hidden" name="intent" value="sync_holidays" />
+
+                <Button
+                  type="submit"
+                  variant="outline"
+                  disabled={isSyncing}
+                  style={{
+                    borderColor: "rgba(59, 130, 246, 0.4)",
+                    background: "rgba(59, 130, 246, 0.1)",
+                    color: "#93c5fd",
+                    fontWeight: 600,
+                    fontSize: "0.85rem",
+                    height: 40,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                  }}
+                >
+                  <RefreshCw size={15} className={isSyncing ? "animate-spin" : ""} />
+                  {isSyncing ? "Menyinkronkan API..." : "Sinkronkan dari API Hari Libur"}
+                </Button>
+              </Form>
+            </div>
           </div>
 
           {/* CRON JOB & LOCAL STORAGE BANNER */}
@@ -1048,7 +1178,9 @@ export default function BreakSettings() {
 
                     <th style={{ padding: "10px 14px", fontWeight: 600, textAlign: "center" }}>Tipe</th>
 
-                    <th style={{ padding: "10px 14px", fontWeight: 600, textAlign: "right" }}>Pengaruh SLA</th>
+                    <th style={{ padding: "10px 14px", fontWeight: 600, textAlign: "center" }}>Pengaruh SLA</th>
+
+                    <th style={{ padding: "10px 14px", fontWeight: 600, textAlign: "right" }}>Aksi</th>
                   </tr>
                 </thead>
 
@@ -1092,6 +1224,20 @@ export default function BreakSettings() {
                             >
                               Cuti Bersama
                             </span>
+                          ) : h.isActive === false || h.isHoliday === false ? (
+                            <span
+                              style={{
+                                display: "inline-block",
+                                padding: "2px 8px",
+                                borderRadius: 6,
+                                background: "rgba(148, 163, 184, 0.15)",
+                                color: "#94a3b8",
+                                fontSize: "0.72rem",
+                                fontWeight: 600,
+                              }}
+                            >
+                              Hari Nasional
+                            </span>
                           ) : (
                             <span
                               style={{
@@ -1109,22 +1255,135 @@ export default function BreakSettings() {
                           )}
                         </td>
 
-                        <td style={{ padding: "10px 14px", textAlign: "right" }}>
-                          <span
-                            style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: 4,
-                              padding: "2px 8px",
-                              borderRadius: 6,
-                              background: "rgba(59, 130, 246, 0.12)",
-                              color: "#60a5fa",
-                              fontSize: "0.72rem",
-                              fontWeight: 600,
-                            }}
-                          >
-                            <ShieldCheck size={12} /> SLA Paused
-                          </span>
+                        <td style={{ padding: "10px 14px", textAlign: "center" }}>
+                          <Form method="post" style={{ display: "inline-block" }}>
+                            <input type="hidden" name="intent" value="toggle_holiday_status" />
+                            <input type="hidden" name="id" value={h.id} />
+                            <input type="hidden" name="name" value={h.name} />
+                            <input
+                              type="hidden"
+                              name="currentStatus"
+                              value={String(h.isActive !== false && h.isHoliday !== false)}
+                            />
+                            <button
+                              type="submit"
+                              title="Klik untuk mengubah status: Libur (SLA Paused) atau Bukan Libur (SLA Berjalan)"
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 6,
+                                padding: "4px 10px",
+                                borderRadius: 8,
+                                fontSize: "0.74rem",
+                                fontWeight: 600,
+                                cursor: "pointer",
+                                border: "1px solid",
+                                transition: "all 0.15s ease",
+                                ...(h.isActive !== false && h.isHoliday !== false
+                                  ? {
+                                      background: "rgba(16, 185, 129, 0.15)",
+                                      borderColor: "rgba(16, 185, 129, 0.35)",
+                                      color: "#34d399",
+                                    }
+                                  : {
+                                      background: "rgba(245, 158, 11, 0.12)",
+                                      borderColor: "rgba(245, 158, 11, 0.3)",
+                                      color: "#fbbf24",
+                                    }),
+                              }}
+                            >
+                              {h.isActive !== false && h.isHoliday !== false ? (
+                                <>
+                                  <ShieldCheck size={13} />
+                                  <span>Libur (SLA Paused)</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Clock size={13} />
+                                  <span>Bukan Libur (SLA Berjalan)</span>
+                                </>
+                              )}
+                            </button>
+                          </Form>
+                        </td>
+
+                        <td style={{ padding: "10px 14px", textAlign: "right", whiteSpace: "nowrap" }}>
+                          <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEdit(h)}
+                              title="Edit tanggal & keterangan hari libur"
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                width: 28,
+                                height: 28,
+                                borderRadius: 6,
+                                border: "1px solid rgba(255, 255, 255, 0.1)",
+                                background: "rgba(255, 255, 255, 0.04)",
+                                color: "#cbd5e1",
+                                cursor: "pointer",
+                                transition: "all 0.15s ease",
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.background = "rgba(59, 130, 246, 0.2)";
+                                e.currentTarget.style.color = "#60a5fa";
+                                e.currentTarget.style.borderColor = "rgba(59, 130, 246, 0.4)";
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.background = "rgba(255, 255, 255, 0.04)";
+                                e.currentTarget.style.color = "#cbd5e1";
+                                e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.1)";
+                              }}
+                            >
+                              <Pencil size={13} />
+                            </button>
+
+                            <Form
+                              method="post"
+                              onSubmit={(e) => {
+                                if (
+                                  !confirm(
+                                    `Hapus hari libur "${h.name}" (${h.holidayDate})? Tanggal ini tidak akan lagi men-jeda SLA tiket.`
+                                  )
+                                ) {
+                                  e.preventDefault();
+                                }
+                              }}
+                              style={{ display: "inline" }}
+                            >
+                              <input type="hidden" name="intent" value="delete_holiday" />
+                              <input type="hidden" name="id" value={h.id} />
+                              <button
+                                type="submit"
+                                title="Hapus hari libur ini (misal bukan libur cuti bersama)"
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  width: 28,
+                                  height: 28,
+                                  borderRadius: 6,
+                                  border: "1px solid rgba(239, 68, 68, 0.25)",
+                                  background: "rgba(239, 68, 68, 0.1)",
+                                  color: "#f87171",
+                                  cursor: "pointer",
+                                  transition: "all 0.15s ease",
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.background = "rgba(239, 68, 68, 0.25)";
+                                  e.currentTarget.style.borderColor = "rgba(239, 68, 68, 0.5)";
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.background = "rgba(239, 68, 68, 0.1)";
+                                  e.currentTarget.style.borderColor = "rgba(239, 68, 68, 0.25)";
+                                }}
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </Form>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -1153,6 +1412,238 @@ export default function BreakSettings() {
           )}
         </CardContent>
       </Card>
+
+      {/* DIALOG MODAL: TAMBAH & EDIT HARI LIBUR / CUTI BERSAMA */}
+      <Dialog open={isHolidayDialogOpen} onOpenChange={setIsHolidayDialogOpen}>
+        <DialogContent style={{ maxWidth: 500 }}>
+          <DialogHeader>
+            <DialogTitle>
+              {editingHoliday ? "Edit Hari Libur" : "Tambah Hari Libur / Cuti Bersama"}
+            </DialogTitle>
+          </DialogHeader>
+
+          <Form method="post" onSubmit={() => setIsHolidayDialogOpen(false)}>
+            <input
+              type="hidden"
+              name="intent"
+              value={editingHoliday ? "update_holiday" : "create_holiday"}
+            />
+            {editingHoliday && <input type="hidden" name="id" value={editingHoliday.id} />}
+            <input type="hidden" name="dateMode" value={dateMode} />
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: "16px 0" }}>
+              {!editingHoliday && (
+                <div>
+                  <Label style={{ fontSize: "0.85rem", fontWeight: 600, color: "#f1f5f9", marginBottom: 8, display: "block" }}>
+                    Mode Input Tanggal
+                  </Label>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button
+                      type="button"
+                      onClick={() => setDateMode("single")}
+                      style={{
+                        flex: 1,
+                        padding: "7px 12px",
+                        borderRadius: 8,
+                        fontSize: "0.82rem",
+                        fontWeight: 600,
+                        border: "1px solid",
+                        borderColor: dateMode === "single" ? "#3b82f6" : "rgba(255, 255, 255, 0.1)",
+                        background: dateMode === "single" ? "rgba(59, 130, 246, 0.25)" : "rgba(255, 255, 255, 0.04)",
+                        color: dateMode === "single" ? "#ffffff" : "#94a3b8",
+                        cursor: "pointer",
+                        transition: "all 0.15s ease",
+                      }}
+                    >
+                      1 Hari Tunggal
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDateMode("range")}
+                      style={{
+                        flex: 1,
+                        padding: "7px 12px",
+                        borderRadius: 8,
+                        fontSize: "0.82rem",
+                        fontWeight: 600,
+                        border: "1px solid",
+                        borderColor: dateMode === "range" ? "#3b82f6" : "rgba(255, 255, 255, 0.1)",
+                        background: dateMode === "range" ? "rgba(59, 130, 246, 0.25)" : "rgba(255, 255, 255, 0.04)",
+                        color: dateMode === "range" ? "#ffffff" : "#94a3b8",
+                        cursor: "pointer",
+                        transition: "all 0.15s ease",
+                      }}
+                    >
+                      Rentang Tanggal (Cuti Bersama)
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {editingHoliday || dateMode === "single" ? (
+                <div>
+                  <Label
+                    htmlFor="holidayDate"
+                    style={{ fontSize: "0.85rem", fontWeight: 600, color: "#f1f5f9", marginBottom: 6, display: "block" }}
+                  >
+                    Tanggal Hari Libur
+                  </Label>
+                  <Input
+                    id="holidayDate"
+                    name="holidayDate"
+                    type="date"
+                    defaultValue={editingHoliday?.holidayDate || ""}
+                    required
+                  />
+                  <span style={{ fontSize: "0.75rem", color: "#94a3b8", marginTop: 4, display: "block" }}>
+                    Pada tanggal ini countdown SLA tiket otomatis dijeda (paused).
+                  </span>
+                </div>
+              ) : (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <div>
+                    <Label
+                      htmlFor="startDate"
+                      style={{ fontSize: "0.85rem", fontWeight: 600, color: "#f1f5f9", marginBottom: 6, display: "block" }}
+                    >
+                      Tanggal Mulai
+                    </Label>
+                    <Input id="startDate" name="startDate" type="date" required />
+                  </div>
+                  <div>
+                    <Label
+                      htmlFor="endDate"
+                      style={{ fontSize: "0.85rem", fontWeight: 600, color: "#f1f5f9", marginBottom: 6, display: "block" }}
+                    >
+                      Tanggal Selesai
+                    </Label>
+                    <Input id="endDate" name="endDate" type="date" required />
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <Label
+                  htmlFor="name"
+                  style={{ fontSize: "0.85rem", fontWeight: 600, color: "#f1f5f9", marginBottom: 6, display: "block" }}
+                >
+                  Keterangan / Nama Hari Libur
+                </Label>
+                <Input
+                  id="name"
+                  name="name"
+                  type="text"
+                  placeholder="Contoh: Cuti Bersama Idul Fitri"
+                  defaultValue={editingHoliday?.name || ""}
+                  required
+                />
+              </div>
+
+              {/* OPSI LIBUR ATAU TIDAK (PENGARUH KE COUNTDOWN SLA) */}
+              <div>
+                <Label style={{ fontSize: "0.85rem", fontWeight: 600, color: "#f1f5f9", marginBottom: 8, display: "block" }}>
+                  Status Hari Libur Kantor & Pengaruh SLA
+                </Label>
+                <input type="hidden" name="isHoliday" value={String(isHolidayStatus)} />
+                <input type="hidden" name="isActive" value={String(isHolidayStatus)} />
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <button
+                    type="button"
+                    onClick={() => setIsHolidayStatus(true)}
+                    style={{
+                      padding: "10px 12px",
+                      borderRadius: 10,
+                      textAlign: "left",
+                      cursor: "pointer",
+                      border: "1px solid",
+                      transition: "all 0.15s ease",
+                      ...(isHolidayStatus
+                        ? {
+                            background: "rgba(16, 185, 129, 0.15)",
+                            borderColor: "#10b981",
+                            color: "#ffffff",
+                          }
+                        : {
+                            background: "rgba(255, 255, 255, 0.03)",
+                            borderColor: "rgba(255, 255, 255, 0.08)",
+                            color: "#94a3b8",
+                          }),
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 700, fontSize: "0.84rem", color: isHolidayStatus ? "#34d399" : "#cbd5e1" }}>
+                      <ShieldCheck size={16} />
+                      <span>Libur / Cuti Bersama</span>
+                    </div>
+                    <div style={{ fontSize: "0.72rem", marginTop: 4, lineHeight: 1.35, color: isHolidayStatus ? "#cbd5e1" : "#64748b" }}>
+                      Kantor libur, countdown SLA tiket otomatis dijeda (paused).
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsHolidayStatus(false)}
+                    style={{
+                      padding: "10px 12px",
+                      borderRadius: 10,
+                      textAlign: "left",
+                      cursor: "pointer",
+                      border: "1px solid",
+                      transition: "all 0.15s ease",
+                      ...(!isHolidayStatus
+                        ? {
+                            background: "rgba(245, 158, 11, 0.15)",
+                            borderColor: "#f59e0b",
+                            color: "#ffffff",
+                          }
+                        : {
+                            background: "rgba(255, 255, 255, 0.03)",
+                            borderColor: "rgba(255, 255, 255, 0.08)",
+                            color: "#94a3b8",
+                          }),
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 700, fontSize: "0.84rem", color: !isHolidayStatus ? "#fbbf24" : "#cbd5e1" }}>
+                      <Clock size={16} />
+                      <span>Bukan Libur (Masuk Kerja)</span>
+                    </div>
+                    <div style={{ fontSize: "0.72rem", marginTop: 4, lineHeight: 1.35, color: !isHolidayStatus ? "#cbd5e1" : "#64748b" }}>
+                      Kantor tetap buka & SLA berjalan normal (contoh: Hari Pahlawan / Cuti opsional).
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 4 }}>
+                <input
+                  id="isRecurring"
+                  name="isRecurring"
+                  type="checkbox"
+                  value="true"
+                  defaultChecked={editingHoliday?.isRecurring || false}
+                  style={{ width: 16, height: 16, accentColor: "#3b82f6", cursor: "pointer" }}
+                />
+                <Label htmlFor="isRecurring" style={{ cursor: "pointer", fontSize: "0.85rem", color: "#cbd5e1" }}>
+                  Ulangi otomatis tiap tahun (Recurring Holiday)
+                </Label>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsHolidayDialogOpen(false)}
+              >
+                Batal
+              </Button>
+              <Button type="submit">
+                {editingHoliday ? "Simpan Perubahan" : "Tambah Hari Libur"}
+              </Button>
+            </DialogFooter>
+          </Form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

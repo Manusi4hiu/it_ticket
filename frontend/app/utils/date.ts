@@ -14,7 +14,7 @@ export interface HolidayLike {
 
 interface HolidayLookup {
   exact: Map<string, HolidayLike>;
-  recurring: Map<string, HolidayLike>;
+  recurring: HolidayLike[];
 }
 
 const holidayLookupCache = new WeakMap<HolidayLike[], HolidayLookup>();
@@ -24,12 +24,13 @@ export function getHolidayLookup(holidays?: HolidayLike[]): HolidayLookup | null
   let cached = holidayLookupCache.get(holidays);
   if (!cached) {
     const exact = new Map<string, HolidayLike>();
-    const recurring = new Map<string, HolidayLike>();
+    const recurring: HolidayLike[] = [];
     for (const h of holidays) {
-      if (h.isRecurring && h.holidayDate) {
-        const parts = h.holidayDate.split("-");
-        const monthDayKey = parts.length === 3 ? `${parts[1]}-${parts[2]}` : h.holidayDate;
-        recurring.set(monthDayKey, h);
+      if (h.isActive === false || h.isHoliday === false) {
+        continue;
+      }
+      if (h.isRecurring) {
+        recurring.push(h);
       } else if (h.holidayDate) {
         exact.set(h.holidayDate, h);
       }
@@ -89,8 +90,12 @@ export function getSpecialHoliday(date: Date, holidays?: HolidayLike[]): Holiday
   const match = lookup.exact.get(dateKey);
   if (match) return match;
 
-  const monthDayKey = `${month}-${dStr}`;
-  return lookup.recurring.get(monthDayKey);
+  if (lookup.recurring.length > 0) {
+    const monthDayKey = `${month}-${dStr}`;
+    return lookup.recurring.find((h) => h.holidayDate?.endsWith(monthDayKey));
+  }
+
+  return undefined;
 }
 
 /**
@@ -268,6 +273,7 @@ export function validateWorkingHoursDateTime(
     const monthDayKey = `${month}-${dStr}`;
 
     const isHol = holidays.some((h) => {
+      if (h.isActive === false || h.isHoliday === false) return false;
       if (h.isRecurring) {
         return h.holidayDate.endsWith(monthDayKey);
       }

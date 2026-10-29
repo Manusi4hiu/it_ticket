@@ -53,7 +53,7 @@ def _get_working_hours_config():
     holidays_set = set()
     recurring_holidays_set = set()
     try:
-        for h in Holiday.query.all():
+        for h in Holiday.query.filter(Holiday.is_active != False).all():
             if h.is_recurring:
                 recurring_holidays_set.add((h.holiday_date.month, h.holiday_date.day))
             else:
@@ -232,12 +232,12 @@ class TicketService:
         if sla_deadline.tzinfo is None:
             sla_deadline = sla_deadline.replace(tzinfo=timezone.utc)
         
-        # Pause SLA bila staff break — gunakan break_started_at sebagai comparison time
-        if assigned_user and assigned_user.is_on_break and assigned_user.break_started_at:
+        # Pause SLA bila staff break — gunakan break_started_at sebagai comparison time (hanya tiket IT)
+        if assigned_user and assigned_user.is_on_break and assigned_user.break_started_at and not is_design:
             comparison_time = assigned_user.break_started_at
         elif resolved_at:
             comparison_time = resolved_at
-        elif sla_paused_at:
+        elif sla_paused_at and not is_design:
             comparison_time = sla_paused_at
         else:
             comparison_time = datetime.now(timezone.utc)
@@ -991,20 +991,22 @@ class TicketService:
                     if not (raw_reason and str(raw_reason).strip()) and not (is_resolved and has_summary):
                         raise ValueError("Reason is required for this status")
 
-                # SLA Logic
-                if old_status and TicketService._status_pauses_sla(old_status) and ticket.sla_paused_at and ticket.sla_deadline:
-                    paused_at_aware = ticket.sla_paused_at if ticket.sla_paused_at.tzinfo else ticket.sla_paused_at.replace(tzinfo=timezone.utc)
-                    sla_deadline_aware = ticket.sla_deadline if ticket.sla_deadline.tzinfo else ticket.sla_deadline.replace(tzinfo=timezone.utc)
-                    now_utc = datetime.now(timezone.utc)
-                    remaining_mins = TicketService.calculate_business_duration_minutes(paused_at_aware, sla_deadline_aware)
-                    if remaining_mins > 0:
-                        ticket.sla_deadline = TicketService.calculate_business_deadline(now_utc, minutes=remaining_mins)
-                    ticket.sla_paused_at = None
-                    
-                if new_status and TicketService._status_pauses_sla(new_status):
-                    ticket.sla_paused_at = datetime.now(timezone.utc)
-                else:
-                    ticket.sla_paused_at = None
+                # SLA Logic - Hanya berlaku untuk tiket IT, TIDAK berlaku untuk tiket Graphic Design
+                is_design = TicketService.is_graphic_design_ticket(ticket)
+                if not is_design:
+                    if old_status and TicketService._status_pauses_sla(old_status) and ticket.sla_paused_at and ticket.sla_deadline:
+                        paused_at_aware = ticket.sla_paused_at if ticket.sla_paused_at.tzinfo else ticket.sla_paused_at.replace(tzinfo=timezone.utc)
+                        sla_deadline_aware = ticket.sla_deadline if ticket.sla_deadline.tzinfo else ticket.sla_deadline.replace(tzinfo=timezone.utc)
+                        now_utc = datetime.now(timezone.utc)
+                        remaining_mins = TicketService.calculate_business_duration_minutes(paused_at_aware, sla_deadline_aware)
+                        if remaining_mins > 0:
+                            ticket.sla_deadline = TicketService.calculate_business_deadline(now_utc, minutes=remaining_mins)
+                        ticket.sla_paused_at = None
+                        
+                    if new_status and TicketService._status_pauses_sla(new_status):
+                        ticket.sla_paused_at = datetime.now(timezone.utc)
+                    else:
+                        ticket.sla_paused_at = None
 
                 # Note Logic — tidy with proper Reason handling.
                 # KHUSUS transisi ke Resolved/Closed: "Ticket resolved on <tanggal>"
@@ -1562,26 +1564,28 @@ class TicketService:
                     "Alasan akan tercatat di Ticket History."
                 )
 
-        # Handle SLA Pausing
+        # Handle SLA Pausing - Hanya berlaku untuk tiket IT, TIDAK berlaku untuk tiket Graphic Design
         old_status_name = ticket.status
         old_status = Status.query.filter(Status.name.ilike(old_status_name)).first()
         new_status = Status.query.filter(Status.name.ilike(status)).first()
+        is_design_status = TicketService.is_graphic_design_ticket(ticket)
         
-        # If moving out of a paused state
-        if old_status and TicketService._status_pauses_sla(old_status) and ticket.sla_paused_at and ticket.sla_deadline:
-            paused_at_aware = ticket.sla_paused_at if ticket.sla_paused_at.tzinfo else ticket.sla_paused_at.replace(tzinfo=timezone.utc)
-            sla_deadline_aware = ticket.sla_deadline if ticket.sla_deadline.tzinfo else ticket.sla_deadline.replace(tzinfo=timezone.utc)
-            now_utc = datetime.now(timezone.utc)
-            remaining_mins = TicketService.calculate_business_duration_minutes(paused_at_aware, sla_deadline_aware)
-            if remaining_mins > 0:
-                ticket.sla_deadline = TicketService.calculate_business_deadline(now_utc, minutes=remaining_mins)
-            ticket.sla_paused_at = None
-            
-        # If moving into a paused state
-        if new_status and TicketService._status_pauses_sla(new_status):
-            ticket.sla_paused_at = datetime.now(timezone.utc)
-        else:
-            ticket.sla_paused_at = None
+        if not is_design_status:
+            # If moving out of a paused state
+            if old_status and TicketService._status_pauses_sla(old_status) and ticket.sla_paused_at and ticket.sla_deadline:
+                paused_at_aware = ticket.sla_paused_at if ticket.sla_paused_at.tzinfo else ticket.sla_paused_at.replace(tzinfo=timezone.utc)
+                sla_deadline_aware = ticket.sla_deadline if ticket.sla_deadline.tzinfo else ticket.sla_deadline.replace(tzinfo=timezone.utc)
+                now_utc = datetime.now(timezone.utc)
+                remaining_mins = TicketService.calculate_business_duration_minutes(paused_at_aware, sla_deadline_aware)
+                if remaining_mins > 0:
+                    ticket.sla_deadline = TicketService.calculate_business_deadline(now_utc, minutes=remaining_mins)
+                ticket.sla_paused_at = None
+                
+            # If moving into a paused state
+            if new_status and TicketService._status_pauses_sla(new_status):
+                ticket.sla_paused_at = datetime.now(timezone.utc)
+            else:
+                ticket.sla_paused_at = None
 
         # Record first response if transitioning from New to active working state
         if not ticket.first_responded_at and str(old_status_name).strip().lower() == 'new' and str(status).strip().lower() != 'new':

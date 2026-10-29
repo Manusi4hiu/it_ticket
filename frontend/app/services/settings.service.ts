@@ -68,6 +68,8 @@ export interface Holiday {
   name: string;
   holidayDate: string; // YYYY-MM-DD
   isRecurring: boolean;
+  isActive?: boolean;
+  isHoliday?: boolean;
 }
 
 export interface CreateHolidayPayload {
@@ -76,6 +78,8 @@ export interface CreateHolidayPayload {
   startDate?: string;
   endDate?: string;
   isRecurring?: boolean;
+  isActive?: boolean;
+  isHoliday?: boolean;
 }
 
 export const settingsApi = {

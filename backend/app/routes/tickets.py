@@ -226,17 +226,21 @@ def get_tickets():
         else_=99
     )
     
-    # Pagination — clamp per_page to 1..100, validate page >= 1
+    # Pagination — clamp per_page to 1..1000, validate page >= 1
     page = request.args.get('page', type=int)
     if page is not None and page < 1:
         return jsonify({'success': False, 'error': 'Page harus berupa angka >= 1'}), 400
 
-    raw_per_page = request.args.get('per_page', default=20, type=int)
-    per_page = max(1, min(raw_per_page or 20, 100))
+    raw_per_page = request.args.get('per_page', default=None, type=int)
     
-    if page:
+    if page is not None:
+        per_page = max(1, min(raw_per_page or 20, 1000))
         query = query.order_by(status_order, Ticket.created_at.desc()).offset((page - 1) * per_page).limit(per_page)
+    elif raw_per_page is not None:
+        per_page = max(1, min(raw_per_page, 1000))
+        query = query.order_by(status_order, Ticket.created_at.desc()).limit(per_page)
     else:
+        per_page = None
         query = query.order_by(status_order, Ticket.created_at.desc())
 
     tickets = query.all()
@@ -246,7 +250,7 @@ def get_tickets():
         'tickets': [ticket.to_dict(include_notes=False) for ticket in tickets],
         'total': total,
         'page': page,
-        'per_page': per_page
+        'per_page': per_page or len(tickets)
     }), 200
 
 

@@ -58,7 +58,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 
   // Fetch tickets, agents, statuses, categories, priorities, teams, holidays (semua master-driven)
   const [ticketsRes, agents, statusesRes, categoriesRes, prioritiesRes, teamsRes, holidaysRes] = await Promise.all([
-    getTickets({ per_page: 500 }),
+    getTickets({ per_page: 1000 }),
     getAgents(),
     settingsApi.getStatuses(),
     settingsApi.getCategories(),

@@ -188,12 +188,15 @@ class Holiday(db.Model):
     name = db.Column(db.String(100), nullable=False)
     holiday_date = db.Column(db.Date, nullable=False, unique=True, index=True)
     is_recurring = db.Column(db.Boolean, default=False, nullable=False)
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
 
     def to_dict(self):
         return {
             'id': self.id,
             'name': self.name,
             'holidayDate': self.holiday_date.isoformat() if self.holiday_date else None,
-            'isRecurring': self.is_recurring or False
+            'isRecurring': self.is_recurring or False,
+            'isActive': self.is_active if self.is_active is not None else True,
+            'isHoliday': self.is_active if self.is_active is not None else True,
         }
 
