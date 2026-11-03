@@ -12,8 +12,7 @@
  * ini workaround agar styles ter-load dengan benar.
  */
 
-import { useState } from "react";
-import { User, UserPlus, Pencil, Trash2, AlertTriangle, Power } from "lucide-react";
+import { UserPlus, UserCheck, Users, Layers, ShieldCheck, Lock, Pencil, Trash2, AlertTriangle, Power } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -56,11 +55,11 @@ export async function loader({ request }: Route.LoaderArgs) {
   ]);
   const users = response.success && response.data ? response.data.users : [];
 
-  return Response.json({
+  return {
     session,
     teams: (teamsRes.data?.data || []) as Team[],
     users: users.map((u) => ({
-      id: u.id,
+      id: String(u.id),
       email: u.email,
       username: u.username,
       name: u.full_name,
@@ -68,7 +67,7 @@ export async function loader({ request }: Route.LoaderArgs) {
       isActive: u.is_active !== false,
       teamIds: ((u as unknown as { teamIds?: (string | number)[] }).teamIds ?? []).map(String),
     })) as ManagedUser[],
-  });
+  };
 }
 
 // ─────────────────────────────────────────────
@@ -88,232 +87,271 @@ export default function RoleManagementSettings({
 
   const rm = useRoleManagement(initialUsers, currentUser.id);
 
-  /** Return CSS class badge berdasarkan role */
-  const getRoleBadgeClass = (role: UserRole) => {
+  /** Aksen warna select role sesuai role user. */
+  const getRoleAccentClass = (role: UserRole) => {
     switch (role) {
-      case "Administrator": return styles.roleAdmin;
-      case "Management": return styles.roleManagement;
-      case "Staff": return styles.roleStaff;
+      case "Administrator": return styles.roleSelectAdmin;
+      case "Management": return styles.roleSelectManagement;
+      case "Staff": return styles.roleSelectStaff;
       default: return "";
     }
   };
 
-  return (
-    <div>
-      {/* Page Header */}
-      <div
-        className={settingsStyles.actionHeader}
-        style={{ marginBottom: "var(--space-6)" }}
+  /** Inisial dua huruf untuk avatar user. */
+  const getInitials = (name: string) =>
+    name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part.charAt(0).toUpperCase())
+      .join("") || "?";
+
+  const activeCount = rm.userList.filter((user) => user.isActive).length;
+  const adminCount = rm.userList.filter((user) => user.role === "Administrator").length;
+
+  const getTeamNames = (user: ManagedUser) =>
+    (user.teamIds || [])
+      .map((id) => teams.find((team) => String(team.id) === id)?.name)
+      .filter((name): name is string => Boolean(name));
+
+  const renderRoleControl = (user: ManagedUser) => {
+    if (user.id === currentUser.id) {
+      return (
+        <span className={styles.selfLock} title="You cannot change your own role">
+          <Lock size={12} aria-hidden="true" />
+          {user.role} · you
+        </span>
+      );
+    }
+
+    return (
+      <Select
+        value={user.role}
+        onValueChange={(value) => rm.handleRoleChange(user.id, value as UserRole)}
       >
-        <div>
-          <h1 className={settingsStyles.pageTitle}>Role Management</h1>
-          <p className={settingsStyles.pageDescription}>
-            Manage user roles and permissions.
+        <SelectTrigger
+          className={`${styles.roleSelect} ${getRoleAccentClass(user.role)}`}
+          aria-label={`Change role for ${user.name}`}
+        >
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="Administrator">Administrator</SelectItem>
+          <SelectItem value="Management">Management</SelectItem>
+          <SelectItem value="Staff">Staff</SelectItem>
+        </SelectContent>
+      </Select>
+    );
+  };
+
+  const renderActions = (user: ManagedUser) => (
+    <>
+      {user.id !== currentUser.id && (
+        <button
+          type="button"
+          className={`${styles.iconButton} ${user.isActive ? styles.iconButtonDanger : styles.iconButtonSuccess}`}
+          onClick={() => rm.handleToggleActive(user.id)}
+          disabled={rm.togglingActiveId === user.id}
+          title={user.isActive ? "Deactivate user" : "Activate user"}
+          aria-label={user.isActive ? `Deactivate ${user.name}` : `Activate ${user.name}`}
+        >
+          <Power size={14} aria-hidden="true" />
+        </button>
+      )}
+      <button
+        type="button"
+        className={styles.iconButton}
+        onClick={() => rm.openEditDialog(user)}
+        title="Edit user"
+        aria-label={`Edit ${user.name}`}
+      >
+        <Pencil size={14} aria-hidden="true" />
+      </button>
+      {user.id !== currentUser.id && (
+        <button
+          type="button"
+          className={`${styles.iconButton} ${styles.iconButtonDanger}`}
+          onClick={() => rm.openDeleteDialog(user)}
+          title="Delete user"
+          aria-label={`Delete ${user.name}`}
+        >
+          <Trash2 size={14} aria-hidden="true" />
+        </button>
+      )}
+    </>
+  );
+
+  return (
+    <div className={styles.page}>
+      <header className={styles.hero}>
+        <div className={styles.heroCopy}>
+          <span className={styles.eyebrow}>
+            <ShieldCheck size={14} aria-hidden="true" />
+            Settings · Access control
+          </span>
+          <h1 className={styles.title}>Role Management</h1>
+          <p className={styles.subtitle}>
+            Atur siapa yang bisa masuk, role apa yang mereka pegang, dan tim mana yang mereka kelola.
           </p>
         </div>
-        <Button
-          className={settingsStyles.headerButton}
-          onClick={() => rm.setShowCreateDialog(true)}
-        >
-          <UserPlus style={{ width: "16px", height: "16px" }} />
-          Create User
+        <Button type="button" className={styles.createButton} onClick={() => rm.setShowCreateDialog(true)}>
+          <UserPlus size={16} aria-hidden="true" />
+          Create user
         </Button>
-      </div>
+      </header>
 
-      {/* User Table */}
-      <div className={settingsStyles.tableContainer} style={{ marginBottom: "var(--space-8)" }}>
-        <div className={settingsStyles.scrollableArea}>
-          <table className={styles.customTable}>
-            <thead>
-              <tr>
-                <th style={{ minWidth: "160px" }}>User Information</th>
-                <th style={{ minWidth: "90px" }}>Username</th>
-                <th style={{ minWidth: "140px" }}>Email</th>
-                <th style={{ minWidth: "90px" }}>Status</th>
-                <th style={{ minWidth: "110px" }}>Current Role</th>
-                <th style={{ minWidth: "140px" }}>Change Role</th>
-                <th style={{ minWidth: "120px" }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rm.userList.map((user) => (
-                <tr key={user.id}>
-                  {/* Name + "Logged In" indicator */}
-                  <td>
-                    <div className={styles.userCell}>
-                      <div className={styles.userAvatar}>
-                        <User size={18} />
-                      </div>
-                      <div
-                        style={{ display: "flex", flexDirection: "column", minWidth: 0 }}
-                      >
-                        <span className={styles.userName}>{user.name}</span>
-                        {user.id === currentUser.id && (
-                          <span
-                            style={{
-                              fontSize: "0.65rem",
-                              color: "#93c5fd",
-                              fontWeight: 800,
-                              textTransform: "uppercase",
-                              marginTop: "2px",
-                            }}
-                          >
-                            Logged In
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </td>
-
-                  {/* Username */}
-                  <td>
-                    <span className={`${settingsStyles.code} ${styles.usernameBadge}`}>
-                      {user.username}
-                    </span>
-                  </td>
-
-                  {/* Email */}
-                  <td>
-                    <span className={styles.userEmail}>{user.email}</span>
-                  </td>
-
-                  {/* Status badge only */}
-                  <td>
-                    <div className={user.isActive ? styles.statusActive : styles.statusInactive}>
-                      {user.isActive ? "Active" : "Inactive"}
-                    </div>
-                  </td>
-
-                  {/* Current Role badge */}
-                  <td>
-                    <div className={`${styles.roleBadge} ${getRoleBadgeClass(user.role)}`}>
-                      {user.role}
-                    </div>
-                  </td>
-
-                  {/* Change Role dropdown */}
-                  <td>
-                    {user.id === currentUser.id ? (
-                      <span
-                        style={{
-                          opacity: 0.5,
-                          fontStyle: "italic",
-                          fontSize: "0.8rem",
-                          color: "rgba(255,255,255,0.6)",
-                        }}
-                      >
-                        Self transformation disabled
-                      </span>
-                    ) : (
-                      <Select
-                        value={user.role}
-                        onValueChange={(value) =>
-                          rm.handleRoleChange(user.id, value as UserRole)
-                        }
-                      >
-                        <SelectTrigger
-                          style={{
-                            width: "130px",
-                            background: "rgba(255, 255, 255, 0.05)",
-                            border: "1px solid rgba(255, 255, 255, 0.1)",
-                            color: "white",
-                            height: "32px",
-                            borderRadius: "8px",
-                            fontSize: "0.8rem",
-                          }}
-                        >
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent
-                          style={{
-                            background: "#1e1b4b",
-                            border: "1px solid rgba(255, 255, 255, 0.2)",
-                            color: "white",
-                          }}
-                        >
-                          <SelectItem value="Administrator">Administrator</SelectItem>
-                          <SelectItem value="Management">Management</SelectItem>
-                          <SelectItem value="Staff">Staff</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    )}
-                  </td>
-
-                  {/* Actions: Toggle Active + Edit + Delete */}
-                  <td>
-                    <div style={{ display: "flex", gap: "6px", flexWrap: "nowrap" }}>
-                      {user.id !== currentUser.id && (
-                        <button
-                          onClick={() => rm.handleToggleActive(user.id)}
-                          disabled={rm.togglingActiveId === user.id}
-                          title={user.isActive ? "Deactivate user" : "Activate user"}
-                          style={{
-                            background: user.isActive
-                              ? "rgba(239,68,68,0.1)"
-                              : "rgba(34,197,94,0.1)",
-                            border: user.isActive
-                              ? "1px solid rgba(239,68,68,0.3)"
-                              : "1px solid rgba(34,197,94,0.3)",
-                            color: user.isActive ? "#f87171" : "#4ade80",
-                            borderRadius: "6px",
-                            width: "32px",
-                            height: "32px",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            cursor: rm.togglingActiveId === user.id ? "not-allowed" : "pointer",
-                            opacity: rm.togglingActiveId === user.id ? 0.5 : 1,
-                            transition: "all 0.2s",
-                            flexShrink: 0,
-                          }}
-                        >
-                          <Power size={14} />
-                        </button>
-                      )}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => rm.openEditDialog(user)}
-                        style={{
-                          background: "rgba(255,255,255,0.05)",
-                          border: "1px solid rgba(255,255,255,0.1)",
-                          color: "white",
-                          width: "32px",
-                          height: "32px",
-                          padding: 0,
-                        }}
-                      >
-                        <Pencil size={14} />
-                      </Button>
-                      {user.id !== currentUser.id && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => rm.openDeleteDialog(user)}
-                          style={{
-                            color: "#f87171",
-                            background: "rgba(239, 68, 68, 0.1)",
-                            border: "1px solid rgba(239, 68, 68, 0.2)",
-                            width: "32px",
-                            height: "32px",
-                            padding: 0,
-                          }}
-                        >
-                          <Trash2 size={14} />
-                        </Button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      <section className={styles.statsGrid} aria-label="Ringkasan user">
+        <div className={styles.statCard}>
+          <span className={`${styles.statIcon} ${styles.statIconBlue}`}><Users size={18} aria-hidden="true" /></span>
+          <div>
+            <div className={styles.statValue}>{rm.userList.length}</div>
+            <div className={styles.statLabel}>Total users</div>
+          </div>
         </div>
-      </div>
+        <div className={styles.statCard}>
+          <span className={`${styles.statIcon} ${styles.statIconGreen}`}><UserCheck size={18} aria-hidden="true" /></span>
+          <div>
+            <div className={styles.statValue}>{activeCount}</div>
+            <div className={styles.statLabel}>Active</div>
+          </div>
+        </div>
+        <div className={styles.statCard}>
+          <span className={`${styles.statIcon} ${styles.statIconAmber}`}><ShieldCheck size={18} aria-hidden="true" /></span>
+          <div>
+            <div className={styles.statValue}>{adminCount}</div>
+            <div className={styles.statLabel}>Administrators</div>
+          </div>
+        </div>
+        <div className={styles.statCard}>
+          <span className={`${styles.statIcon} ${styles.statIconSlate}`}><Layers size={18} aria-hidden="true" /></span>
+          <div>
+            <div className={styles.statValue}>{teams.length}</div>
+            <div className={styles.statLabel}>Teams</div>
+          </div>
+        </div>
+      </section>
 
-      {/* Role Permissions Info */}
-      <div className={styles.infoSection}>
-        <h3 className={styles.infoTitle}>Role Permissions</h3>
+      <section className={styles.directory} aria-label="Daftar user">
+        <div className={styles.directoryHeader}>
+          <div>
+            <h2 className={styles.directoryTitle}>Team directory</h2>
+            <p className={styles.directoryMeta}>
+              {rm.userList.length} user terdaftar
+            </p>
+          </div>
+        </div>
+
+        {rm.userList.length === 0 ? (
+          <div className={styles.emptyState} role="status">
+            <span className={styles.emptyIcon}><Users size={22} aria-hidden="true" /></span>
+            <h3 className={styles.emptyTitle}>Belum ada user</h3>
+            <p className={styles.emptyText}>
+              Tambahkan user pertama untuk mulai mengelola akses dan role tim.
+            </p>
+            <Button type="button" onClick={() => rm.setShowCreateDialog(true)}>
+              <UserPlus size={16} aria-hidden="true" />
+              Create user
+            </Button>
+          </div>
+        ) : (
+          <>
+            <div className={styles.tableScroll}>
+              <table className={styles.userTable}>
+                <thead>
+                  <tr>
+                    <th>User</th>
+                    <th>Email</th>
+                    <th>Teams</th>
+                    <th>Status</th>
+                    <th>Role</th>
+                    <th className={styles.actionsHeader}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rm.userList.map((user) => (
+                    <tr key={user.id}>
+                      <td>
+                        <div className={styles.identity}>
+                          <div className={styles.avatar} aria-hidden="true">{getInitials(user.name)}</div>
+                          <div className={styles.identityText}>
+                            <div className={styles.identityName}>
+                              <span className={styles.nameText}>{user.name}</span>
+                              {user.id === currentUser.id && <span className={styles.youTag}>You</span>}
+                            </div>
+                            <span className={styles.identityHandle}>@{user.username}</span>
+                          </div>
+                        </div>
+                      </td>
+                      <td><span className={styles.email}>{user.email || "—"}</span></td>
+                      <td>
+                        <div className={styles.teamChips}>
+                          {getTeamNames(user).length > 0
+                            ? getTeamNames(user).map((name) => <span key={name} className={styles.teamChip}>{name}</span>)
+                            : <span className={styles.muted}>No team</span>}
+                        </div>
+                      </td>
+                      <td>
+                        <span className={user.isActive ? styles.statusActive : styles.statusInactive}>
+                          <span className={styles.statusDot} aria-hidden="true" />
+                          {user.isActive ? "Active" : "Inactive"}
+                        </span>
+                      </td>
+                      <td>{renderRoleControl(user)}</td>
+                      <td>
+                        <div className={styles.actions}>{renderActions(user)}</div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className={styles.mobileCards}>
+              {rm.userList.map((user) => (
+                <article key={`mobile-${user.id}`} className={styles.userCard}>
+                  <div className={styles.userCardTop}>
+                    <div className={styles.identity}>
+                      <div className={styles.avatar} aria-hidden="true">{getInitials(user.name)}</div>
+                      <div className={styles.identityText}>
+                        <div className={styles.identityName}>
+                          <span className={styles.nameText}>{user.name}</span>
+                          {user.id === currentUser.id && <span className={styles.youTag}>You</span>}
+                        </div>
+                        <span className={styles.identityHandle}>@{user.username}</span>
+                      </div>
+                    </div>
+                    <span className={user.isActive ? styles.statusActive : styles.statusInactive}>
+                      <span className={styles.statusDot} aria-hidden="true" />
+                      {user.isActive ? "Active" : "Inactive"}
+                    </span>
+                  </div>
+                  <div className={styles.userCardMeta}>
+                    <span className={styles.email}>{user.email || "No email"}</span>
+                    <div className={styles.teamChips}>
+                      {getTeamNames(user).length > 0
+                        ? getTeamNames(user).map((name) => <span key={name} className={styles.teamChip}>{name}</span>)
+                        : <span className={styles.muted}>No team</span>}
+                    </div>
+                  </div>
+                  <div className={styles.userCardRole}>
+                    <span className={styles.fieldLabel}>Role</span>
+                    {renderRoleControl(user)}
+                  </div>
+                  <div className={styles.userCardActions}>{renderActions(user)}</div>
+                </article>
+              ))}
+            </div>
+          </>
+        )}
+      </section>
+
+      <section className={styles.permissionsSection} aria-label="Role permissions">
+        <div className={styles.permissionsHeader}>
+          <div>
+            <h3 className={styles.permissionsTitle}>Role permissions</h3>
+            <p className={styles.permissionsHint}>Referensi cepat sebelum mengubah role user.</p>
+          </div>
+        </div>
         <div className={styles.roleDescriptions}>
           <RolePermissionCard
             role="Administrator"
@@ -346,7 +384,7 @@ export default function RoleManagementSettings({
             ]}
           />
         </div>
-      </div>
+      </section>
 
       {/* ── Create User Dialog ── */}
       <Dialog open={rm.showCreateDialog} onOpenChange={rm.setShowCreateDialog}>
@@ -389,7 +427,7 @@ export default function RoleManagementSettings({
                     rm.setNewUserForm((p) => ({ ...p, role: v as UserRole }))
                   }
                 >
-                  <SelectTrigger id="role">
+                  <SelectTrigger id="role" style={{ width: "100%" }}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>

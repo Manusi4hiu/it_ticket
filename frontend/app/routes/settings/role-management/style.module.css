@@ -1,240 +1,594 @@
-﻿.section {
-  background: rgba(17, 24, 39, 0.6);
-  backdrop-filter: blur(24px) saturate(180%);
+﻿/* ─────────────────────────────────────────────
+   Role Management — directory layout
+   Palette tetap: navy gelap + aksen biru
+   ───────────────────────────────────────────── */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding-bottom: var(--space-8);
+}
+
+/* ── Hero / page header ── */
+.hero {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-6);
+  flex-wrap: wrap;
+  padding: var(--space-6);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(59, 130, 246, 0.16), transparent 55%),
+    rgba(15, 23, 42, 0.65);
   border: 1px solid rgba(59, 130, 246, 0.2);
-  border-radius: 20px;
-  padding: 0;
-  margin-bottom: var(--space-8);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  border-radius: 16px;
+}
+
+.heroCopy {
+  min-width: 0;
+}
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  margin-bottom: 10px;
+  border-radius: 999px;
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  color: #93c5fd;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.title {
+  margin: 0 0 6px;
+  font-size: clamp(1.5rem, 2.5vw, 1.9rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #f8fafc;
+}
+
+.subtitle {
+  margin: 0;
+  max-width: 62ch;
+  font-size: 0.88rem;
+  line-height: 1.55;
+  color: #94a3b8;
+}
+
+.createButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ── Stats ── */
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.statCard {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: rgba(17, 24, 39, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+}
+
+.statIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.statIconBlue {
+  background: rgba(59, 130, 246, 0.14);
+  color: #93c5fd;
+}
+
+.statIconGreen {
+  background: rgba(34, 197, 94, 0.14);
+  color: #86efac;
+}
+
+.statIconAmber {
+  background: rgba(245, 158, 11, 0.14);
+  color: #fcd34d;
+}
+
+.statIconSlate {
+  background: rgba(148, 163, 184, 0.14);
+  color: #cbd5e1;
+}
+
+.statValue {
+  font-size: 1.3rem;
+  font-weight: 800;
+  line-height: 1.1;
+  color: #f8fafc;
+  font-variant-numeric: tabular-nums;
+}
+
+.statLabel {
+  margin-top: 2px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+/* ── Directory panel ── */
+.directory {
+  background: rgba(17, 24, 39, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
   overflow: hidden;
 }
 
-.tableWrapper {
+.directoryHeader {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  padding: 16px 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.directoryTitle {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #f1f5f9;
+}
+
+.directoryMeta {
+  margin: 3px 0 0;
+  font-size: 0.78rem;
+  color: #94a3b8;
+}
+
+/* ── Table ── */
+.tableScroll {
   width: 100%;
   overflow-x: auto;
-  overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-x: contain;
   scrollbar-width: thin;
 }
 
-.tableWrapper::-webkit-scrollbar {
+.tableScroll::-webkit-scrollbar {
   height: 8px;
 }
-.tableWrapper::-webkit-scrollbar-thumb {
-  background: rgba(147, 197, 253, 0.35);
+
+.tableScroll::-webkit-scrollbar-thumb {
+  background: rgba(147, 197, 253, 0.3);
   border-radius: 4px;
 }
 
-.customTable {
+.userTable {
   width: 100%;
-  min-width: 1080px;
-  border-collapse: separate;
-  border-spacing: 0;
+  min-width: 920px;
+  border-collapse: collapse;
   text-align: left;
-  table-layout: auto;
 }
 
-.customTable th {
-  padding: 12px 14px;
+.userTable th {
+  padding: 10px 12px;
   background: #111c30;
   color: #93c5fd;
   font-size: 0.68rem;
   font-weight: 800;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  border-bottom: 2px solid rgba(59, 130, 246, 0.4);
   white-space: nowrap;
-  position: sticky;
-  top: 0;
-  z-index: 1;
+  border-bottom: 1px solid rgba(59, 130, 246, 0.35);
 }
 
-.customTable th:last-child {
-  width: 140px;
-  min-width: 140px;
-  text-align: center;
-}
-
-.customTable td {
-  padding: 12px 14px;
-  color: #e5e7eb;
+.userTable td {
+  padding: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  color: #e2e8f0;
+  font-size: 0.83rem;
   vertical-align: middle;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
-  font-size: 0.84rem;
 }
 
-.customTable td:last-child {
-  width: 140px;
-  min-width: 140px;
-  white-space: nowrap;
-  text-align: center;
+.userTable tbody tr {
+  transition: background 0.15s ease;
 }
 
-.customTable td:last-child > div {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  justify-content: center;
+.userTable tbody tr:hover {
+  background: rgba(59, 130, 246, 0.06);
 }
 
-.customTable tr:last-child td {
+.userTable tbody tr:last-child td {
   border-bottom: none;
 }
 
-.userCell {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+.actionsHeader {
+  text-align: right;
 }
 
-.userAvatar {
-  width: 36px;
-  height: 36px;
+.identity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
   border-radius: 10px;
-  background: rgba(59, 130, 246, 0.1);
+  flex-shrink: 0;
+  background: rgba(59, 130, 246, 0.14);
+  border: 1px solid rgba(59, 130, 246, 0.28);
+  color: #bfdbfe;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.identityText {
+  min-width: 0;
+}
+
+.identityName {
   display: flex;
   align-items: center;
-  justify-content: center;
-  color: #60a5fa;
-  border: 1px solid rgba(59, 130, 246, 0.2);
+  gap: 6px;
+  min-width: 0;
 }
 
-.userName {
+.nameText {
   font-weight: 700;
-  color: #f3f4f6;
-  font-size: 0.9rem;
+  color: #f8fafc;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.userEmail {
-  font-size: 0.8rem;
-  color: #9ca3af;
-  width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  display: block;
-}
-
-.badge {
-  display: inline-flex;
-  padding: 4px 10px;
-  border-radius: 8px;
-  font-size: 0.7rem;
+.youTag {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(59, 130, 246, 0.16);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  color: #93c5fd;
+  font-size: 0.62rem;
   font-weight: 700;
   text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
-.roleBadge {
+.identityHandle {
+  display: block;
+  font-size: 0.74rem;
+  color: #94a3b8;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.email {
+  color: #cbd5e1;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.teamChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.teamChip {
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgba(148, 163, 184, 0.12);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  color: #cbd5e1;
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+
+.muted {
+  color: #64748b;
+  font-size: 0.76rem;
+}
+
+/* Status */
+.statusActive,
+.statusInactive {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  padding: 6px 16px;
-  border-radius: 12px;
-  font-size: 0.75rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  color: white;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(8px);
-  min-width: 110px;
-  transition: all 0.3s ease;
+  gap: 6px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
+.statusActive {
+  background: rgba(34, 197, 94, 0.12);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  color: #86efac;
+}
+
+.statusInactive {
+  background: rgba(148, 163, 184, 0.1);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  color: #94a3b8;
+}
+
+.statusDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* Role badge (dipakai kartu permission) */
 .roleAdmin {
-  background: linear-gradient(135deg, rgba(239, 68, 68, 0.8) 0%, rgba(185, 28, 28, 0.9) 100%);
-  box-shadow: 0 0 15px rgba(239, 68, 68, 0.3), inset 0 0 10px rgba(255, 255, 255, 0.1);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.85), rgba(185, 28, 28, 0.9));
 }
 
 .roleManagement {
-  background: linear-gradient(135deg, rgba(29, 78, 216, 0.8) 0%, rgba(109, 40, 217, 0.9) 100%);
-  box-shadow: 0 0 15px rgba(29, 78, 216, 0.3), inset 0 0 10px rgba(255, 255, 255, 0.1);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.85), rgba(109, 40, 217, 0.9));
 }
 
 .roleStaff {
-  background: linear-gradient(135deg, rgba(16, 185, 129, 0.8) 0%, rgba(5, 150, 105, 0.9) 100%);
-  box-shadow: 0 0 15px rgba(16, 185, 129, 0.3), inset 0 0 10px rgba(255, 255, 255, 0.1);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.85), rgba(5, 150, 105, 0.9));
 }
 
-.roleBadge:hover {
-  transform: scale(1.05);
-  border-color: rgba(255, 255, 255, 0.4);
-  filter: brightness(1.1);
+.roleSelect {
+  width: 158px;
 }
 
-.infoSection {
-  background: rgba(17, 24, 39, 0.6);
-  backdrop-filter: blur(24px) saturate(180%);
-  border: 1px solid rgba(59, 130, 246, 0.2);
-  border-radius: 20px;
-  padding: var(--space-8);
-  margin-bottom: var(--space-8);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+.roleSelectAdmin {
+  border-color: rgba(248, 113, 113, 0.45);
+  color: #fca5a5;
 }
 
-.infoTitle {
-  font-size: 1.75rem;
-  font-weight: 800;
-  color: white;
-  margin: 0 0 var(--space-8);
+.roleSelectManagement {
+  border-color: rgba(96, 165, 250, 0.45);
+  color: #93c5fd;
+}
+
+.roleSelectStaff {
+  border-color: rgba(52, 211, 153, 0.4);
+  color: #86efac;
+}
+
+.fieldLabel {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.selfLock {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  border-radius: 8px;
+  background: rgba(148, 163, 184, 0.1);
+  border: 1px dashed rgba(148, 163, 184, 0.3);
+  color: #94a3b8;
+  font-size: 0.7rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Actions */
+.actions {
   display: flex;
   align-items: center;
-  gap: 16px;
-  text-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+  justify-content: flex-end;
+  gap: 6px;
 }
 
-.infoTitle::before {
-  content: '';
-  width: 6px;
-  height: 32px;
-  background: linear-gradient(to bottom, #fff, #93c5fd);
-  border-radius: 4px;
-  box-shadow: 0 0 15px rgba(255, 255, 255, 0.4);
+.iconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  color: #cbd5e1;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.iconButton:hover:not(:disabled) {
+  background: rgba(59, 130, 246, 0.16);
+  border-color: rgba(59, 130, 246, 0.35);
+  color: #bfdbfe;
+}
+
+.iconButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.iconButtonDanger:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.16);
+  border-color: rgba(239, 68, 68, 0.35);
+  color: #fca5a5;
+}
+
+.iconButtonSuccess:hover:not(:disabled) {
+  background: rgba(34, 197, 94, 0.16);
+  border-color: rgba(34, 197, 94, 0.35);
+  color: #86efac;
+}
+
+/* ── Empty state ── */
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 48px 24px;
+  text-align: center;
+}
+
+.emptyIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.24);
+  color: #93c5fd;
+  margin-bottom: 4px;
+}
+
+.emptyTitle {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #f1f5f9;
+}
+
+.emptyText {
+  margin: 0 0 8px;
+  max-width: 42ch;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: #94a3b8;
+}
+
+/* ── Mobile cards ── */
+.mobileCards {
+  display: none;
+}
+
+.userCard {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.userCard:last-child {
+  border-bottom: none;
+}
+
+.userCardTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.userCardMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.userCardRole {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.userCardActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  padding-top: 2px;
+}
+
+/* ── Permissions ── */
+.permissionsSection {
+  background: rgba(17, 24, 39, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 18px;
+}
+
+.permissionsHeader {
+  margin-bottom: 14px;
+}
+
+.permissionsTitle {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #f1f5f9;
+}
+
+.permissionsHint {
+  margin: 3px 0 0;
+  font-size: 0.78rem;
+  color: #94a3b8;
 }
 
 .roleDescriptions {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: var(--space-6);
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--space-4);
 }
 
 .roleDescription {
-  padding: var(--space-6);
+  padding: var(--space-4);
   background: rgba(255, 255, 255, 0.03);
-  backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 18px;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 10px;
+  transition: border-color 0.2s ease, background 0.2s ease;
 }
 
 .roleDescription:hover {
   background: rgba(255, 255, 255, 0.05);
-  transform: translateY(-5px);
-  border-color: rgba(255, 255, 255, 0.15);
-  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
+  border-color: rgba(255, 255, 255, 0.14);
 }
 
 .roleLabel {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 6px 16px;
-  border-radius: 12px;
-  font-size: 0.75rem;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 0.68rem;
   font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 1px;
-  margin-bottom: var(--space-4);
-  color: white;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(8px);
+  letter-spacing: 0.06em;
+  margin-bottom: 10px;
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.14);
 }
 
 .permissionList {
@@ -244,38 +598,26 @@
 }
 
 .permissionList li {
-  font-size: 0.9rem;
-  color: #d1d5db;
-  padding: 8px 0;
-  padding-left: 24px;
   position: relative;
-  line-height: 1.4;
+  padding: 5px 0 5px 18px;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: #cbd5e1;
 }
 
 .permissionList li::before {
-  content: "✦";
+  content: "";
   position: absolute;
-  left: 0;
-  color: #60a5fa;
-  font-size: 0.8rem;
-  opacity: 0.7;
-  top: 10px;
+  left: 2px;
+  top: 12px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #60a5fa;
+  opacity: 0.8;
 }
 
-@media (max-width: 768px) {
-  .roleDescriptions {
-    grid-template-columns: 1fr;
-  }
-}
-
-.usernameBadge {
-  display: block;
-  width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
+/* ── Dialog internals (tetap dipakai) ── */
 .formGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -307,58 +649,49 @@
   border-radius: 3px;
 }
 
-/* ── Table polish: borders, hierarchy, horizontal scroll, responsive ── */
-.section, .infoSection {
-  background: rgba(17, 24, 39, 0.55) !important;
-  border: 1px solid rgba(255, 255, 255, 0.1) !important;
-  border-radius: 12px !important;
-  box-shadow: none !important;
-  backdrop-filter: none !important;
-  overflow: hidden;
-}
-.tableWrapper {
-  overscroll-behavior-x: contain;
-  -webkit-overflow-scrolling: touch;
-}
-.customTable {
-  min-width: 960px;
-}
-.customTable th {
-  background: #111c30 !important;
-  color: #93c5fd !important;
-  border-bottom: 2px solid rgba(59, 130, 246, 0.4) !important;
-}
-.customTable td {
-  color: #e5e7eb !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+/* ── Responsive ── */
+@media (max-width: 1100px) {
+  .statsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
-@media (max-width: 720px) {
-  .customTable { min-width: 780px; }
+@media (max-width: 900px) {
+  .tableScroll {
+    display: none;
+  }
+
+  .mobileCards {
+    display: block;
+  }
+
+  .userCardRole .roleSelect {
+    width: auto;
+    flex: 1 1 auto;
+    max-width: 220px;
+  }
 }
 
-/* Action column: dropdown + buttons never squeeze/overlap */
-.customTable th:nth-child(5),
-.customTable td:nth-child(5) {
-  min-width: 210px;
-  width: 210px;
-}
-.customTable th:last-child,
-.customTable td:last-child {
-  min-width: 110px;
-  width: 110px;
-  white-space: nowrap;
-  text-align: center;
-}
-.customTable td:nth-child(5) > div,
-.customTable td:last-child > div {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  justify-content: center;
-  flex-wrap: nowrap;
-}
-.customTable td:nth-child(5) button,
-.customTable td:last-child button {
-  flex-shrink: 0;
+@media (max-width: 640px) {
+  .hero {
+    padding: var(--space-4);
+  }
+
+  .statsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .statCard {
+    padding: 10px 12px;
+  }
+
+  .createButton {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .roleDescriptions {
+    grid-template-columns: 1fr;
+  }
 }

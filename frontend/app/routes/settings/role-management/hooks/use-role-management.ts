@@ -200,11 +200,13 @@ export function useRoleManagement(
         const newUser = (
           response.data as {
             user: {
-              id: string;
-              email: string;
+              id: string | number;
+              email: string | null;
               username: string;
               full_name: string;
               role: string;
+              is_active?: boolean | null;
+              teamIds?: (string | number)[];
             };
           }
         ).user;
@@ -212,11 +214,13 @@ export function useRoleManagement(
         setUserList((prev) => [
           ...prev,
           {
-            id: newUser.id,
-            email: newUser.email,
+            id: String(newUser.id),
+            email: newUser.email ?? "",
             username: newUser.username,
             name: newUser.full_name,
             role: newUser.role as UserRole,
+            isActive: newUser.is_active !== false,
+            teamIds: (newUser.teamIds ?? []).map(String),
           },
         ]);
         toast({

@@ -29,7 +29,8 @@ class Config:
 
     # Indonesian Holiday API (api.co.id)
     HOLIDAY_API_BASE_URL = os.getenv('HOLIDAY_API_BASE_URL', 'https://use.api.co.id')
-    HOLIDAY_API_KEY = os.getenv('HOLIDAY_API_KEY', '8e6OfjeYSpBOQ0of7V3WL37kPbJpc8PqN2ZIfmqfJ3FT9cl4et')
+    # Wajib diisi via environment/.env — jangan pernah hardcode API key di source.
+    HOLIDAY_API_KEY = os.getenv('HOLIDAY_API_KEY', '')
 
 
 class DevelopmentConfig(Config):

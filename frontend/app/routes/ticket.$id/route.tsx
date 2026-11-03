@@ -70,7 +70,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
       settingsApi.getHolidays(),
     ]);
 
-  return Response.json({
+  return {
     session,
     ticket,
     invalidNumericId: false,
@@ -79,7 +79,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     statuses: ((statusesRes.data?.data || []) as Status[]).filter(s => s.showOnItHelpdesk !== false),
     categories: (categoriesRes.data?.data || []) as Category[],
     holidays: (holidaysRes.data?.data || []),
-  });
+  };
 }
 
 // ─────────────────────────────────────────────

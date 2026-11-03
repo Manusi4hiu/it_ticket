@@ -1,7 +1,7 @@
 {
   "description": "Hari Libur Nasional & Cuti Bersama Indonesia (api.co.id)",
   "source": "https://use.api.co.id",
-  "last_synced_at": "2026-10-27T09:39:08.797978",
+  "last_synced_at": "2026-10-29T13:44:28.029986",
   "cron_schedule": "Setiap 31 Desember 23:59 WIB (Tahunan)",
   "total_holidays": 119,
   "holidays": [
@@ -762,8 +762,8 @@
       "name": "New Year's Eve",
       "holidayDate": "2026-12-31",
       "isRecurring": false,
-      "isActive": false,
-      "isHoliday": false
+      "isActive": true,
+      "isHoliday": true
     },
     {
       "id": 65,

@@ -170,7 +170,7 @@ export async function loader({ request }: Route.LoaderArgs) {
   const statuses = ((statusesRes.data?.data || []) as Status[]).filter((s) => s.showOnItHelpdesk !== false);
   const departments = ((departmentsRes.data?.data || []) as Department[]).filter((d) => d.isActive !== false);
 
-  return Response.json({
+  return {
     session,
     range,
     start: window.start,
@@ -185,7 +185,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     teams,
     selectedTeamId,
     isAdmin,
-  });
+  };
 }
 
 /** Tanggal penuh Indonesia untuk tooltip — mis. "Kamis, 11 September 2026". */
@@ -249,7 +249,14 @@ export default function Analytics({ loaderData }: Route.ComponentProps) {
     }
   }, []);
 
-  if (!stats) return <div className="p-12 text-center text-slate-400">Loading analytics...</div>;
+  if (!stats) {
+    return (
+      <div className="p-12 text-center text-slate-400" role="status" aria-live="polite">
+        <span className="sr-only">Memuat data analytics</span>
+        Loading analytics...
+      </div>
+    );
+  }
 
   return (
     <AnalyticsBody
@@ -402,8 +409,10 @@ function AnalyticsBody({
   // Lookup case-insensitive supaya nilai tiket berbeda kapitalisasi tetap
   // terhitung ke master-nya tanpa memunculkan label duplikat.
   const categoryData = useMemo(() => {
-    const countByLower = new Map(
-      Object.entries(statsAll.byCategory).map(([k, v]) => [k.toLowerCase(), v])
+    const countByLower = new Map<string, number>(
+      Object.entries(statsAll.byCategory).map(
+        ([k, v]): [string, number] => [k.toLowerCase(), Number(v) || 0]
+      )
     );
     return categories
       .map((c, index) => ({
@@ -420,7 +429,7 @@ function AnalyticsBody({
     const activeNames = new Set(categories.map((c) => c.name.toLowerCase()));
     return Object.entries(statsAll.byCategory)
       .filter(([name]) => !activeNames.has(name.toLowerCase()))
-      .sort((a, b) => b[1] - a[1]);
+      .sort((a, b) => Number(b[1]) - Number(a[1]));
   }, [statsAll.byCategory, categories]);
 
   // Department: sinkron master seperti Category — iterasi master departments
@@ -428,8 +437,10 @@ function AnalyticsBody({
   // Department baru yang ditambah admin otomatis muncul begitu ada tiketnya,
   // tanpa edit kode. Nilai di luar master jadi catatan, bukan batang palsu.
   const departmentData = useMemo(() => {
-    const countByLower = new Map(
-      Object.entries(statsAll.byDepartment).map(([k, v]) => [k.toLowerCase(), v])
+    const countByLower = new Map<string, number>(
+      Object.entries(statsAll.byDepartment).map(
+        ([k, v]): [string, number] => [k.toLowerCase(), Number(v) || 0]
+      )
     );
     return departments
       .map((d, index) => ({
@@ -446,7 +457,7 @@ function AnalyticsBody({
     const activeNames = new Set(departments.map((d) => d.name.toLowerCase()));
     return Object.entries(statsAll.byDepartment)
       .filter(([name]) => !activeNames.has(name.toLowerCase()))
-      .sort((a, b) => b[1] - a[1]);
+      .sort((a, b) => Number(b[1]) - Number(a[1]));
   }, [statsAll.byDepartment, departments]);
 
   // Staff dinilai hanya jika punya tiket. Angka rata-rata hanya muncul bila

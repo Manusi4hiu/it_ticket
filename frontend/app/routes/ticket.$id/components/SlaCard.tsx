@@ -68,7 +68,6 @@ function getSLAStatusClass(ticket: Ticket, stylesObj: Record<string, string>): s
 
   switch (effectiveStatus) {
     case "good":
-    case "healthy":
       return stylesObj.slaGood ?? "";
     case "warning":
       return stylesObj.slaWarning ?? "";
@@ -93,7 +92,6 @@ function getSLAIcon(ticket: Ticket) {
 
   switch (effectiveStatus) {
     case "good":
-    case "healthy":
       return <CheckCircle className={`${styles.slaIcon} ${styles.slaIconGood}`} />;
     case "warning":
       return <Clock className={`${styles.slaIcon} ${styles.slaIconWarning}`} />;

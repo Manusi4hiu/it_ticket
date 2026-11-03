@@ -67,7 +67,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     settingsApi.getHolidays(),
   ]);
 
-  return Response.json({
+  return {
     session,
     initialTickets: ticketsRes.tickets,
     agents,
@@ -77,7 +77,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     teams: ((teamsRes as any)?.data || []) as any[],
     activeTeamId: teamIdParam || session.lastActiveTeamId || null,
     holidays: holidaysRes.data?.data || [],
-  });
+  };
 }
 
 export default function TicketCalendar() {
@@ -352,8 +352,8 @@ export default function TicketCalendar() {
       map[k].sort((a, b) => {
         const strA = dateField === "deadline" ? a.slaDeadline : a.createdAt;
         const strB = dateField === "deadline" ? b.slaDeadline : b.createdAt;
-        const timeA = strA ? Date.parse(strA) : 0;
-        const timeB = strB ? Date.parse(strB) : 0;
+        const timeA = strA ? new Date(strA).getTime() : 0;
+        const timeB = strB ? new Date(strB).getTime() : 0;
         return timeA - timeB;
       });
     });
@@ -933,13 +933,13 @@ export default function TicketCalendar() {
 
           {/* Calendar Month Navigation */}
           <div className={styles.calendarNav}>
-            <button onClick={handlePrevMonth} className={styles.navBtn} title="Previous Month">
+            <button onClick={handlePrevMonth} className={styles.navBtn} title="Previous Month" aria-label="Bulan sebelumnya">
               <ChevronLeft size={16} />
             </button>
             <span className={styles.currentMonthText}>
               {monthNames[month]} {year}
             </span>
-            <button onClick={handleNextMonth} className={styles.navBtn} title="Next Month">
+            <button onClick={handleNextMonth} className={styles.navBtn} title="Next Month" aria-label="Bulan berikutnya">
               <ChevronRight size={16} />
             </button>
             <button
@@ -951,6 +951,27 @@ export default function TicketCalendar() {
             </button>
           </div>
         </div>
+
+        {filteredTickets.length === 0 && (
+          <div
+            role="status"
+            aria-live="polite"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.75rem",
+              padding: "1rem 1.25rem",
+              marginBottom: "1rem",
+              borderRadius: "0.75rem",
+              background: "rgba(148, 163, 184, 0.08)",
+              border: "1px dashed rgba(148, 163, 184, 0.35)",
+              color: "#cbd5e1",
+            }}
+          >
+            <Inbox size={20} aria-hidden="true" />
+            <span>Tidak ada ticket yang cocok dengan filter ini. Ubah filter atau buat ticket baru.</span>
+          </div>
+        )}
 
         {/* Calendar Grid wrapper */}
         <div className={styles.calendarWrapper}>
