@@ -44,6 +44,9 @@ function mapApiTicket(apiTicket: Record<string, unknown>): Ticket {
         slaStatus: apiTicket.slaStatus as SLAStatus,
         takenAt: apiTicket.takenAt ? new Date(apiTicket.takenAt as string) : undefined,
         transferredAt: apiTicket.transferredAt ? new Date(apiTicket.transferredAt as string) : undefined,
+        responseDeadline: apiTicket.responseDeadline ? new Date(apiTicket.responseDeadline as string) : undefined,
+        firstRespondedAt: apiTicket.firstRespondedAt ? new Date(apiTicket.firstRespondedAt as string) : undefined,
+        responseSlaStatus: (apiTicket.responseSlaStatus as SLAStatus) || 'good',
         notes: ((apiTicket.notes as Array<Record<string, unknown>>) || []).map(note => ({
             id: note.id as number,
             content: note.content as string,

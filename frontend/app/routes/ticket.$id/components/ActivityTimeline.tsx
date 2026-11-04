@@ -84,6 +84,23 @@ function EmptyNotes() {
   );
 }
 
+function formatNoteContent(content: string, author?: string): string {
+  if (!content) return "";
+  let clean = content;
+  // Remove redundant <b>Author</b> or Author prefix if present at start
+  if (author) {
+    const escaped = author.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    clean = clean.replace(new RegExp(`^(?:<[bB]>)?${escaped}(?:<\\/[bB]>)?\\s*`, 'i'), '');
+  }
+  // Strip any leftover HTML tags
+  clean = clean.replace(/<[^>]+>/g, '').trim();
+  // Capitalize first letter
+  if (clean.length > 0) {
+    clean = clean.charAt(0).toUpperCase() + clean.slice(1);
+  }
+  return clean;
+}
+
 /** Satu item dalam timeline notes. */
 function TimelineItem({ note }: { note: TicketNote }) {
   return (
@@ -105,7 +122,7 @@ function TimelineItem({ note }: { note: TicketNote }) {
           )}
         </div>
 
-        <p className={styles.timelineText}>{note.content}</p>
+        <p className={styles.timelineText}>{formatNoteContent(note.content, note.author)}</p>
 
         {note.imageUrl && (
           <div className={styles.noteImageContainer}>
