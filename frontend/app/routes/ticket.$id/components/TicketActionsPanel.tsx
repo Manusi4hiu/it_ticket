@@ -8,6 +8,7 @@
  * Hanya ditampilkan untuk user yang login. Management mendapat view-only.
  */
 
+import { useState } from "react";
 import {
   Settings,
   CheckCircle,
@@ -127,8 +128,10 @@ export function TicketActionsPanel({
     ticket.status.toLowerCase() === "resolved" ||
     ticket.status.toLowerCase() === "closed";
 
+  const [collabSelectKey, setCollabSelectKey] = useState(0);
+
   const canEditCollaborator =
-    (isAdministrator || assignedTo === currentUser?.name) && !isManagement;
+    (isAdministrator || isTicketOwner || assignedTo === currentUser?.name) && !isManagement;
 
   // Otoritas mengubah tiket: hanya Admin, pemilik/pengerja tiket saat ini,
   // atau tiket yang belum dipegang siapa pun (assignedTo kosong).
@@ -302,30 +305,42 @@ export function TicketActionsPanel({
             <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
               {collaborators.length > 0 && (
                 <div className={styles.collaboratorsList}>
-                  {collaborators.map((collaborator) => (
-                    <Badge
-                      key={collaborator}
-                      variant="secondary"
-                      className={styles.collaboratorBadgeAction}
-                    >
-                      <Users style={{ width: "12px", height: "12px" }} />
-                      {collaborator}
-                      {canEditCollaborator && (
-                        <button
-                          type="button"
-                          onClick={() => onRemoveCollaborator(collaborator)}
-                          className={styles.removeCollaboratorBtn}
-                        >
-                          <X />
-                        </button>
-                      )}
-                    </Badge>
-                  ))}
+                  {collaborators.map((collaborator, index) => {
+                    const collabId = collaboratorIds[index];
+                    return (
+                      <Badge
+                        key={collabId || collaborator}
+                        variant="secondary"
+                        className={styles.collaboratorBadgeAction}
+                      >
+                        <Users style={{ width: "12px", height: "12px" }} />
+                        {collaborator}
+                        {canEditCollaborator && (
+                          <button
+                            type="button"
+                            onClick={() => onRemoveCollaborator(collabId ? String(collabId) : collaborator)}
+                            className={styles.removeCollaboratorBtn}
+                            title={`Hapus ${collaborator}`}
+                          >
+                            <X />
+                          </button>
+                        )}
+                      </Badge>
+                    );
+                  })}
                 </div>
               )}
 
               {canEditCollaborator && (
-                <Select onValueChange={onAddCollaborator}>
+                <Select
+                  key={collabSelectKey}
+                  onValueChange={(val) => {
+                    if (val) {
+                      onAddCollaborator(val);
+                      setCollabSelectKey((k) => k + 1);
+                    }
+                  }}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Add collaborator..." />
                   </SelectTrigger>
@@ -333,6 +348,7 @@ export function TicketActionsPanel({
                     {agents
                       .filter(
                         (agent) =>
+                          String(agent.id) !== String(ticket.assignedToId) &&
                           agent.name !== assignedTo &&
                           !collaboratorIds.includes(String(agent.id))
                       )

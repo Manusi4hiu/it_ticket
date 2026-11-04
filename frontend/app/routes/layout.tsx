@@ -13,6 +13,8 @@ import {
 import { NotificationBell } from "~/components/notification-bell";
 import { getUserSession, logout } from "~/services/session.service";
 import { setAuthToken, usersApi } from "~/services/api.service";
+import { settingsApi } from "~/services/settings.service";
+import { setWorkingHours } from "~/utils/date";
 import type { Route } from "./+types/layout";
 import styles from "./layout.module.css";
 import { useIdleTimeout } from "~/hooks/use-idle-timeout";
@@ -50,6 +52,7 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
   const canAccessDevBoard = isAdministrator || session?.userRole === 'Staff' || session?.userRole === 'Management';
 
   const [isDevMode, setIsDevMode] = useState(false);
+  const [, forceWorkHoursUpdate] = useState(0);
   const mainRef = useRef<HTMLElement>(null);
 
   // Reset scroll container to top whenever pathname changes
@@ -85,6 +88,21 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
       setAuthToken(session.authToken);
     }
   }, [session]);
+
+  // Sinkronkan jam kerja operasional (Settings > Break) ke utils tanggal
+  // agar badge/batas jam resolve di frontend mengikuti backend.
+  useEffect(() => {
+    if (!session?.authToken) return;
+    settingsApi.getBreakSetting()
+      .then((res) => {
+        const bs = res.data?.data;
+        if (bs) {
+          setWorkingHours(bs.workStartTime, bs.workEndTime);
+          forceWorkHoursUpdate((v) => v + 1);
+        }
+      })
+      .catch(() => {});
+  }, [session?.authToken]);
 
   const handleToggleMode = (dev: boolean) => {
     setIsDevMode(dev);
