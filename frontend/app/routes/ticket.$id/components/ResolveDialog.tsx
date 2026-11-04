@@ -18,7 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "~/components/ui/dialog/dialog";
-import { toDatetimeLocalString, validateWorkingHoursDateTime, type HolidayLike } from "~/utils/date";
+import { toDatetimeLocalString, validateWorkingHoursDateTime, getWorkingHoursLabel, type HolidayLike } from "~/utils/date";
 import type { Category } from "~/services/settings.service";
 import styles from "../style.module.css";
 
@@ -186,7 +186,7 @@ export function ResolveDialog({
                 required
               />
               <span style={{ fontSize: "0.72rem", color: "var(--color-neutral-10)", marginTop: "4px", display: "block" }}>
-                Jam kerja: 08:00 - 17:00 WIB (Senin - Jumat)
+                Jam kerja: {getWorkingHoursLabel()} (Senin - Jumat)
               </span>
               {!dateValidation.valid && dateValidation.error && (
                 <p style={errorTextStyle}>{dateValidation.error}</p>

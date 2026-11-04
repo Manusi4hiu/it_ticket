@@ -993,7 +993,7 @@ class MasterDataService:
         import json
 
         base_url = os.getenv('HOLIDAY_API_BASE_URL', 'https://use.api.co.id').rstrip('/')
-        api_key = os.getenv('HOLIDAY_API_KEY', '8e6OfjeYSpBOQ0of7V3WL37kPbJpc8PqN2ZIfmqfJ3FT9cl4et')
+        api_key = os.getenv('HOLIDAY_API_KEY')
 
         if not target_years:
             curr_year = datetime.now().year

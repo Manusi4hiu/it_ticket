@@ -216,6 +216,23 @@ class TicketService:
         return group == 'pending'
 
     @staticmethod
+    def _apply_sla_pause_transition(ticket, old_status, new_status, now_utc=None):
+        """Resume/extend SLA saat keluar status pausing; pause saat masuk status pausing."""
+        now_utc = now_utc or datetime.now(timezone.utc)
+        if old_status and TicketService._status_pauses_sla(old_status) and ticket.sla_paused_at and ticket.sla_deadline:
+            paused_at_aware = ticket.sla_paused_at if ticket.sla_paused_at.tzinfo else ticket.sla_paused_at.replace(tzinfo=timezone.utc)
+            sla_deadline_aware = ticket.sla_deadline if ticket.sla_deadline.tzinfo else ticket.sla_deadline.replace(tzinfo=timezone.utc)
+            remaining_mins = TicketService.calculate_business_duration_minutes(paused_at_aware, sla_deadline_aware)
+            if remaining_mins > 0:
+                ticket.sla_deadline = TicketService.calculate_business_deadline(now_utc, minutes=remaining_mins)
+            ticket.sla_paused_at = None
+
+        if new_status and TicketService._status_pauses_sla(new_status):
+            ticket.sla_paused_at = now_utc
+        else:
+            ticket.sla_paused_at = None
+
+    @staticmethod
     def calculate_sla_status(sla_deadline, resolved_at=None, sla_paused_at=None, assigned_user=None):
         """Calculate SLA status based on deadline and resolution time.
         
@@ -909,19 +926,7 @@ class TicketService:
                         raise ValueError("Reason is required for this status")
 
                 # SLA Logic
-                if old_status and TicketService._status_pauses_sla(old_status) and ticket.sla_paused_at and ticket.sla_deadline:
-                    paused_at_aware = ticket.sla_paused_at if ticket.sla_paused_at.tzinfo else ticket.sla_paused_at.replace(tzinfo=timezone.utc)
-                    sla_deadline_aware = ticket.sla_deadline if ticket.sla_deadline.tzinfo else ticket.sla_deadline.replace(tzinfo=timezone.utc)
-                    now_utc = datetime.now(timezone.utc)
-                    remaining_mins = TicketService.calculate_business_duration_minutes(paused_at_aware, sla_deadline_aware)
-                    if remaining_mins > 0:
-                        ticket.sla_deadline = TicketService.calculate_business_deadline(now_utc, minutes=remaining_mins)
-                    ticket.sla_paused_at = None
-                    
-                if new_status and TicketService._status_pauses_sla(new_status):
-                    ticket.sla_paused_at = datetime.now(timezone.utc)
-                else:
-                    ticket.sla_paused_at = None
+                TicketService._apply_sla_pause_transition(ticket, old_status, new_status)
 
                 # Note Logic — tidy with proper Reason handling.
                 # KHUSUS transisi ke Resolved/Closed: "Ticket resolved on <tanggal>"
@@ -952,7 +957,9 @@ class TicketService:
                 # agar resolution time/SLA tidak membengkak mengikuti waktu close.
                 was_done = str(old_status_name).strip().lower() in ('resolved', 'closed')
                 if not (was_done and ticket.resolved_at):
-                    ticket.resolved_at = datetime.now(timezone.utc)
+                    ticket.resolved_at = TicketService.validate_resolved_at_working_hours(
+                        datetime.now(timezone.utc)
+                    )
                 # Auto-mark unread SLA notifications as read saat tiket selesai
                 try:
                     from app.models.notification import Notification
@@ -1325,6 +1332,9 @@ class TicketService:
             # Try to find an "Assigned" status in master data, otherwise use 'Assigned'
             assigned_status = Status.query.filter(Status.name.ilike('%assigned%')).first()
             old_status_name = ticket.status
+            old_status = Status.query.filter(Status.name.ilike(old_status_name)).first()
+            # Status berubah (pending -> Assigned) lewat assign/oper juga harus resume/pause SLA
+            TicketService._apply_sla_pause_transition(ticket, old_status, assigned_status, now_utc)
             if assigned_status:
                 ticket.status = assigned_status.name
             else:
@@ -1473,21 +1483,8 @@ class TicketService:
         old_status = Status.query.filter(Status.name.ilike(old_status_name)).first()
         new_status = Status.query.filter(Status.name.ilike(status)).first()
         
-        # If moving out of a paused state
-        if old_status and TicketService._status_pauses_sla(old_status) and ticket.sla_paused_at and ticket.sla_deadline:
-            paused_at_aware = ticket.sla_paused_at if ticket.sla_paused_at.tzinfo else ticket.sla_paused_at.replace(tzinfo=timezone.utc)
-            sla_deadline_aware = ticket.sla_deadline if ticket.sla_deadline.tzinfo else ticket.sla_deadline.replace(tzinfo=timezone.utc)
-            now_utc = datetime.now(timezone.utc)
-            remaining_mins = TicketService.calculate_business_duration_minutes(paused_at_aware, sla_deadline_aware)
-            if remaining_mins > 0:
-                ticket.sla_deadline = TicketService.calculate_business_deadline(now_utc, minutes=remaining_mins)
-            ticket.sla_paused_at = None
-            
-        # If moving into a paused state
-        if new_status and TicketService._status_pauses_sla(new_status):
-            ticket.sla_paused_at = datetime.now(timezone.utc)
-        else:
-            ticket.sla_paused_at = None
+        # Handle SLA Pausing
+        TicketService._apply_sla_pause_transition(ticket, old_status, new_status)
 
         # Record first response if transitioning from New to active working state
         if not ticket.first_responded_at and str(old_status_name).strip().lower() == 'new' and str(status).strip().lower() != 'new':
@@ -1566,12 +1563,15 @@ class TicketService:
 
         if _is_done_status and (not _was_done or not ticket.resolved_at):
             # Masuk (atau re-enter setelah reopen) grup done: stamp waktu selesai.
-            # Custom resolvedAt dari UI dipakai bila ada, selain itu now (UTC naive).
-            _stamp = None
+            # Custom resolvedAt dari UI dipakai bila ada, selain itu now (UTC naive)
+            # juga wajib lolos validasi jam kerja.
             if resolved_at_str:
                 dt_parsed = datetime.fromisoformat(str(resolved_at_str).replace('Z', '+00:00'))
-                _stamp = TicketService.validate_resolved_at_working_hours(dt_parsed)
-            ticket.resolved_at = _stamp or datetime.now(timezone.utc).replace(tzinfo=None)
+                ticket.resolved_at = TicketService.validate_resolved_at_working_hours(dt_parsed)
+            else:
+                ticket.resolved_at = TicketService.validate_resolved_at_working_hours(
+                    datetime.now(timezone.utc).replace(tzinfo=None)
+                )
 
         if status.lower() == 'resolved':
             if resolution_summary:

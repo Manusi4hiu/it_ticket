@@ -16,6 +16,7 @@ import {
   toDatetimeLocalString,
   isWithinWorkingHours,
   validateWorkingHoursDateTime,
+  getWorkingHoursLabel,
   type HolidayLike,
 } from "~/utils/date";
 import type { Ticket } from "~/services/ticket.service";
@@ -290,7 +291,7 @@ function ResolvedTimeSection({
             </Button>
           </div>
           <span style={{ fontSize: "0.7rem", color: "var(--color-neutral-10)" }}>
-            08:00 - 17:00 WIB (Senin - Jumat)
+            {getWorkingHoursLabel()} (Senin - Jumat)
           </span>
           {!editValidation.valid && editValidation.error && (
             <span style={{ fontSize: "0.7rem", color: "#ef4444" }}>{editValidation.error}</span>

@@ -19,6 +19,61 @@ interface HolidayLookup {
 
 const holidayLookupCache = new WeakMap<HolidayLike[], HolidayLookup>();
 
+// Jam kerja operasional. Default 08:00-17:00; bisa di-override dari
+// BreakSetting (Settings > Break) via setWorkingHours() agar frontend
+// selalu konsisten dengan perhitungan SLA di backend.
+const DEFAULT_WORK_START_MIN = 8 * 60;
+const DEFAULT_WORK_END_MIN = 17 * 60;
+
+let workStartMin = DEFAULT_WORK_START_MIN;
+let workEndMin = DEFAULT_WORK_END_MIN;
+
+function parseHhmm(value?: string | null): number | null {
+  if (!value || !value.includes(':')) return null;
+  const [h, m] = value.split(':').map(Number);
+  if (Number.isNaN(h) || Number.isNaN(m)) return null;
+  return h * 60 + m;
+}
+
+export function setWorkingHours(start?: string | null, end?: string | null): void {
+  workStartMin = parseHhmm(start) ?? DEFAULT_WORK_START_MIN;
+  workEndMin = parseHhmm(end) ?? DEFAULT_WORK_END_MIN;
+}
+
+export function getWorkingHoursLabel(): string {
+  return `${formatHhmm(workStartMin)} - ${formatHhmm(workEndMin)} WIB`;
+}
+
+function workDayAt(date: Date, minutes: number): Date {
+  return new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate(),
+    Math.floor(minutes / 60),
+    minutes % 60,
+    0,
+    0,
+  );
+}
+
+function nextWorkStart(date: Date): Date {
+  return new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate() + 1,
+    Math.floor(workStartMin / 60),
+    workStartMin % 60,
+    0,
+    0,
+  );
+}
+
+function formatHhmm(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
 export function getHolidayLookup(holidays?: HolidayLike[]): HolidayLookup | null {
   if (!holidays || holidays.length === 0) return null;
   let cached = holidayLookupCache.get(holidays);
@@ -116,8 +171,8 @@ export function isWorkingDay(date: Date, holidays?: HolidayLike[]): boolean {
  */
 export function isWithinWorkingHours(date: Date = new Date(), holidays?: HolidayLike[]): boolean {
   if (!isWorkingDay(date, holidays)) return false;
-  const hours = date.getHours();
-  return hours >= 8 && hours < 17;
+  const totalMins = date.getHours() * 60 + date.getMinutes();
+  return totalMins >= workStartMin && totalMins < workEndMin;
 }
 
 /**
@@ -146,17 +201,17 @@ export function calculateBusinessDurationMinutes(
 
   while (cur < target && iter++ < maxIterations) {
     if (!isWorkingDay(cur, holidays)) {
-      // Lompat ke hari berikutnya jam 08:00
-      cur = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate() + 1, 8, 0, 0, 0);
+      // Lompat ke hari berikutnya jam mulai kerja
+      cur = nextWorkStart(cur);
       continue;
     }
 
-    const workStart = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate(), 8, 0, 0, 0);
-    const workEnd = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate(), 17, 0, 0, 0);
+    const workStart = workDayAt(cur, workStartMin);
+    const workEnd = workDayAt(cur, workEndMin);
 
     if (cur < workStart) cur = workStart;
     if (cur >= workEnd) {
-      cur = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate() + 1, 8, 0, 0, 0);
+      cur = nextWorkStart(cur);
       continue;
     }
 
@@ -167,7 +222,7 @@ export function calculateBusinessDurationMinutes(
     }
 
     if (cur >= workEnd) {
-      cur = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate() + 1, 8, 0, 0, 0);
+      cur = nextWorkStart(cur);
     }
   }
 
@@ -288,14 +343,15 @@ export function validateWorkingHoursDateTime(
   const hours = d.getHours();
   const minutes = d.getMinutes();
   const totalMins = hours * 60 + minutes;
-  const startMins = 8 * 60; // 08:00
-  const endMins = 17 * 60; // 17:00
+  const startMins = workStartMin;
+  const endMins = workEndMin;
 
   if (totalMins < startMins || totalMins > endMins) {
     const formattedHour = String(hours).padStart(2, "0") + ":" + String(minutes).padStart(2, "0");
+    const workHourLabel = `${formatHhmm(workStartMin)} - ${formatHhmm(workEndMin)}`;
     return {
       valid: false,
-      error: `Jam penyelesaian hanya bisa di jam kerja (08:00 - 17:00 WIB). Jam yang dipilih: ${formattedHour}.`,
+      error: `Jam penyelesaian hanya bisa di jam kerja (${workHourLabel} WIB). Jam yang dipilih: ${formattedHour}.`,
     };
   }
 
@@ -309,21 +365,24 @@ export function validateWorkingHoursDateTime(
 export function getInitialWorkingDateTime(date: Date = new Date(), holidays?: HolidayLike[]): string {
   let d = new Date(date);
 
-  // Jika jam >= 17, clamp ke 17:00 hari ini
-  if (d.getHours() >= 17) {
-    d.setHours(17, 0, 0, 0);
+  const endH = Math.floor(workEndMin / 60);
+  const endM = workEndMin % 60;
+
+  // Jika sudah lewat jam selesai kerja, clamp ke jam selesai hari ini
+  if (d.getHours() * 60 + d.getMinutes() >= workEndMin) {
+    d.setHours(endH, endM, 0, 0);
   }
-  // Jika jam < 8, clamp ke 17:00 hari sebelumnya
-  else if (d.getHours() < 8) {
+  // Jika sebelum jam mulai kerja, clamp ke jam selesai hari sebelumnya
+  else if (d.getHours() * 60 + d.getMinutes() < workStartMin) {
     d.setDate(d.getDate() - 1);
-    d.setHours(17, 0, 0, 0);
+    d.setHours(endH, endM, 0, 0);
   }
 
   // Mundurkan jika hari libur atau weekend
   let guard = 0;
   while (!isWorkingDay(d, holidays) && guard++ < 30) {
     d.setDate(d.getDate() - 1);
-    d.setHours(17, 0, 0, 0);
+    d.setHours(endH, endM, 0, 0);
   }
 
   return toDatetimeLocalString(d);
