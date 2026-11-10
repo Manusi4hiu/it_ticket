@@ -64,7 +64,7 @@ export async function loader({ request }: Route.LoaderArgs) {
       getTicketStats(true), // Personal stats
     ]);
 
-  return Response.json({
+  return {
     session,
     activeTickets: activeResponse.tickets,
     activeTotal: activeResponse.total,
@@ -76,7 +76,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     statuses: (statusResponse.data?.data || []).filter((s: any) => s.showOnItHelpdesk !== false),
     priorities: (prioritiesResponse.data?.data || []).filter((p: any) => p.isActive !== false),
     stats,
-  });
+  };
 }
 
 // ─────────────────────────────────────────────

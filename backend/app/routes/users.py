@@ -246,12 +246,7 @@ def toggle_active(user_id):
 def toggle_break(user_id):
     """Toggle break status untuk staff IT"""
     from app import db
-    from app.models.ticket import Ticket
-    from app.models.master_data import BreakLog
-    from app.services.email_service import EmailService
-    import logging
-    
-    logger = logging.getLogger(__name__)
+
     current_user = get_current_user()
 
     # Guard: hanya bisa toggle break sendiri atau admin
@@ -281,63 +276,34 @@ def toggle_break(user_id):
         user.break_total_date = today_wib
 
     from app.services.master_data_service import MasterDataService
-    max_minutes = MasterDataService.get_break_setting().max_break_minutes or 60
+    from app.services.break_service import (
+        finalize_break, get_capped_break_end, get_work_end_utc,
+    )
+    setting = MasterDataService.get_break_setting()
+    max_minutes = setting.max_break_minutes or 60
+    now = datetime.now(timezone.utc)
+    auto_end = setting.auto_end_on_shift_end is not False
 
     if user.is_on_break:
-        # END break: akumulasi durasi AKTUAL (tanpa cap)
-        if user.break_started_at:
-            break_start = user.break_started_at
-            if break_start.tzinfo is None:
-                break_start = break_start.replace(tzinfo=timezone.utc)
-            duration = (datetime.now(timezone.utc) - break_start).total_seconds()
-            actual = int(duration)
-            user.total_break_seconds_today = (user.total_break_seconds_today or 0) + actual
-            # Catat riwayat sesi (sumber agregasi harian/mingguan/bulanan).
-            try:
-                with db.session.begin_nested():
-                    db.session.add(BreakLog(
-                        user_id=user.id,
-                        started_at=break_start,
-                        ended_at=datetime.now(timezone.utc),
-                        duration_seconds=actual,
-                        log_date=today_wib,
-                    ))
-            except Exception as log_err:
-                logger.error(f"Break log insert failed: {log_err}")
-            # Notifikasi ke admin bila break melebihi batas (best-effort).
-            if actual > max_minutes * 60:
-                try:
-                    from app.services.notification_service import NotificationService
-                    admins = User.query.filter(
-                        User.role == 'Administrator', User.id != user.id
-                    ).all()
-                    over_min = int(duration) // 60
-                    for admin in admins:
-                        NotificationService.push(
-                            admin.id, None, 'break_overtime',
-                            'Break Melebihi Batas',
-                            f"{user.full_name} break {over_min} mnt (batas {max_minutes} mnt). "
-                            f"Total hari ini {((user.total_break_seconds_today or 0) // 60)} mnt.",
-                        )
-                except Exception as notif_err:
-                    print(f"Break overtime notification failed: {notif_err}")
-        user.is_on_break = False
-        user.break_started_at = None
-        # Restore presence ke status sebelum break (simpan di break_pre_status),
-        # fallback ke 'online' kalau tidak ada.
-        restored = getattr(user, 'break_pre_status', None) or 'online'
-        # Pastikan nilai valid setelah restore
-        if restored not in ('online', 'idle', 'dnd', 'offline'):
-            restored = 'online'
-        user.presence_status = restored
+        # END break. Bila auto-end aktif dan jam kerja sudah lewat, potong
+        # durasi tepat di jam selesai kerja agar tidak berjalan semalaman.
+        ended_at = get_capped_break_end(now, user.break_started_at, setting)
+        finalize_break(user, ended_at, setting)
     else:
-        # START break: simpan status saat ini lalu set ke 'break'
+        # START break. Tolak bila jam kerja hari ini sudah berakhir dan
+        # auto-end aktif — mencegah sesi break dimulai setelah pulang.
+        if auto_end and now >= get_work_end_utc(now, setting):
+            return jsonify({
+                'error': (
+                    f"Jam kerja hari ini sudah berakhir "
+                    f"({setting.work_end_time or '17:00'} WIB). Break tidak dapat dimulai."
+                )
+            }), 400
+        # Simpan status saat ini lalu set ke 'break'
         user.break_pre_status = user.presence_status or 'online'
         user.is_on_break = True
-        user.break_started_at = datetime.now(timezone.utc)
+        user.break_started_at = now
         user.presence_status = 'break'
-
-
 
     db.session.commit()
     payload = user.to_dict()

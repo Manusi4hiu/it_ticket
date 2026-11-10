@@ -358,6 +358,8 @@ class MasterDataService:
                 name='Default', max_break_minutes=60,
                 daily_max_minutes=60, weekly_max_minutes=300,
                 monthly_max_minutes=1200,
+                work_start_time='08:00', work_end_time='17:00',
+                auto_end_on_shift_end=True,
             )
             db.session.add(setting)
             db.session.commit()
@@ -366,12 +368,16 @@ class MasterDataService:
         for attr, default in (
             ('daily_max_minutes', 60), ('weekly_max_minutes', 300),
             ('monthly_max_minutes', 1200),
+            ('work_start_time', '08:00'), ('work_end_time', '17:00'),
         ):
             if getattr(setting, attr, None) is None:
                 setattr(setting, attr, default)
                 changed = True
         if getattr(setting, 'max_break_minutes', None) is None:
             setting.max_break_minutes = 60
+            changed = True
+        if getattr(setting, 'auto_end_on_shift_end', None) is None:
+            setting.auto_end_on_shift_end = True
             changed = True
         if changed:
             db.session.commit()
@@ -410,6 +416,40 @@ class MasterDataService:
             setattr(setting, column, minutes)
         if 'description' in data:
             setting.description = data['description']
+
+        # Jam kerja & auto-end break. Validasi dulu sebelum assign agar input
+        # parsial tidak pernah tersimpan setengah jalan.
+        time_re = re.compile(r'^([01]\d|2[0-3]):[0-5]\d$')
+        start_raw = data.get('workStartTime', data.get('work_start_time'))
+        end_raw = data.get('workEndTime', data.get('work_end_time'))
+        start = setting.work_start_time or '08:00'
+        end = setting.work_end_time or '17:00'
+
+        if start_raw is not None:
+            start = str(start_raw).strip()
+            if not time_re.match(start):
+                return None, 'workStartTime harus berformat HH:MM (contoh: 08:00)'
+        if end_raw is not None:
+            end = str(end_raw).strip()
+            if not time_re.match(end):
+                return None, 'workEndTime harus berformat HH:MM (contoh: 17:00)'
+        if start >= end:
+            return None, 'workStartTime harus lebih awal dari workEndTime'
+
+        auto_raw = data.get('autoEndOnShiftEnd', data.get('auto_end_on_shift_end'))
+        auto_end = setting.auto_end_on_shift_end is not False
+        if auto_raw is not None:
+            if isinstance(auto_raw, bool):
+                auto_end = auto_raw
+            elif isinstance(auto_raw, str):
+                auto_end = auto_raw.strip().lower() in ('true', '1', 'on', 'yes')
+            else:
+                auto_end = bool(auto_raw)
+
+        setting.work_start_time = start
+        setting.work_end_time = end
+        setting.auto_end_on_shift_end = auto_end
+
         db.session.commit()
         return setting, None
 
@@ -515,14 +555,19 @@ class MasterDataService:
     def sync_holidays_from_api(target_years=None):
         """
         Fetch public holidays and collective leave from Indonesian Holiday API:
-        Primary: https://use.api.co.id/holidays/indonesia (api.co.id)
+        Primary: https://use.api.co.id/holidays/indonesia (api.co.id) — paralel per tahun
         Fallback 1: https://titimangsa.sangkan.dev/v1/holidays?year={year}
         Fallback 2: https://raw.githubusercontent.com/guangrei/APIHariLibur_V2/main/calendar.min.json
+        Fallback 3: file lokal backend/app/data/holidays_indonesia.json (seed)
         and sync them into the Holiday table and backend/app/data/holidays_indonesia.json.
+
+        Return kontrak sama seperti sebelumnya: (total_holidays, error_or_None).
+        Tahun yang gagal fetch tidak menggugurkan tahun lain (partial success).
         """
         import os
         import urllib.request
         import json
+        from concurrent.futures import ThreadPoolExecutor
 
         base_url = os.getenv('HOLIDAY_API_BASE_URL', 'https://use.api.co.id').rstrip('/')
         api_key = os.getenv('HOLIDAY_API_KEY', '')
@@ -532,52 +577,71 @@ class MasterDataService:
             target_years = [curr_year - 1, curr_year, curr_year + 1]
 
         holidays_map = {}
+        failed_years = []
 
-        # 1. Primary: api.co.id Indonesian Holidays API
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+
+        def _fetch_primary(year):
+            url = f"{base_url}/holidays/indonesia?year={year}"
+            req = urllib.request.Request(url, headers={
+                **headers, 'x-api-co-id': api_key,
+            })
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                res = json.loads(resp.read().decode('utf-8'))
+            out = {}
+            if res.get('is_success') and isinstance(res.get('data'), list):
+                for item in res.get('data', []):
+                    # Ambil hari libur resmi/cuti bersama (is_active=True) dan hari nasional/observance (is_active=False)
+                    d_str = item.get('date')
+                    name = item.get('name')
+                    if d_str and name:
+                        is_real_holiday = (item.get('is_holiday') is True or item.get('is_joint_holiday') is True)
+                        is_observance = item.get('is_observance') is True or item.get('type') == 'Observance'
+                        is_active = True if (is_real_holiday and not is_observance) else False
+                        out[d_str] = (str(name).strip(), is_active)
+            return out
+
+        def _fetch_titimangsa(year):
+            url = f"https://titimangsa.sangkan.dev/v1/holidays?year={year}"
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                payload = json.loads(resp.read().decode('utf-8'))
+            out = {}
+            for item in payload.get('data', []):
+                d_str = item.get('date')
+                name = item.get('localName') or item.get('name')
+                if d_str and name:
+                    out[d_str] = str(name).strip()
+            return out
+
+        def _fetch_in_parallel(fetch_one, label):
+            results = {}
+            with ThreadPoolExecutor(max_workers=3) as pool:
+                futures = {pool.submit(fetch_one, y): y for y in target_years}
+                for future, year in futures.items():
+                    try:
+                        results.update(future.result())
+                    except Exception as e:
+                        failed_years.append(year)
+                        print(f"{label} fetch failed for year {year}: {e}")
+            return results
+
+        # 1. Primary: api.co.id — paralel per tahun (dulu berurutan, ~30 dtk+)
         if api_key:
-            for y in target_years:
-                try:
-                    url = f"{base_url}/holidays/indonesia?year={y}"
-                    req = urllib.request.Request(url, headers={
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-                        'x-api-co-id': api_key
-                    })
-                    with urllib.request.urlopen(req, timeout=10) as resp:
-                        res = json.loads(resp.read().decode('utf-8'))
-                        if res.get('is_success') and isinstance(res.get('data'), list):
-                            for item in res.get('data', []):
-                                # Ambil hari libur resmi/cuti bersama (is_active=True) dan hari nasional/observance (is_active=False)
-                                d_str = item.get('date')
-                                name = item.get('name')
-                                if d_str and name:
-                                    is_real_holiday = (item.get('is_holiday') is True or item.get('is_joint_holiday') is True)
-                                    is_observance = item.get('is_observance') is True or item.get('type') == 'Observance'
-                                    is_active = True if (is_real_holiday and not is_observance) else False
-                                    holidays_map[d_str] = (str(name).strip(), is_active)
-                except Exception as e:
-                    print(f"api.co.id fetch failed for year {y}: {e}")
+            holidays_map = _fetch_in_parallel(_fetch_primary, "api.co.id")
 
-        # 2. Secondary Fallback: Titimangsa API
+        # 2. Secondary Fallback: Titimangsa API (dengan logging, tidak diam)
         if not holidays_map:
-            for y in target_years:
-                try:
-                    url = f"https://titimangsa.sangkan.dev/v1/holidays?year={y}"
-                    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
-                    with urllib.request.urlopen(req, timeout=5) as resp:
-                        payload = json.loads(resp.read().decode('utf-8'))
-                        for item in payload.get('data', []):
-                            d_str = item.get('date')
-                            name = item.get('localName') or item.get('name')
-                            if d_str and name:
-                                holidays_map[d_str] = str(name).strip()
-                except Exception:
-                    pass
+            print("api.co.id data kosong, mencoba fallback Titimangsa...")
+            failed_years.clear()
+            holidays_map = _fetch_in_parallel(_fetch_titimangsa, "titimangsa")
 
-        # 3. Tertiary Fallback: Guangrei APIHariLibur
+        # 3. Tertiary Fallback: Guangrei APIHariLibur (dengan logging)
         if not holidays_map:
+            print("Titimangsa data kosong, mencoba fallback Guangrei...")
             try:
                 url = "https://raw.githubusercontent.com/guangrei/APIHariLibur_V2/main/calendar.min.json"
-                req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
+                req = urllib.request.Request(url, headers=headers)
                 with urllib.request.urlopen(req, timeout=5) as resp:
                     data = json.loads(resp.read().decode('utf-8'))
                     for d_str, val in data.items():
@@ -586,11 +650,22 @@ class MasterDataService:
                             name = summary_list[0] if summary_list else None
                             if d_str not in holidays_map and name:
                                 holidays_map[d_str] = str(name).strip()
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"Guangrei fallback failed: {e}")
+
+        # 4. Fallback terakhir: file lokal project (tidak butuh jaringan)
+        if not holidays_map:
+            print("Semua API kosong, fallback ke file lokal holidays_indonesia.json...")
+            seeded = MasterDataService.seed_holidays_from_local_json()
+            if seeded:
+                return seeded, None
+            print("File lokal juga tidak tersedia atau kosong.")
 
         if not holidays_map:
             return 0, "Gagal mengambil data dari API hari libur (koneksi terputus atau API tidak merespons)."
+
+        if failed_years:
+            print(f"Partial success: tahun gagal fetch: {sorted(set(failed_years))}, tahun lain tetap disimpan.")
 
         existing_holidays = {h.holiday_date: h for h in Holiday.query.all()}
         count_added = 0

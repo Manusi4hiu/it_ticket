@@ -267,7 +267,7 @@ export async function action({ request }: Route.ActionArgs) {
     workEndTime,
 
     autoEndOnShiftEnd,
-  } as any);
+  });
 
   if (!response.success) return Response.json({ error: response.error }, { status: 400 });
 

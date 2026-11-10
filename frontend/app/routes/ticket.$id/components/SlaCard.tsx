@@ -57,7 +57,7 @@ function isGraphicDesignTicket(ticket: Ticket): boolean {
 /** Return CSS class berdasarkan SLA status dan kondisi deadline. */
 function getSLAStatusClass(ticket: Ticket, stylesObj: Record<string, string>): string {
   const isGraphicDesign = isGraphicDesignTicket(ticket);
-  const effectiveStatus = (isGraphicDesign && ticket.ticketCode === "HR-028") ? "breached" : (ticket.slaStatus || "good");
+  const effectiveStatus = ticket.slaStatus || "good";
 
   const hasNoDeadline =
     !ticket.slaDeadline &&
@@ -81,7 +81,7 @@ function getSLAStatusClass(ticket: Ticket, stylesObj: Record<string, string>): s
 /** Return icon JSX berdasarkan SLA status. */
 function getSLAIcon(ticket: Ticket) {
   const isGraphicDesign = isGraphicDesignTicket(ticket);
-  const effectiveStatus = (isGraphicDesign && ticket.ticketCode === "HR-028") ? "breached" : (ticket.slaStatus || "good");
+  const effectiveStatus = ticket.slaStatus || "good";
 
   const hasNoDeadline =
     !ticket.slaDeadline &&
@@ -116,7 +116,7 @@ function getSLATitle(ticket: Ticket, holidays?: HolidayLike[]): React.ReactNode 
   if (ticket.slaPausedAt && !isGraphicDesign) return "SLA Paused";
 
   const status = ticket.slaStatus?.toLowerCase();
-  const isBreached = status === "breached" || (isGraphicDesign && ticket.ticketCode === "HR-028");
+  const isBreached = status === "breached";
 
   if (isGraphicDesign) {
     if (isBreached) return "Deadline Overdue:";
@@ -184,7 +184,7 @@ export function SlaCard({
     (isAdministrator || ticket.assignedTo === currentUser?.name) && !isManagement;
 
   const isGraphicDesign = isGraphicDesignTicket(ticket);
-  const effectiveStatus = (isGraphicDesign && ticket.ticketCode === "HR-028") ? "breached" : (ticket.slaStatus || "good");
+  const effectiveStatus = ticket.slaStatus || "good";
 
   const slaStatusKey =
     effectiveStatus.charAt(0).toUpperCase() + effectiveStatus.slice(1);

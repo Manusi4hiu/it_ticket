@@ -104,4 +104,11 @@ def create_app(config_name=None):
     except Exception as e:
         print(f"Warning: Failed to start holiday cron scheduler: {e}")
 
+    # Start break auto-end scheduler (cek tiap menit)
+    try:
+        from app.services.break_service import start_break_auto_end_scheduler
+        start_break_auto_end_scheduler(app)
+    except Exception as e:
+        print(f"Warning: Failed to start break auto-end scheduler: {e}")
+
     return app

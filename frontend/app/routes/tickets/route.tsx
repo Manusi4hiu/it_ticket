@@ -109,7 +109,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     getTicketStats(false, undefined, { teamId: selectedTeamId || undefined }),
   ]);
 
-  return Response.json({
+  return {
     session,
     tickets: ticketResponse.tickets,
     totalTickets: ticketResponse.total,
@@ -124,7 +124,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     teams,
     selectedTeamId,
     isAdmin,
-  });
+  };
 }
 
 export default function TicketsList({ loaderData }: Route.ComponentProps) {

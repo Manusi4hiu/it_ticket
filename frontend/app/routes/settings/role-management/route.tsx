@@ -60,11 +60,12 @@ export async function loader({ request }: Route.LoaderArgs) {
     teams: (teamsRes.data?.data || []) as Team[],
     users: users.map((u) => ({
       id: String(u.id),
-      email: u.email,
+      email: u.email ?? "",
       username: u.username,
       name: u.full_name,
       role: u.role as UserRole,
       isActive: u.is_active !== false,
+      phone: u.phone ?? "",
       teamIds: ((u as unknown as { teamIds?: (string | number)[] }).teamIds ?? []).map(String),
     })) as ManagedUser[],
   };

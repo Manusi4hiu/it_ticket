@@ -25,6 +25,7 @@ export interface ManagedUser {
   name: string;
   role: UserRole;
   isActive: boolean;
+  phone?: string;
   teamIds?: string[];
 }
 
@@ -206,6 +207,7 @@ export function useRoleManagement(
               full_name: string;
               role: string;
               is_active?: boolean | null;
+              phone?: string | null;
               teamIds?: (string | number)[];
             };
           }
@@ -220,6 +222,7 @@ export function useRoleManagement(
             name: newUser.full_name,
             role: newUser.role as UserRole,
             isActive: newUser.is_active !== false,
+            phone: newUser.phone ?? "",
             teamIds: (newUser.teamIds ?? []).map(String),
           },
         ]);
@@ -267,7 +270,7 @@ export function useRoleManagement(
       full_name: user.name,
       username: user.username,
       email: user.email || "",
-      phone: (user as ManagedUser & { phone?: string }).phone || "",
+      phone: user.phone || "",
       password: "",
       teamIds: user.teamIds ?? [],
     });
@@ -322,14 +325,34 @@ export function useRoleManagement(
       const response = await usersApi.update(editingUser.id, updateData);
 
       if (response.success) {
+        const updated = (
+          response.data as {
+            user?: {
+              full_name?: string;
+              username?: string;
+              email?: string | null;
+              phone?: string | null;
+              role?: string;
+              is_active?: boolean | null;
+              teamIds?: (string | number)[];
+            };
+          } | null
+        )?.user;
+
         setUserList((prev) =>
           prev.map((user) => {
             if (user.id === editingUser.id) {
               return {
                 ...user,
-                name: editUserForm.full_name,
-                username: editUserForm.username,
-                email: editUserForm.email,
+                name: updated?.full_name ?? editUserForm.full_name,
+                username: updated?.username ?? editUserForm.username,
+                email: updated?.email ?? editUserForm.email,
+                phone: updated?.phone ?? editUserForm.phone,
+                role: (updated?.role as UserRole) ?? user.role,
+                isActive: updated ? updated.is_active !== false : user.isActive,
+                teamIds: updated
+                  ? (updated.teamIds ?? []).map(String)
+                  : editUserForm.teamIds,
               };
             }
             return user;

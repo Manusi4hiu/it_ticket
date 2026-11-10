@@ -39,6 +39,7 @@ import { getTickets, getAgents, type Ticket } from "~/services/ticket.service";
 import { usersApi } from "~/services/api.service";
 import { settingsApi } from "~/services/settings.service";
 import { requireAuth } from "~/services/session.service";
+import { useToast } from "~/hooks/use-toast";
 import type { Route } from "./+types/route";
 import styles from "./style.module.css";
 
@@ -331,6 +332,7 @@ function getRoleQuote(role: string | undefined) {
 export default function StaffProfile({ loaderData }: Route.ComponentProps) {
   const { session, staffId, staff, isAgent, tickets, performance } = loaderData as ProfileLoaderData;
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<"all" | "in-progress" | "assigned" | "pending" | "resolved" | "breached">("all");
 
   // Break state — seeded from server data, updated optimistically on toggle
@@ -500,6 +502,12 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
         if (updated.presenceStatus) {
           setPresenceStatusState(updated.presenceStatus as PresenceStatus);
         }
+      } else if (!res.success) {
+        toast({
+          title: isOnBreak ? "Gagal mengakhiri break" : "Break tidak dapat dimulai",
+          description: res.error || "Silakan coba lagi.",
+          variant: "destructive",
+        });
       }
     } catch (e) {
       console.error('Toggle break failed:', e);
@@ -1094,7 +1102,7 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
                         onClick={() => {
                           setPresenceDropdownOpen(false);
                           setTempCustomStatus(customStatusMessage || "");
-                          setTempPresence(presenceStatus === 'break' ? 'online' : presenceStatus);
+                          setTempPresence(presenceStatus);
                           setTempClearAfter(null);
                           setIsCustomClearAfter(false);
                           setShowCustomStatusDialog(true);

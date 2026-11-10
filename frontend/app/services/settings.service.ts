@@ -52,6 +52,9 @@ export interface BreakSetting {
   dailyMaxMinutes: number;
   weeklyMaxMinutes: number;
   monthlyMaxMinutes: number;
+  workStartTime: string;
+  workEndTime: string;
+  autoEndOnShiftEnd: boolean;
   description?: string;
 }
 
