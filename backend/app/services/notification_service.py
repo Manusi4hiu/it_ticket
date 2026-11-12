@@ -100,12 +100,16 @@ class NotificationService:
 
     # ── Admin override ──
     @staticmethod
-    def notify_admin_assignee_change(ticket, admin_user, prev_assignee_id, new_assignee_id, reason):
+    def notify_admin_assignee_change(ticket, admin_user, prev_assignee_id, new_assignee_id, reason,
+                                     actor_label='Admin'):
         """
         Admin mengubah assignee tiket yang sudah diambil/assigned.
         Notifikasi + alasan WAJIB ke DUA pihak:
         - pemilik lama (staff sebelumnya)
         - assignee baru (staff pengganti)
+
+        actor_label: 'Admin' untuk aksi admin, 'Staff' untuk aksi staff lain
+        yang mengambil alih lewat alur Admin Override (tetap wajib alasan).
         """
         reason_clean = str(reason or '').strip()
         admin_name = admin_user.full_name if admin_user else 'Administrator'
@@ -115,8 +119,8 @@ class NotificationService:
         if prev_assignee_id and int(prev_assignee_id) != int(new_assignee_id or 0):
             NotificationService.push(
                 prev_assignee_id, ticket, 'admin_override',
-                'Admin Mengoper Tiket Anda ke Staff Lain',
-                f"{tcode}: {ticket.title} — pekerjaan dialihkan oleh Admin ({admin_name}) ke staff lain.",
+                f'{actor_label} Mengoper Tiket Anda ke Staff Lain',
+                f"{tcode}: {ticket.title} — pekerjaan dialihkan oleh {actor_label} ({admin_name}) ke staff lain.",
                 reason=reason_clean or '(tanpa alasan)',
             )
 
@@ -124,8 +128,8 @@ class NotificationService:
         if new_assignee_id and int(new_assignee_id) != int(prev_assignee_id or 0):
             NotificationService.push(
                 new_assignee_id, ticket, 'admin_override',
-                'Admin Menugaskan Tiket Operan ke Anda',
-                f"{tcode}: {ticket.title} — dialihkan oleh Admin ({admin_name}) untuk Anda kerjakan.",
+                f'{actor_label} Menugaskan Tiket Operan ke Anda',
+                f"{tcode}: {ticket.title} — dialihkan oleh {actor_label} ({admin_name}) untuk Anda kerjakan.",
                 reason=reason_clean or '(tanpa alasan)',
             )
 
