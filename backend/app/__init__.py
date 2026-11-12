@@ -1,9 +1,9 @@
-import os
-from flask import Flask, send_from_directory
-from flask_sqlalchemy import SQLAlchemy
-from flask_migrate import Migrate
-from flask_cors import CORS
-from flask_jwt_extended import JWTManager
+import os
+from flask import Flask, send_from_directory, jsonify
+from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
+from flask_cors import CORS
+from flask_jwt_extended import JWTManager
 from datetime import timedelta
 
 from app.config import config
@@ -85,8 +85,68 @@ def create_app(config_name=None):
     app.register_blueprint(tickets_bp, url_prefix='/api/tickets')
     app.register_blueprint(users_bp, url_prefix='/api/users')
     app.register_blueprint(settings_bp, url_prefix='/api/settings')
-    app.register_blueprint(notifications_bp, url_prefix='/api/notifications')
-    
+    app.register_blueprint(notifications_bp, url_prefix='/api/notifications')
+    
+    # ─────────────────────────────────────────────────────────────────
+    # GUARD GLOBAL: akun nonaktif / dihapus TIDAK boleh memakai tokennya
+    # ─────────────────────────────────────────────────────────────────
+    # MASALAH: `is_active` hanya dicek saat login (auth_service.login).
+    # Setelah itu setiap request hanya memvalidasi signature JWT, sehingga
+    # token milik akun yang SUDAH DINONAKTIFKAN (atau dihapus) tetap sah
+    # sampai kedaluwarsa (24 jam). Admin mengira akses sudah dicabut,
+    # padahal sebenarnya tidak.
+    #
+    # SOLUSI: satu titik pemeriksaan di sebelum_request, sehingga SEMUA
+    # endpoint terlindungi (tidak ada endpoint yang bisa terlewat karena
+    # lupa memasang dekorator).
+    #
+    # Request tanpa token (endpoint publik: submit-ticket, track-ticket)
+    # TIDAK tersentuh - guard ini hanya berlaku bila token ditemukan.
+    @app.before_request
+    def enforce_active_user():
+        from flask_jwt_extended import verify_jwt_in_request, get_jwt_identity
+
+        try:
+            verify_jwt_in_request(optional=True)
+            identity = get_jwt_identity()
+        except Exception:
+            # Token tidak valid / kedaluwarsa / rusak -> biarkan @jwt_required()
+            # yang menolak dengan pesan error standard JWT.
+            return None
+
+        if identity is None:
+            # Tamu (tanpa login) - endpoint publik tetap bisa diakses.
+            return None
+
+        # Ambil user LANGSUNG dari database.
+        # `populate_existing()` memaksa attribute di-refresh dari DB, sehingga
+        # status is_active SELALU yang terbaru - penting karena status ini bisa
+        # berubah di tengah sesi (admin menonaktifkan akun) tanpa invalidate
+        # token yang sudah terbit sebelumnya.
+        # Catatan: hasil query ini juga mengisi identity map SQLAlchemy, jadi
+        # pemanggilan User.query.get() berikutnya di route/decorator TIDAK
+        # menambah query (hanya 1 query user per request).
+        from app.models.user import User
+        try:
+            user_pk = int(identity)
+        except (TypeError, ValueError):
+            user_pk = identity
+        user = db.session.query(User).filter(User.id == user_pk) \
+                          .populate_existing().first()
+
+        if user is None:
+            return jsonify({
+                'success': False,
+                'error': 'Akun Anda tidak ditemukan atau sudah dihapus. Silakan login kembali.'
+            }), 401
+
+        if not user.is_active:
+            return jsonify({
+                'success': False,
+                'error': 'Akun Anda telah dinonaktifkan. Hubungi Administrator.'
+            }), 401
+
+        return None
     # Serve uploaded static files (needed in production where DEBUG=False)
     @app.route('/static/uploads/<path:filename>')
     def serve_upload(filename):

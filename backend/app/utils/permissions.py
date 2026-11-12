@@ -33,14 +33,25 @@ from app.constants import (
 
 
 def get_current_user():
-    """Return User object dari JWT identity, atau None."""
+    """Return User object dari JWT identity, atau None.
+
+    Akun yang dinonaktifkan (is_active=False) atau sudah dihapus dianggap
+    TIDAK ADA, sehingga tokennya tidak bisa dipakai. Ini lapisan kedua:
+    guard global di app/__init__.py sudah menolak lebih dulu dengan 401.
+    """
     user_id = get_jwt_identity()
     if user_id is None:
         return None
+
     try:
-        return User.query.get(int(user_id))
+        user = User.query.get(int(user_id))
     except (TypeError, ValueError):
-        return User.query.get(user_id)
+        user = User.query.get(user_id)
+
+    if not user or not user.is_active:
+        return None
+
+    return user
 
 
 def has_role(user, *roles):
