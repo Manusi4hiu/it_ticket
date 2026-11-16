@@ -74,7 +74,7 @@ export async function loader({ request }: Route.LoaderArgs) {
   // Fetch tickets, agents, statuses, categories, priorities, holidays (semua master-driven)
 
   const [ticketsRes, agents, statusesRes, categoriesRes, prioritiesRes, holidaysRes] = await Promise.all([
-    getTickets({ per_page: 500 }),
+    getTickets({ per_page: 1000 }),
 
     getAgents(),
 
@@ -87,7 +87,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     settingsApi.getHolidays(),
   ]);
 
-  return Response.json({
+  return {
     session,
 
     initialTickets: ticketsRes.tickets,
@@ -101,7 +101,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     priorities: (prioritiesRes.data?.data || []).filter((p: any) => p.isActive !== false),
 
     holidays: holidaysRes.data?.data || [],
-  });
+  };
 }
 
 export default function TicketCalendar() {
@@ -708,9 +708,9 @@ export default function TicketCalendar() {
 
         category: addTaskCategory,
 
-        submitterName: session?.name || "IT Staff",
+        submitterName: session?.userName || "IT Staff",
 
-        submitterEmail: session?.email || "staff@internal.corp",
+        submitterEmail: session?.userEmail || "staff@internal.corp",
 
         assignedToId: addTaskAssigneeId === "unassigned" ? undefined : addTaskAssigneeId,
       });

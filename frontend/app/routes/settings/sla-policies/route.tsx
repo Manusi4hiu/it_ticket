@@ -29,11 +29,11 @@ export async function loader({ request }: Route.LoaderArgs) {
         settingsApi.getCategories()
     ]);
 
-    return Response.json({
+    return {
         policies: policiesRes.data?.data || [],
         priorities: prioritiesRes.data?.data || [],
         categories: categoriesRes.data?.data || []
-    });
+    };
 }
 
 export async function action({ request }: Route.ActionArgs) {

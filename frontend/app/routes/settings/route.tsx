@@ -8,7 +8,8 @@ import {
     Building2,
     ClipboardList,
     Coffee,
-    Calendar
+    Calendar,
+    ScrollText
 } from "lucide-react";
 import type { Route } from "./+types/route";
 import { requireRole } from "~/services/session.service";
@@ -83,6 +84,13 @@ export default function SettingsLayout() {
                         <Coffee size={16} className={styles.navIcon} />
                         <span>Jam Kerja, Break & SLA</span>
                     </NavLink>
+                    <NavLink
+                        to="/settings/logs"
+                        className={({ isActive }) => `${styles.navItem} ${isActive ? styles.navItemActive : ''}`}
+                    >
+                        <ScrollText size={16} className={styles.navIcon} />
+                        <span>System Logs</span>
+                    </NavLink>
                 </nav>
             </aside>
 

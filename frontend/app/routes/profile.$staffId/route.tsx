@@ -1107,7 +1107,7 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
                         onClick={() => {
                           setPresenceDropdownOpen(false);
                           setTempCustomStatus(customStatusMessage || "");
-                          setTempPresence(presenceStatus === 'break' ? 'online' : presenceStatus);
+                          setTempPresence(presenceStatus);
                           setTempClearAfter(null);
                           setIsCustomClearAfter(false);
                           setShowCustomStatusDialog(true);

@@ -90,7 +90,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     settingsApi.getHolidays(),
   ]);
 
-  return Response.json({
+  return {
     session,
     initialTickets: ticketsRes.tickets,
     agents,
@@ -99,7 +99,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     categories: categoriesRes.data?.data || [],
     priorities: (prioritiesRes.data?.data || []).filter((p: any) => p.isActive !== false),
     holidays: holidaysRes.data?.data || [],
-  });
+  };
 }
 
 export default function DevDashboard() {

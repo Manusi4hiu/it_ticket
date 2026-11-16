@@ -28,11 +28,11 @@ export async function loader({ request }: Route.LoaderArgs) {
     getTicketStats(false, 28)
   ]);
 
-  return Response.json({
+  return {
     session,
     agentsPerformance,
     stats,
-  });
+  };
 }
 
 /** Tooltip gelap bersama untuk chart di halaman ini. */

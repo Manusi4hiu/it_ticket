@@ -19,7 +19,7 @@ import type { SystemLog } from "~/services/settings.service";
 
 export async function loader({ request }: Route.LoaderArgs) {
     const response = await settingsApi.getLogs();
-    return Response.json({ logs: response.data?.data || [] });
+    return { logs: response.data?.data || [] };
 }
 
 export default function SystemLogsSettings() {
@@ -28,14 +28,15 @@ export default function SystemLogsSettings() {
     const [actionFilter, setActionFilter] = useState("all");
 
     // Get unique actions for filter
-    const actions = ["all", ...new Set(logs.map(log => log.action))];
+    const actions = ["all", ...new Set(logs.map(log => log.action).filter(Boolean))];
 
+    const normalizedQuery = searchQuery.toLowerCase();
     const filteredLogs = logs.filter(log => {
         const matchesSearch =
-            log.details.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            log.userName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            log.ipAddress.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            log.action.toLowerCase().includes(searchQuery.toLowerCase());
+            (log.details ?? "").toLowerCase().includes(normalizedQuery) ||
+            (log.userName ?? "").toLowerCase().includes(normalizedQuery) ||
+            (log.ipAddress ?? "").toLowerCase().includes(normalizedQuery) ||
+            (log.action ?? "").toLowerCase().includes(normalizedQuery);
 
         const matchesAction = actionFilter === "all" || log.action === actionFilter;
 
@@ -135,45 +136,53 @@ export default function SystemLogsSettings() {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {filteredLogs.map((log) => (
-                                            <tr key={log.id}>
-                                                <td style={{ whiteSpace: 'nowrap' }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--color-neutral-10)', fontSize: '0.85rem' }}>
-                                                        <Clock size={14} />
-                                                        {formatDate(log.timestamp)}
-                                                    </div>
-                                                </td>
-                                                <td>
-                                                    <span
-                                                        className={styles.badge}
-                                                    >
-                                                        {log.action}
-                                                    </span>
-                                                </td>
-                                                <td>
-                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                                                        <span style={{ fontWeight: 500 }}>{log.details}</span>
-                                                        {log.targetId && (
-                                                            <span style={{ fontSize: '0.75rem', color: 'var(--color-neutral-9)' }}>
-                                                                Target ID: {log.targetId}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                                <td>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                        <User size={14} style={{ color: 'var(--color-neutral-9)' }} />
-                                                        {log.userName}
-                                                    </div>
-                                                </td>
-                                                <td>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--color-primary-9)' }}>
-                                                        <Globe size={14} />
-                                                        <code style={{ fontSize: '0.9rem' }}>{log.ipAddress}</code>
-                                                    </div>
+                                        {filteredLogs.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={5} style={{ padding: 32, textAlign: 'center', color: 'var(--color-neutral-10)' }}>
+                                                    No matching logs found.
                                                 </td>
                                             </tr>
-                                        ))}
+                                        ) : (
+                                            filteredLogs.map((log) => (
+                                                <tr key={log.id}>
+                                                    <td style={{ whiteSpace: 'nowrap' }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--color-neutral-10)', fontSize: '0.85rem' }}>
+                                                            <Clock size={14} />
+                                                            {formatDate(log.timestamp)}
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <span
+                                                            className={styles.badge}
+                                                        >
+                                                            {log.action || "-"}
+                                                        </span>
+                                                    </td>
+                                                    <td>
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                                            <span style={{ fontWeight: 500 }}>{log.details || "-"}</span>
+                                                            {log.targetId && (
+                                                                <span style={{ fontSize: '0.75rem', color: 'var(--color-neutral-9)' }}>
+                                                                    Target ID: {log.targetId}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                            <User size={14} style={{ color: 'var(--color-neutral-9)' }} />
+                                                            {log.userName || "-"}
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--color-primary-9)' }}>
+                                                            <Globe size={14} />
+                                                            <code style={{ fontSize: '0.9rem' }}>{log.ipAddress || "-"}</code>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        )}
                                     </tbody>
                                 </table>
                             </div>

@@ -137,7 +137,7 @@ export async function loader({ request }: Route.LoaderArgs) {
   const statuses = ((statusesRes.data?.data || []) as Status[]).filter((s) => s.showOnItHelpdesk !== false);
   const departments = ((departmentsRes.data?.data || []) as Department[]).filter((d) => d.isActive !== false);
 
-  return Response.json({
+  return {
     session,
     range,
     start: window.start,
@@ -149,7 +149,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     priorities,
     statuses,
     departments
-  });
+  };
 }
 
 /** Tanggal penuh Indonesia untuk tooltip — mis. "Kamis, 11 September 2026". */
@@ -329,7 +329,7 @@ function AnalyticsBody({
     return categories
       .map((c, index) => ({
         name: c.name,
-        value: countByLower.get(c.name.toLowerCase()) || 0,
+        value: (countByLower.get(c.name.toLowerCase()) as number) || 0,
         color: autoColor(index),
       }))
       .filter((c) => c.value > 0);
@@ -341,7 +341,7 @@ function AnalyticsBody({
     const activeNames = new Set(categories.map((c) => c.name.toLowerCase()));
     return Object.entries(statsAll.byCategory)
       .filter(([name]) => !activeNames.has(name.toLowerCase()))
-      .sort((a, b) => b[1] - a[1]);
+      .sort((a, b) => (b[1] as number) - (a[1] as number));
   }, [statsAll.byCategory, categories]);
 
   // Department: sinkron master seperti Category — iterasi master departments
@@ -355,7 +355,7 @@ function AnalyticsBody({
     return departments
       .map((d, index) => ({
         name: d.name,
-        count: countByLower.get(d.name.toLowerCase()) || 0,
+        count: (countByLower.get(d.name.toLowerCase()) as number) || 0,
         color: autoColor(index),
       }))
       .filter((d) => d.count > 0);
@@ -367,7 +367,7 @@ function AnalyticsBody({
     const activeNames = new Set(departments.map((d) => d.name.toLowerCase()));
     return Object.entries(statsAll.byDepartment)
       .filter(([name]) => !activeNames.has(name.toLowerCase()))
-      .sort((a, b) => b[1] - a[1]);
+      .sort((a, b) => (b[1] as number) - (a[1] as number));
   }, [statsAll.byDepartment, departments]);
 
   // Staff dinilai hanya jika punya tiket. Angka rata-rata hanya muncul bila

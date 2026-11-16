@@ -66,7 +66,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     getTicketStats()
   ]);
 
-  return Response.json({
+  return {
     session,
     tickets: ticketResponse.tickets,
     totalTickets: ticketResponse.total,
@@ -79,7 +79,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     priorities: ((priorityResponse.data?.data || []) as Priority[]).filter((p: any) => p.isActive !== false),
     stats: statsResponse,
     filters
-  });
+  };
 }
 
 export default function TicketsList({ loaderData }: Route.ComponentProps) {

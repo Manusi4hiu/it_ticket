@@ -230,7 +230,7 @@ export function TicketInfoCard({
               Staff Assigned
             </span>
             <span className={styles.infoValue}>
-              {ticket.assignedToId ? (
+              {ticket.assignedToId && !isPublic ? (
                 <span
                   className={styles.profileLink}
                   onClick={() => onStaffClick(String(ticket.assignedToId))}
@@ -238,7 +238,7 @@ export function TicketInfoCard({
                   {ticket.assignedTo}
                 </span>
               ) : (
-                <span className={styles.infoValueMuted}>
+                <span className={ticket.assignedTo ? undefined : styles.infoValueMuted}>
                   {ticket.assignedTo || "Waiting for Assignment"}
                 </span>
               )}
@@ -256,7 +256,7 @@ export function TicketInfoCard({
                   const collaboratorId = ticket.collaboratorIds ? ticket.collaboratorIds[i] : undefined;
                   return (
                     <Badge key={i} variant="secondary" className={styles.collaboratorBadge}>
-                      {collaboratorId ? (
+                      {collaboratorId && !isPublic ? (
                         <span
                           className={styles.profileLinkBadge}
                           onClick={() => onStaffClick(String(collaboratorId))}

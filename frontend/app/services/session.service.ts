@@ -55,13 +55,12 @@ export async function getUserSession(request: Request) {
   const authToken = session.get('authToken');
 
   if (!userId || (typeof userId !== 'string' && typeof userId !== 'number')) {
+    setAuthToken(null);
     return null;
   }
 
-  // Set auth token for API calls
-  if (authToken) {
-    setAuthToken(authToken);
-  }
+  // Set auth token for API calls (or clear stale SSR token if missing)
+  setAuthToken(authToken || null);
 
   return {
     userId: String(userId),

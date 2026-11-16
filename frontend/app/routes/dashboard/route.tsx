@@ -63,7 +63,7 @@ export async function loader({ request }: Route.LoaderArgs) {
       getTicketStats(true), // Personal stats
     ]);
 
-  return Response.json({
+  return {
     session,
     activeTickets: activeResponse.tickets,
     activeTotal: activeResponse.total,
@@ -75,7 +75,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     statuses: (statusResponse.data?.data || []).filter((s: any) => s.showOnItHelpdesk !== false),
     priorities: (prioritiesResponse.data?.data || []).filter((p: any) => p.isActive !== false),
     stats,
-  });
+  };
 }
 
 // ─────────────────────────────────────────────
@@ -145,6 +145,9 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
 
   // Sync JWT token dari SSR session ke in-memory (untuk client-side API call)
+  if (typeof window !== "undefined" && session?.authToken) {
+    setAuthToken(session.authToken);
+  }
   useEffect(() => {
     if (session?.authToken) setAuthToken(session.authToken);
   }, [session]);

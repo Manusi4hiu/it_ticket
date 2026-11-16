@@ -57,6 +57,7 @@ function mapApiTicket(apiTicket: Record<string, unknown>): Ticket {
         })),
         resolutionSummary: apiTicket.resolutionSummary as string | undefined,
         resolutionImageUrl: apiTicket.resolutionImageUrl as string | undefined,
+        hasStaffAccess: typeof apiTicket.hasStaffAccess === 'boolean' ? apiTicket.hasStaffAccess : undefined,
     };
 }
 
@@ -114,6 +115,7 @@ export async function createTicket(ticket: {
     submitterPhone?: string;
     submitterDepartment?: string;
     receiveUpdates?: boolean;
+    assignedToId?: string | number;
 }, image?: File, idempotencyKey?: string): Promise<Ticket | null> {
     const response = await ticketsApi.create(ticket, image, idempotencyKey);
 

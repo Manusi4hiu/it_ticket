@@ -17,14 +17,46 @@ from app.utils.permissions import (
 
 tickets_bp = Blueprint('tickets', __name__)
 
+def _clean_ticket_lookup_id(ticket_id):
+    """Trim whitespace and strip leading '#' prefix from ticket lookup input."""
+    return str(ticket_id or '').strip().lstrip('#').strip()
+
+
+def _is_system_note_content(content):
+    """Check if note content is a system audit note visible in public ticket history."""
+    if not content:
+        return False
+    text = str(content).lower()
+    system_markers = (
+        '<strong>status changed',
+        '<strong>ticket transferred',
+        '<strong>ticket taken',
+        '<strong>ticket assigned to',
+        '<strong>ticket resolved',
+        '<strong>kategori diganti',
+        '<strong>status diganti',
+        '<strong>assignee diganti',
+        '<strong>prioritas diganti',
+        '<strong>priority changed',
+        '<strong>otomatis di-assign',
+        '<strong>tiket di-reopen',
+        '<strong>ticket reopened',
+    )
+    return any(marker in text for marker in system_markers)
+
+
 def get_ticket_or_404(ticket_id):
     """Helper to handle both numeric ID and Ticket Code"""
+    clean_id = _clean_ticket_lookup_id(ticket_id)
+    if not clean_id:
+        return None
+
     ticket = None
-    if str(ticket_id).isdigit():
-        ticket = Ticket.query.get(int(ticket_id))
+    if clean_id.isdigit():
+        ticket = Ticket.query.get(int(clean_id))
     
     if not ticket:
-        ticket = Ticket.query.filter(Ticket.ticket_code.ilike(ticket_id)).first()
+        ticket = Ticket.query.filter(Ticket.ticket_code.ilike(clean_id)).first()
         
     return ticket
 
@@ -184,17 +216,21 @@ def get_tickets():
         else_=99
     )
     
-    # Pagination — clamp per_page to 1..100, validate page >= 1
+    # Pagination — clamp per_page to 1..1000, validate page >= 1
     page = request.args.get('page', type=int)
     if page is not None and page < 1:
         return jsonify({'success': False, 'error': 'Page harus berupa angka >= 1'}), 400
 
-    raw_per_page = request.args.get('per_page', default=20, type=int)
-    per_page = max(1, min(raw_per_page or 20, 100))
+    raw_per_page = request.args.get('per_page', default=None, type=int)
     
-    if page:
+    if page is not None:
+        per_page = max(1, min(raw_per_page or 20, 1000))
         query = query.order_by(status_order, Ticket.created_at.desc()).offset((page - 1) * per_page).limit(per_page)
+    elif raw_per_page is not None:
+        per_page = max(1, min(raw_per_page, 1000))
+        query = query.order_by(status_order, Ticket.created_at.desc()).limit(per_page)
     else:
+        per_page = None
         query = query.order_by(status_order, Ticket.created_at.desc())
 
     tickets = query.all()
@@ -204,20 +240,46 @@ def get_tickets():
         'tickets': [ticket.to_dict(include_notes=False) for ticket in tickets],
         'total': total,
         'page': page,
-        'per_page': per_page
+        'per_page': per_page or len(tickets)
     }), 200
 
 
 @tickets_bp.route('/<ticket_id>', methods=['GET'])
-@jwt_required()
 def get_ticket(ticket_id):
-    """Get a single ticket by ID or ticket_code (auth required)"""
-    ticket = get_ticket_or_404(ticket_id)
-   
+    """Get a single ticket by ID or ticket_code (auth optional for public tracking)"""
+    user = None
+    try:
+        verify_jwt_in_request(optional=True)
+        if get_jwt_identity():
+            user = get_current_user()
+    except Exception:
+        user = None
+
+    clean_id = _clean_ticket_lookup_id(ticket_id)
+    # Prevent unauthenticated guests from enumerating tickets via sequential numeric IDs
+    if not user and clean_id.isdigit():
+        return jsonify({'success': False, 'error': 'Ticket tidak ditemukan'}), 404
+
+    ticket = get_ticket_or_404(clean_id)
     if not ticket:
         return jsonify({'success': False, 'error': 'Ticket tidak ditemukan'}), 404
-    
+
+    has_staff_access = bool(user)
     ticket_data = ticket.to_dict()
+    ticket_data['hasStaffAccess'] = has_staff_access
+
+    if not has_staff_access:
+        # Hide internal staff chat notes while preserving public notes and system audit history
+        if 'notes' in ticket_data:
+            ticket_data['notes'] = [
+                n for n in ticket_data['notes']
+                if not n.get('isInternal') or _is_system_note_content(n.get('content'))
+            ]
+        # Redact sensitive submitter contact details from public API responses
+        ticket_data['submitterEmail'] = ''
+        ticket_data['submitterPhone'] = None
+        ticket_data['submitterDepartment'] = None
+
     return jsonify({
         'success': True,
         'ticket': ticket_data
