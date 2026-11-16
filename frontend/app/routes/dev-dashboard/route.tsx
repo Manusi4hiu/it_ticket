@@ -53,6 +53,10 @@ import { ResolveDialog } from "~/routes/ticket.$id/components/ResolveDialog";
 import { requireRole } from "~/services/session.service";
 import { isSystemNote } from "~/utils/ticket-history";
 import {
+  validateWorkingHoursDateTime,
+  getInitialWorkingDateTime,
+} from "~/utils/date";
+import {
   validateFields,
   hasErrors,
   focusFirstError,
@@ -77,27 +81,29 @@ export async function loader({ request }: Route.LoaderArgs) {
   // Management boleh akses Dev Board (view-only); Admin & Staff full access
   const session = await requireRole(request, ["Administrator", "Staff", "Management"]);
 
-  const [ticketsRes, agents, statusesRes, categoriesRes, prioritiesRes] = await Promise.all([
+  const [ticketsRes, agents, statusesRes, categoriesRes, prioritiesRes, holidaysRes] = await Promise.all([
     getTickets({ category: "Development", per_page: 150 }), // Only show Development-scoped tracking tasks
     getAgents(),
     settingsApi.getStatuses(),
     settingsApi.getCategories(),
-    settingsApi.getPriorities()
+    settingsApi.getPriorities(),
+    settingsApi.getHolidays(),
   ]);
 
-  return Response.json({
+  return {
     session,
     initialTickets: ticketsRes.tickets,
     agents,
     statuses: (statusesRes.data?.data || []).filter((s: any) => s.showOnDevboard)
       .sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0)),
     categories: categoriesRes.data?.data || [],
-    priorities: (prioritiesRes.data?.data || []).filter((p: any) => p.isActive !== false)
-  });
+    priorities: (prioritiesRes.data?.data || []).filter((p: any) => p.isActive !== false),
+    holidays: holidaysRes.data?.data || [],
+  };
 }
 
 export default function DevDashboard() {
-  const { session, initialTickets, agents, statuses: loaderStatuses, categories, priorities } = useLoaderData() as typeof loader extends (...args: any[]) => Promise<infer T> ? T : any;
+  const { session, initialTickets, agents, statuses: loaderStatuses, categories, priorities, holidays } = useLoaderData() as typeof loader extends (...args: any[]) => Promise<infer T> ? T : any;
   const navigate = useNavigate();
   const [statuses, setStatuses] = useState<any[]>(loaderStatuses);
 
@@ -142,6 +148,13 @@ export default function DevDashboard() {
   const [editTaskAssigneeId, setEditTaskAssigneeId] = useState("unassigned");
   const [isTaskUpdating, setIsTaskUpdating] = useState(false);
   const [editTaskErrors, setEditTaskErrors] = useState<Record<string, string>>({});
+  const [activeMobileCol, setActiveMobileCol] = useState<string>("");
+
+  const devboardStatuses = useMemo(() => {
+    return (statuses as any[])
+      .filter((s: any) => s.showOnDevboard)
+      .sort((a: any, b: any) => a.order - b.order);
+  }, [statuses]);
 
   // Delete Task Modal State
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -500,6 +513,7 @@ export default function DevDashboard() {
       setResolveCategory("");
       setResolveCategoryError("");
       setPendingStatusUpdate({ ticketId, targetStatus });
+      setResolveDate(getInitialWorkingDateTime(new Date(), holidays));
       setShowResolveDialog(true);
       return;
     }
@@ -538,9 +552,9 @@ export default function DevDashboard() {
   const handleSubmitResolution = async () => {
     if (!pendingStatusUpdate) return;
     if (resolveDate) {
-      const dateObj = new Date(resolveDate);
-      if (dateObj > new Date()) {
-        setResolutionError("Waktu penyelesaian tidak boleh di masa depan (maksimal sekarang).");
+      const validation = validateWorkingHoursDateTime(resolveDate, holidays);
+      if (!validation.valid) {
+        setResolutionError(validation.error || "Waktu penyelesaian harus di jam kerja (08:00 - 17:00 WIB, Senin - Jumat).");
         return;
       }
     }
@@ -690,12 +704,46 @@ export default function DevDashboard() {
         </div>
       </div>
 
+      {/* Mobile Column Tabs Bar */}
+      <div className={styles.mobileColumnTabs} role="tablist" aria-label="Kanban Columns">
+        {devboardStatuses.map((s: any) => {
+          const iconKey = s.name.toLowerCase();
+          const count = filteredTickets.filter((t) => {
+            const st = t.status.toLowerCase();
+            if (iconKey === "resolved") return st === "resolved" || st === "closed";
+            return st === iconKey;
+          }).length;
+          const isSelected = (activeMobileCol || devboardStatuses[0]?.name) === s.name;
+          return (
+            <button
+              key={s.name}
+              type="button"
+              role="tab"
+              aria-selected={isSelected}
+              className={`${styles.mobileColTabBtn} ${isSelected ? styles.mobileColTabActive : ""}`}
+              style={{
+                borderColor: isSelected ? s.color || "#3b82f6" : undefined,
+                color: isSelected ? "#ffffff" : undefined,
+              }}
+              onClick={() => {
+                setActiveMobileCol(s.name);
+                const colEl = document.getElementById(`kanban-col-${s.name.toLowerCase().replace(/\s+/g, "-")}`);
+                if (colEl) {
+                  colEl.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+                }
+              }}
+            >
+              <span className={styles.mobileColTabDot} style={{ background: s.color || "#3b82f6" }} />
+              <span>{s.name}</span>
+              <span className={styles.mobileColTabCount}>{count}</span>
+            </button>
+          );
+        })}
+      </div>
+
       {/* Kanban Board Layout */}
       <div className={styles.kanbanBoard}>
-        {(statuses as any[])
-          .filter((s: any) => s.showOnDevboard)
-          .sort((a: any, b: any) => a.order - b.order)
-          .map((statusDef: any) => {
+        {devboardStatuses.map((statusDef: any) => {
           const colName = statusDef.name;
           const color = statusDef.color || "#6B7280";
           const iconKey = colName.toLowerCase();
@@ -715,6 +763,7 @@ export default function DevDashboard() {
           return (
             <div
               key={colName}
+              id={`kanban-col-${colName.toLowerCase().replace(/\s+/g, "-")}`}
               className={`${styles.kanbanColumn} ${isColumnOver ? styles.columnDragOver : ""}`}
               onDragOver={(e) => handleDragOver(e, colName)}
               onDrop={(e) => handleDrop(e, colName)}
@@ -1342,6 +1391,7 @@ export default function DevDashboard() {
         resolutionError={resolutionError}
         resolutionImage={resolutionImage}
         onResolutionImageChange={setResolutionImage}
+        holidays={holidays}
         onSubmit={handleSubmitResolution}
       />
     </div>

@@ -13,6 +13,8 @@ import {
 import { NotificationBell } from "~/components/notification-bell";
 import { getUserSession, logout } from "~/services/session.service";
 import { setAuthToken, usersApi } from "~/services/api.service";
+import { settingsApi } from "~/services/settings.service";
+import { setWorkingHours } from "~/utils/date";
 import type { Route } from "./+types/layout";
 import styles from "./layout.module.css";
 import { useIdleTimeout } from "~/hooks/use-idle-timeout";
@@ -56,6 +58,15 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
   const canAccessDevBoard = isAdministrator || session?.userRole === 'Staff' || session?.userRole === 'Management';
 
   const [isDevMode, setIsDevMode] = useState(false);
+  const [, forceWorkHoursUpdate] = useState(0);
+  const mainRef = useRef<HTMLElement>(null);
+
+  // Reset scroll container to top whenever pathname changes
+  useEffect(() => {
+    if (mainRef.current) {
+      mainRef.current.scrollTo({ top: 0, left: 0, behavior: "instant" });
+    }
+  }, [location.pathname]);
 
   useEffect(() => {
     const saved = localStorage.getItem("app_mode_dev");
@@ -83,6 +94,21 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
       setAuthToken(session.authToken);
     }
   }, [session]);
+
+  // Sinkronkan jam kerja operasional (Settings > Break) ke utils tanggal
+  // agar badge/batas jam resolve di frontend mengikuti backend.
+  useEffect(() => {
+    if (!session?.authToken) return;
+    settingsApi.getBreakSetting()
+      .then((res) => {
+        const bs = res.data?.data;
+        if (bs) {
+          setWorkingHours(bs.workStartTime, bs.workEndTime);
+          forceWorkHoursUpdate((v) => v + 1);
+        }
+      })
+      .catch(() => {});
+  }, [session?.authToken]);
 
   const handleToggleMode = (dev: boolean) => {
     setIsDevMode(dev);
@@ -187,13 +213,32 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
     <div className={styles.container}>
       <header className={styles.header}>
         <div className={styles.headerContent}>
-          <div className={styles.headerLeft} onClick={() => navigate(canAccessDevBoard && isDevMode ? "/dev-dashboard" : "/dashboard")} style={{ cursor: "pointer" }}>
-            <div className={styles.logoContainer}>
-              <img src="/logo/logo itani.png" alt="Logo" className={styles.headerIcon} />
+          <div className={styles.headerTopRow}>
+            <div
+              className={styles.headerLeft}
+              onClick={() => navigate(canAccessDevBoard && isDevMode ? "/dev-dashboard" : "/dashboard")}
+              style={{ cursor: "pointer" }}
+            >
+              <div className={styles.logoContainer}>
+                <img src="/logo/logo itani.png" alt="Logo" className={styles.headerIcon} />
+              </div>
+              <h1 className={styles.headerTitle}>
+                {isDevMode ? "IT Aero Dev" : "IT Aero Support"}
+              </h1>
             </div>
-            <h1 className={styles.headerTitle}>
-              {isDevMode ? "IT Aero Dev" : "IT Aero Support"}
-            </h1>
+
+            {session && (
+              <div className={styles.navActionGroup}>
+                <NotificationBell userId={session.userId} />
+                <Form method="post" action="/dashboard" className={styles.logoutForm}>
+                  <input type="hidden" name="intent" value="logout" />
+                  <button className={styles.logoutBtn} type="submit" title="Logout">
+                    <LogOut className={styles.navIcon} />
+                    <span className={styles.logoutText}>Logout</span>
+                  </button>
+                </Form>
+              </div>
+            )}
           </div>
 
           {session && (
@@ -217,6 +262,8 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
                   </button>
                 </div>
               )}
+
+              {canAccessDevBoard && <div className={styles.navDivider} />}
 
               <div className={styles.navGroup}>
                 {!isDevMode ? (
@@ -285,37 +332,23 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
                       <span className={styles.navLabel}>Calendar</span>
                     </NavLink>
                     {isAdministrator && (
-                      <>
-                        <NavLink
-                          to="/settings/role-management"
-                          className={({ isActive }) => `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`}
-                        >
-                          <Settings className={styles.navIcon} />
-                          <span className={styles.navLabel}>Settings</span>
-                        </NavLink>
-                      </>
+                      <NavLink
+                        to="/settings/role-management"
+                        className={({ isActive }) => `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`}
+                      >
+                        <Settings className={styles.navIcon} />
+                        <span className={styles.navLabel}>Settings</span>
+                      </NavLink>
                     )}
                   </>
                 )}
-              </div>
-
-
-              <div className={styles.navActionGroup}>
-                <NotificationBell userId={session.userId} />
-                <Form method="post" action="/dashboard">
-                  <input type="hidden" name="intent" value="logout" />
-                  <button className={styles.logoutBtn} type="submit">
-                    <LogOut className={styles.navIcon} />
-                    <span className={styles.navLabel}>Logout</span>
-                  </button>
-                </Form>
               </div>
             </nav>
           )}
         </div>
       </header>
 
-      <main className={styles.main}>
+      <main ref={mainRef} className={styles.main}>
         <Outlet />
       </main>
 

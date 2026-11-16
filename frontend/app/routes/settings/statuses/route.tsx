@@ -136,92 +136,192 @@ export default function StatusesSettings() {
                 </Alert>
             )}
 
-            <Card>
+            <Card className={styles.mainCard}>
                 <CardContent>
                     {statuses.length === 0 ? (
                         <div style={{ padding: 32, textAlign: 'center', color: 'var(--color-neutral-10)' }}>
                             No statuses found. Create one to get started.
                         </div>
                     ) : (
-                        <div className={styles.tableContainer}>
-                            <div className={styles.scrollableArea}>
-                                <table className={styles.dataTable}>
-                                    <thead>
-                                        <tr>
-                                            <th>Order</th>
-                                            <th>Status Name</th>
-                                            <th>Color</th>
-                                            <th>Default</th>
-                                            <th>Flags</th>
-                                            <th>Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {sortedStatuses.map((status, index) => (
-                                            <tr key={status.id}>
-                                                <td style={{ width: 60, fontWeight: 600, color: 'var(--color-neutral-9)' }}>
-                                                    {index + 1}
-                                                </td>
-                                                <td style={{ fontWeight: 500 }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                        <Circle size={12} fill={status.color} stroke={status.color} />
-                                                        {status.name}
-                                                    </div>
-                                                </td>
-                                                <td>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                        <div 
-                                                            style={{ 
-                                                                width: 20, 
-                                                                height: 20, 
-                                                                borderRadius: '50%', 
-                                                                backgroundColor: status.color,
-                                                                border: '1px solid var(--color-neutral-4)' 
-                                                            }} 
-                                                        />
-                                                        <code style={{ fontSize: '0.8rem' }}>{status.color}</code>
-                                                    </div>
-                                                </td>
-                                                <td>
-                                                    {status.isDefault ? (
-                                                        <span style={{ color: 'var(--color-primary-9)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                                                            <Check size={14} /> Yes
-                                                        </span>
-                                                    ) : '-'}
-                                                </td>
-                                                <td>
-                                                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                                                        {status.requiresReason && <span style={{ fontSize: '0.7rem', padding: '2px 6px', background: 'rgba(255,255,255,0.1)', borderRadius: 4 }}>Reason Req.</span>}
-                                                        {status.pausesSla && <span style={{ fontSize: '0.7rem', padding: '2px 6px', background: 'rgba(239, 68, 68, 0.2)', color: '#fca5a5', borderRadius: 4 }}>Pauses SLA</span>}
-                                                        {status.showOnDevboard && <span style={{ fontSize: '0.7rem', padding: '2px 6px', background: 'rgba(59, 130, 246, 0.2)', color: '#93c5fd', borderRadius: 4 }}>Dev Board</span>}
-                                                        {status.showOnItHelpdesk && <span style={{ fontSize: '0.7rem', padding: '2px 6px', background: 'rgba(34, 197, 94, 0.2)', color: '#86efac', borderRadius: 4 }}>IT Helpdesk</span>}
-                                                        {!status.requiresReason && !status.pausesSla && !status.showOnDevboard && !status.showOnItHelpdesk && '-'}
-                                                    </div>
-                                                </td>
-                                                <td>
-                                                    <div style={{ display: 'flex', gap: 8 }}>
-                                                        <Button variant="outline" size="sm" onClick={() => openEditDialog(status)}>
-                                                            <Pencil size={14} />
-                                                        </Button>
-                                                        <Form method="post" onSubmit={(e) => {
-                                                            if (!confirm('Are you sure you want to delete this status?')) {
-                                                                e.preventDefault();
-                                                            }
-                                                        }}>
-                                                            <input type="hidden" name="intent" value="delete" />
-                                                            <input type="hidden" name="id" value={status.id} />
-                                                            <Button variant="outline" size="sm" style={{ color: 'var(--color-critical-9)' }}>
-                                                                <Trash2 size={14} />
-                                                            </Button>
-                                                        </Form>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                        <>
+                            <div className={styles.desktopTable}>
+                                <div className={styles.tableContainer}>
+                                    <div className={styles.scrollableArea}>
+                                        <table className={styles.dataTable}>
+                                            <thead>
+                                                <tr>
+                                                    <th>Order</th>
+                                                    <th>Status Name</th>
+                                                    <th>Color</th>
+                                                    <th>Default</th>
+                                                    <th>Flags</th>
+                                                    <th>Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {sortedStatuses.map((status, index) => (
+                                                    <tr key={status.id}>
+                                                        <td style={{ width: 60, fontWeight: 600, color: 'var(--color-neutral-9)' }}>
+                                                            {index + 1}
+                                                        </td>
+                                                        <td style={{ fontWeight: 500 }}>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                                <Circle size={12} fill={status.color} stroke={status.color} />
+                                                                {status.name}
+                                                            </div>
+                                                        </td>
+                                                        <td>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                                <div 
+                                                                    style={{ 
+                                                                        width: 20, 
+                                                                        height: 20, 
+                                                                        borderRadius: '50%', 
+                                                                        backgroundColor: status.color,
+                                                                        border: '1px solid var(--color-neutral-4)' 
+                                                                    }} 
+                                                                />
+                                                                <code style={{ fontSize: '0.8rem' }}>{status.color}</code>
+                                                            </div>
+                                                        </td>
+                                                        <td>
+                                                            {status.isDefault ? (
+                                                                <span style={{ color: 'var(--color-primary-9)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                                    <Check size={14} /> Yes
+                                                                </span>
+                                                            ) : '-'}
+                                                        </td>
+                                                        <td>
+                                                            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                                                                {status.requiresReason && <span style={{ fontSize: '0.7rem', padding: '2px 6px', background: 'rgba(255,255,255,0.1)', borderRadius: 4 }}>Reason Req.</span>}
+                                                                {status.pausesSla && <span style={{ fontSize: '0.7rem', padding: '2px 6px', background: 'rgba(239, 68, 68, 0.2)', color: '#fca5a5', borderRadius: 4 }}>Pauses SLA</span>}
+                                                                {status.showOnDevboard && <span style={{ fontSize: '0.7rem', padding: '2px 6px', background: 'rgba(59, 130, 246, 0.2)', color: '#93c5fd', borderRadius: 4 }}>Dev Board</span>}
+                                                                {status.showOnItHelpdesk && <span style={{ fontSize: '0.7rem', padding: '2px 6px', background: 'rgba(34, 197, 94, 0.2)', color: '#86efac', borderRadius: 4 }}>IT Helpdesk</span>}
+                                                                {!status.requiresReason && !status.pausesSla && !status.showOnDevboard && !status.showOnItHelpdesk && '-'}
+                                                            </div>
+                                                        </td>
+                                                        <td>
+                                                            <div style={{ display: 'flex', gap: 8 }}>
+                                                                <Button variant="outline" size="sm" onClick={() => openEditDialog(status)}>
+                                                                    <Pencil size={14} />
+                                                                </Button>
+                                                                <Form method="post" onSubmit={(e) => {
+                                                                    if (!confirm('Are you sure you want to delete this status?')) {
+                                                                        e.preventDefault();
+                                                                    }
+                                                                }}>
+                                                                    <input type="hidden" name="intent" value="delete" />
+                                                                    <input type="hidden" name="id" value={status.id} />
+                                                                    <Button variant="outline" size="sm" style={{ color: 'var(--color-critical-9)' }}>
+                                                                        <Trash2 size={14} />
+                                                                    </Button>
+                                                                </Form>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
+
+                            {/* Mobile Card View */}
+                            <div className={styles.mobileCardList}>
+                                {sortedStatuses.map((status, index) => (
+                                    <div key={status.id} className={styles.settingCard}>
+                                        <div className={styles.settingCardHeader}>
+                                            <div className={styles.settingCardTitleGroup}>
+                                                <span style={{ 
+                                                    fontSize: '0.72rem', 
+                                                    fontWeight: 700, 
+                                                    color: '#94a3b8',
+                                                    background: 'rgba(255,255,255,0.06)',
+                                                    padding: '2px 7px',
+                                                    borderRadius: '6px',
+                                                    flexShrink: 0
+                                                }}>
+                                                    #{index + 1}
+                                                </span>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
+                                                    <Circle size={13} fill={status.color} stroke={status.color} style={{ flexShrink: 0 }} />
+                                                    <span className={styles.settingCardTitle}>{status.name}</span>
+                                                    {status.isDefault && (
+                                                        <span style={{
+                                                            fontSize: '0.68rem',
+                                                            fontWeight: 700,
+                                                            color: '#38bdf8',
+                                                            background: 'rgba(56, 189, 248, 0.12)',
+                                                            border: '1px solid rgba(56, 189, 248, 0.3)',
+                                                            padding: '1px 6px',
+                                                            borderRadius: 4
+                                                        }}>
+                                                            Default
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div className={styles.settingCardActions}>
+                                                <button 
+                                                    type="button"
+                                                    className={styles.settingCardActionBtn}
+                                                    onClick={() => openEditDialog(status)}
+                                                    title="Edit status"
+                                                >
+                                                    <Pencil size={13} />
+                                                </button>
+                                                <Form method="post" onSubmit={(e) => {
+                                                    if (!confirm('Are you sure you want to delete this status?')) {
+                                                        e.preventDefault();
+                                                    }
+                                                }}>
+                                                    <input type="hidden" name="intent" value="delete" />
+                                                    <input type="hidden" name="id" value={status.id} />
+                                                    <button 
+                                                        type="submit"
+                                                        className={styles.settingCardActionBtnDanger}
+                                                        title="Delete status"
+                                                    >
+                                                        <Trash2 size={13} />
+                                                    </button>
+                                                </Form>
+                                            </div>
+                                        </div>
+
+                                        <div className={styles.settingCardBody}>
+                                            <div className={styles.settingCardMetaRow}>
+                                                <span className={styles.settingCardMetaLabel}>Color Swatch</span>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                    <div 
+                                                        style={{ 
+                                                            width: 16, 
+                                                            height: 16, 
+                                                            borderRadius: '50%', 
+                                                            backgroundColor: status.color,
+                                                            border: '1px solid rgba(255,255,255,0.3)' 
+                                                        }} 
+                                                    />
+                                                    <code style={{ fontSize: '0.78rem', color: '#93c5fd' }}>{status.color}</code>
+                                                </div>
+                                            </div>
+
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 5, paddingTop: 2 }}>
+                                                <span className={styles.settingCardMetaLabel}>Active In</span>
+                                                <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                                                    {status.showOnDevboard && <span style={{ fontSize: '0.7rem', padding: '2px 7px', background: 'rgba(59, 130, 246, 0.15)', color: '#93c5fd', borderRadius: 4, border: '1px solid rgba(59, 130, 246, 0.3)' }}>Dev Board</span>}
+                                                    {status.showOnItHelpdesk && <span style={{ fontSize: '0.7rem', padding: '2px 7px', background: 'rgba(34, 197, 94, 0.15)', color: '#86efac', borderRadius: 4, border: '1px solid rgba(34, 197, 94, 0.3)' }}>IT Helpdesk</span>}
+                                                    {status.pausesSla && <span style={{ fontSize: '0.7rem', padding: '2px 7px', background: 'rgba(239, 68, 68, 0.15)', color: '#fca5a5', borderRadius: 4, border: '1px solid rgba(239, 68, 68, 0.3)' }}>Pauses SLA</span>}
+                                                    {status.requiresReason && <span style={{ fontSize: '0.7rem', padding: '2px 7px', background: 'rgba(255,255,255,0.08)', color: '#e2e8f0', borderRadius: 4 }}>Reason Req.</span>}
+                                                    {!status.requiresReason && !status.pausesSla && !status.showOnDevboard && !status.showOnItHelpdesk && (
+                                                        <span style={{ fontSize: '0.72rem', color: '#64748b' }}>Standard Status</span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </>
                     )}
                 </CardContent>
             </Card>

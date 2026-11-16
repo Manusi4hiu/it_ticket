@@ -211,6 +211,7 @@ export function useRoleManagement(
             username: newUser.username,
             name: newUser.full_name,
             role: newUser.role as UserRole,
+             isActive: true,
           },
         ]);
         toast({

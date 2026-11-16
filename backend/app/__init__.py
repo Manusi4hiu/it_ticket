@@ -1,5 +1,5 @@
 import os
-from flask import Flask, send_from_directory
+from flask import Flask, send_from_directory, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_cors import CORS
@@ -25,10 +25,10 @@ def create_app(config_name=None):
 
     app = Flask(__name__)
     app.config.from_object(config[config_name])
-    
+
     # File upload limit: 5MB max per upload
     app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024
-    
+
     # JWT Configuration
     app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=24)
 
@@ -54,12 +54,12 @@ def create_app(config_name=None):
     @jwt.revoked_token_loader
     def revoked_token_callback(jwt_header, jwt_payload):
         return {'success': False, 'error': 'Token has been revoked'}, 401
-    
+
     # Initialize extensions
     db.init_app(app)
     migrate.init_app(app, db)
     jwt.init_app(app)
-    
+
     # CORS configuration
     frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:5173')
     CORS(app, resources={
@@ -70,10 +70,10 @@ def create_app(config_name=None):
             "supports_credentials": True
         }
     })
-    
+
     # Import models for migrations
     from app.models import user, ticket, master_data, system_log, notification, push_subscription
-    
+
     # Register blueprints
     from app.routes.auth import auth_bp
     from app.routes.tickets import tickets_bp
@@ -86,7 +86,68 @@ def create_app(config_name=None):
     app.register_blueprint(users_bp, url_prefix='/api/users')
     app.register_blueprint(settings_bp, url_prefix='/api/settings')
     app.register_blueprint(notifications_bp, url_prefix='/api/notifications')
-    
+
+    # ─────────────────────────────────────────────────────────────────
+    # GUARD GLOBAL: akun nonaktif / dihapus TIDAK boleh memakai tokennya
+    # ─────────────────────────────────────────────────────────────────
+    # MASALAH: `is_active` hanya dicek saat login (auth_service.login).
+    # Setelah itu setiap request hanya memvalidasi signature JWT, sehingga
+    # token milik akun yang SUDAH DINONAKTIFKAN (atau dihapus) tetap sah
+    # sampai kedaluwarsa (24 jam). Admin mengira akses sudah dicabut,
+    # padahal sebenarnya tidak.
+    #
+    # SOLUSI: satu titik pemeriksaan di sebelum_request, sehingga SEMUA
+    # endpoint terlindungi (tidak ada endpoint yang bisa terlewat karena
+    # lupa memasang dekorator).
+    #
+    # Request tanpa token (endpoint publik: submit-ticket, track-ticket)
+    # TIDAK tersentuh - guard ini hanya berlaku bila token ditemukan.
+    @app.before_request
+    def enforce_active_user():
+        from flask_jwt_extended import verify_jwt_in_request, get_jwt_identity
+
+        try:
+            verify_jwt_in_request(optional=True)
+            identity = get_jwt_identity()
+        except Exception:
+            # Token tidak valid / kedaluwarsa / rusak -> biarkan @jwt_required()
+            # yang menolak dengan pesan error standard JWT.
+            return None
+
+        if identity is None:
+            # Tamu (tanpa login) - endpoint publik tetap bisa diakses.
+            return None
+
+        # Ambil user LANGSUNG dari database.
+        # `populate_existing()` memaksa attribute di-refresh dari DB, sehingga
+        # status is_active SELALU yang terbaru - penting karena status ini bisa
+        # berubah di tengah sesi (admin menonaktifkan akun) tanpa invalidate
+        # token yang sudah terbit sebelumnya.
+        # Catatan: hasil query ini juga mengisi identity map SQLAlchemy, jadi
+        # pemanggilan User.query.get() berikutnya di route/decorator TIDAK
+        # menambah query (hanya 1 query user per request).
+        from app.models.user import User
+        try:
+            user_pk = int(identity)
+        except (TypeError, ValueError):
+            user_pk = identity
+        user = db.session.query(User).filter(User.id == user_pk) \
+                          .populate_existing().first()
+
+        if user is None:
+            return jsonify({
+                'success': False,
+                'error': 'Akun Anda tidak ditemukan atau sudah dihapus. Silakan login kembali.'
+            }), 401
+
+        if not user.is_active:
+            return jsonify({
+                'success': False,
+                'error': 'Akun Anda telah dinonaktifkan. Hubungi Administrator.'
+            }), 401
+
+        return None
+
     # Serve uploaded static files (needed in production where DEBUG=False)
     @app.route('/static/uploads/<path:filename>')
     def serve_upload(filename):
@@ -97,4 +158,12 @@ def create_app(config_name=None):
     @app.route('/api/health')
     def health_check():
         return {'status': 'healthy', 'message': 'IT Ticket Backend is running'}
+
+    # Start annual holiday cron scheduler (runs once per year on Dec 31)
+    try:
+        from app.services.holiday_cron_service import start_holiday_cron_scheduler
+        start_holiday_cron_scheduler(app)
+    except Exception as e:
+        print(f"Warning: Failed to start holiday cron scheduler: {e}")
+
     return app

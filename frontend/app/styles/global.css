@@ -15,3 +15,13 @@ html {
   white-space: nowrap;
   border-width: 0;
 }
+
+/* Prevent iOS Safari auto-zoom on input focus & ensure legible inputs on mobile touch screens */
+@media (max-width: 768px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+

@@ -44,6 +44,9 @@ function mapApiTicket(apiTicket: Record<string, unknown>): Ticket {
         slaStatus: apiTicket.slaStatus as SLAStatus,
         takenAt: apiTicket.takenAt ? new Date(apiTicket.takenAt as string) : undefined,
         transferredAt: apiTicket.transferredAt ? new Date(apiTicket.transferredAt as string) : undefined,
+        responseDeadline: apiTicket.responseDeadline ? new Date(apiTicket.responseDeadline as string) : undefined,
+        firstRespondedAt: apiTicket.firstRespondedAt ? new Date(apiTicket.firstRespondedAt as string) : undefined,
+        responseSlaStatus: (apiTicket.responseSlaStatus as SLAStatus) || 'good',
         notes: ((apiTicket.notes as Array<Record<string, unknown>>) || []).map(note => ({
             id: note.id as number,
             content: note.content as string,
@@ -54,6 +57,7 @@ function mapApiTicket(apiTicket: Record<string, unknown>): Ticket {
         })),
         resolutionSummary: apiTicket.resolutionSummary as string | undefined,
         resolutionImageUrl: apiTicket.resolutionImageUrl as string | undefined,
+        hasStaffAccess: typeof apiTicket.hasStaffAccess === 'boolean' ? apiTicket.hasStaffAccess : undefined,
     };
 }
 
@@ -111,6 +115,7 @@ export async function createTicket(ticket: {
     submitterPhone?: string;
     submitterDepartment?: string;
     receiveUpdates?: boolean;
+    assignedToId?: string | number;
 }, image?: File, idempotencyKey?: string): Promise<Ticket | null> {
     const response = await ticketsApi.create(ticket, image, idempotencyKey);
 

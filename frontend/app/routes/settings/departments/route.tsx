@@ -163,76 +163,152 @@ export default function DepartmentsSettings() {
                 </Alert>
             )}
 
-            <Card>
+            <Card className={styles.mainCard}>
                 <CardContent>
                     {displayedDepartments.length === 0 ? (
                         <div style={{ padding: 32, textAlign: 'center', color: 'var(--color-neutral-10)' }}>
                             No departments found. Create one to get started.
                         </div>
                     ) : (
-                        <div className={styles.tableContainer}>
-                            <div ref={containerRef} className={styles.scrollableArea} onScroll={handleScroll} style={{ maxHeight: '280px' }}>
-                                <table className={styles.dataTable}>
-                                    <thead>
-                                        <tr>
-                                            <th>Name</th>
-                                            <th>Code (ID Prefix)</th>
-                                            <th>Description</th>
-                                            <th>Status</th>
-                                            <th>Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {displayedDepartments.map((department) => (
-                                            <tr key={department.id}>
-                                                <td style={{ fontWeight: 500 }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                        <Building2 size={14} />
-                                                        {department.name}
-                                                    </div>
-                                                </td>
-                                                <td>
-                                                    <code className={styles.code}>
-                                                        {department.code || '-'}
-                                                    </code>
-                                                </td>
-                                                <td>{department.description || '-'}</td>
-                                                <td>
-                                                    <span className={department.isActive ? styles.statusActive : styles.statusInactive}>
-                                                        {department.isActive ? 'Active' : 'Inactive'}
-                                                    </span>
-                                                </td>
-                                                <td>
-                                                    <div style={{ display: 'flex', gap: 8 }}>
-                                                        <Button variant="outline" size="sm" onClick={() => openEditDialog(department)}>
-                                                            <Pencil size={14} />
-                                                        </Button>
-                                                        <Form method="post" onSubmit={(e) => {
-                                                            if (!confirm('Are you sure you want to delete this department?')) {
-                                                                e.preventDefault();
-                                                            }
-                                                        }}>
-                                                            <input type="hidden" name="intent" value="delete" />
-                                                            <input type="hidden" name="id" value={department.id} />
-                                                            <Button variant="outline" size="sm" style={{ color: 'var(--color-critical-9)' }}>
-                                                                <Trash2 size={14} />
-                                                            </Button>
-                                                        </Form>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                        {loading && (
-                                            <tr>
-                                                <td colSpan={5} style={{ textAlign: 'center', padding: '16px', color: 'var(--color-neutral-9)' }}>
-                                                    Loading more departments...
-                                                </td>
-                                            </tr>
-                                        )}
-                                    </tbody>
-                                </table>
+                        <>
+                            {/* Desktop Table View */}
+                            <div className={styles.desktopTable}>
+                                <div className={styles.tableContainer}>
+                                    <div ref={containerRef} className={styles.scrollableArea} onScroll={handleScroll} style={{ maxHeight: '280px' }}>
+                                        <table className={styles.dataTable}>
+                                            <thead>
+                                                <tr>
+                                                    <th>Name</th>
+                                                    <th>Code (ID Prefix)</th>
+                                                    <th>Description</th>
+                                                    <th>Status</th>
+                                                    <th>Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {displayedDepartments.map((department) => (
+                                                    <tr key={department.id}>
+                                                        <td style={{ fontWeight: 500 }}>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                                <Building2 size={14} />
+                                                                {department.name}
+                                                            </div>
+                                                        </td>
+                                                        <td>
+                                                            <code className={styles.code}>
+                                                                {department.code || '-'}
+                                                            </code>
+                                                        </td>
+                                                        <td>{department.description || '-'}</td>
+                                                        <td>
+                                                            <span className={department.isActive ? styles.statusActive : styles.statusInactive}>
+                                                                {department.isActive ? 'Active' : 'Inactive'}
+                                                            </span>
+                                                        </td>
+                                                        <td>
+                                                            <div style={{ display: 'flex', gap: 8 }}>
+                                                                <Button variant="outline" size="sm" onClick={() => openEditDialog(department)}>
+                                                                    <Pencil size={14} />
+                                                                </Button>
+                                                                <Form method="post" onSubmit={(e) => {
+                                                                    if (!confirm('Are you sure you want to delete this department?')) {
+                                                                        e.preventDefault();
+                                                                    }
+                                                                }}>
+                                                                    <input type="hidden" name="intent" value="delete" />
+                                                                    <input type="hidden" name="id" value={department.id} />
+                                                                    <Button variant="outline" size="sm" style={{ color: 'var(--color-critical-9)' }}>
+                                                                        <Trash2 size={14} />
+                                                                    </Button>
+                                                                </Form>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                                {loading && (
+                                                    <tr>
+                                                        <td colSpan={5} style={{ textAlign: 'center', padding: '16px', color: 'var(--color-neutral-9)' }}>
+                                                            Loading more departments...
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
+
+                            {/* Mobile Card List View */}
+                            <div className={styles.mobileCardList}>
+                                {displayedDepartments.map((department) => (
+                                    <div key={department.id} className={styles.settingCard}>
+                                        <div className={styles.settingCardHeader}>
+                                            <div className={styles.settingCardTitleGroup}>
+                                                <div style={{
+                                                    width: 32,
+                                                    height: 32,
+                                                    borderRadius: 8,
+                                                    background: "rgba(59, 130, 246, 0.12)",
+                                                    border: "1px solid rgba(59, 130, 246, 0.25)",
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    justifyContent: "center",
+                                                    flexShrink: 0,
+                                                }}>
+                                                    <Building2 size={15} style={{ color: "#60a5fa" }} />
+                                                </div>
+                                                <div style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 3 }}>
+                                                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                                        <span className={styles.settingCardTitle}>{department.name}</span>
+                                                        {department.code && (
+                                                            <code className={styles.code} style={{ fontSize: "0.72rem", padding: "1px 6px" }}>
+                                                                {department.code}
+                                                            </code>
+                                                        )}
+                                                    </div>
+                                                    <span className={department.isActive ? styles.statusActive : styles.statusInactive} style={{ fontSize: "0.72rem" }}>
+                                                        ● {department.isActive ? 'Active' : 'Inactive'}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <div className={styles.settingCardActions}>
+                                                <button
+                                                    type="button"
+                                                    className={styles.settingCardActionBtn}
+                                                    onClick={() => openEditDialog(department)}
+                                                    title="Edit department"
+                                                >
+                                                    <Pencil size={13} />
+                                                </button>
+                                                <Form method="post" onSubmit={(e) => {
+                                                    if (!confirm('Are you sure you want to delete this department?')) {
+                                                        e.preventDefault();
+                                                    }
+                                                }}>
+                                                    <input type="hidden" name="intent" value="delete" />
+                                                    <input type="hidden" name="id" value={department.id} />
+                                                    <button
+                                                        type="submit"
+                                                        className={styles.settingCardActionBtnDanger}
+                                                        title="Delete department"
+                                                    >
+                                                        <Trash2 size={13} />
+                                                    </button>
+                                                </Form>
+                                            </div>
+                                        </div>
+
+                                        {department.description && (
+                                            <div className={styles.settingCardBody} style={{ paddingTop: 2 }}>
+                                                <p className={styles.settingCardDesc}>
+                                                    {department.description}
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </>
                     )}
                 </CardContent>
             </Card>

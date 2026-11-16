@@ -32,11 +32,13 @@ export default function Home({ loaderData }: Route.ComponentProps) {
   const [isTrackDialogOpen, setIsTrackDialogOpen] = React.useState(false);
   const navigate = useNavigate();
 
+  const cleanTrackCode = trackId.trim().replace(/^#+/, "").trim();
+
   const handleTrackTicket = (e: React.FormEvent) => {
     e.preventDefault();
-    if (trackId.trim()) {
+    if (cleanTrackCode) {
       setIsTrackDialogOpen(false);
-      navigate(`/ticket/${trackId.trim()}`);
+      navigate(`/ticket/${encodeURIComponent(cleanTrackCode)}`);
     }
   };
 
@@ -207,7 +209,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={!trackId.trim()} className={styles.trackButton}>
+              <Button type="submit" disabled={!cleanTrackCode} className={styles.trackButton}>
                 <Search size={16} />
                 Track Ticket
               </Button>
