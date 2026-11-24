@@ -33,17 +33,12 @@ import {
 import { Badge } from "~/components/ui/badge/badge";
 import { formatDate } from "~/utils/date";
 import { getStatusColor } from "~/utils/ticket-ui";
+import { backendAsset } from "~/utils/asset";
 import { buildTicketHistory, type HistoryEntry } from "~/utils/ticket-history";
 import type { Ticket } from "~/services/ticket.service";
 import type { Status } from "~/services/settings.service";
 import type { StaffInfo } from "../types";
 import styles from "../style.module.css";
-
-// ─────────────────────────────────────────────
-// Constants
-// ─────────────────────────────────────────────
-
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:5000";
 
 // ─────────────────────────────────────────────
 // Exported Helper (dipakai juga di PublicSidebar)
@@ -208,13 +203,13 @@ export function TicketInfoCard({
             </h3>
             <div className={styles.imageAttachment}>
               <a
-                href={`${BACKEND_URL}${ticket.imageUrl}`}
+                href={backendAsset(ticket.imageUrl)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className={styles.imageLink}
               >
                 <img
-                  src={`${BACKEND_URL}${ticket.imageUrl}`}
+                  src={backendAsset(ticket.imageUrl)}
                   alt="Ticket Attachment"
                 />
               </a>
@@ -344,12 +339,12 @@ export function TicketInfoCard({
             {ticket.resolutionImageUrl && (
               <div style={{ marginTop: "var(--space-3)" }}>
                 <a
-                  href={`${BACKEND_URL}${ticket.resolutionImageUrl}`}
+                  href={backendAsset(ticket.resolutionImageUrl)}
                   target="_blank"
                   rel="noopener noreferrer"
                 >
                   <img
-                    src={`${BACKEND_URL}${ticket.resolutionImageUrl}`}
+                    src={backendAsset(ticket.resolutionImageUrl)}
                     alt="Resolution Attachment"
                     style={{ maxWidth: "100%", maxHeight: "300px", borderRadius: "var(--radius-sm)", objectFit: "contain" }}
                   />

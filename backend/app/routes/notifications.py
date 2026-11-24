@@ -92,6 +92,21 @@ def delete_notifications():
 
 # ── Web Push subscription management ──────────────────────────────────────────
 
+@notifications_bp.route('/vapid-public-key', methods=['GET'])
+@jwt_required()
+def vapid_public_key():
+    """Return active VAPID public key for browser PushManager subscription."""
+    from app.services.push_service import get_vapid_public_key
+
+    public_key = get_vapid_public_key()
+    if not public_key:
+        return jsonify({
+            'success': False,
+            'error': 'Web Push belum dikonfigurasi pada server (VAPID key kosong)',
+        }), 503
+    return jsonify({'success': True, 'publicKey': public_key}), 200
+
+
 @notifications_bp.route('/subscribe', methods=['POST'])
 @jwt_required()
 def subscribe_push():

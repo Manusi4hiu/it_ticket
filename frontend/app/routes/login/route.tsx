@@ -5,11 +5,25 @@ import { Card } from "~/components/ui/card/card";
 import { Input } from "~/components/ui/input/input";
 import { Label } from "~/components/ui/label/label";
 import { Alert } from "~/components/ui/alert/alert";
-import { Form, redirect, Link } from "react-router";
+import { Form, redirect, Link, useSearchParams } from "react-router";
 import type { Route } from "./+types/route";
 import { login } from "~/services/auth.service";
-import { createUserSession } from "~/services/session.service";
+import { createUserSession, destroyLocalSessionCookie } from "~/services/session.service";
+import { PwaInstallButton } from "~/components/pwa-install-prompt";
+import { publicAsset } from "~/utils/asset";
 import styles from "./style.module.css";
+
+export async function loader({ request }: Route.LoaderArgs) {
+  const url = new URL(request.url);
+  if (url.searchParams.get("expired") === "1") {
+    const cookie = await destroyLocalSessionCookie(request);
+    return Response.json(
+      { expired: true },
+      { headers: { "Set-Cookie": cookie } }
+    );
+  }
+  return Response.json({ expired: false });
+}
 
 export async function action({ request }: Route.ActionArgs) {
   try {
@@ -49,6 +63,8 @@ export default function Login({ actionData }: Route.ComponentProps) {
   const data = actionData as {
     error?: string;
   } | undefined;
+  const [searchParams] = useSearchParams();
+  const isExpired = searchParams.get("expired") === "1";
   const [showPassword, setShowPassword] = useState(false);
 
   return (
@@ -64,7 +80,7 @@ export default function Login({ actionData }: Route.ComponentProps) {
         <div className={styles.header}>
           <div className={styles.iconWrapper}>
             <img
-              src="/logo/it-logo.png"
+              src={publicAsset("logo/it-logo.png")}
               alt="Logo ITANI"
               className={styles.icon}
             />
@@ -74,13 +90,15 @@ export default function Login({ actionData }: Route.ComponentProps) {
         </div>
 
         <Form method="post" className={styles.form}>
-          {data?.error && (
+          {(data?.error || isExpired) && (
             <Alert
               variant="destructive"
               className={styles.alert}
             >
               <AlertCircle style={{ width: "16px", height: "16px" }} />
-              <div>{data.error}</div>
+              <div>
+                {data?.error || "Sesi login Anda telah berakhir atau akses dicabut. Silakan login kembali."}
+              </div>
             </Alert>
           )}
 
@@ -131,6 +149,14 @@ export default function Login({ actionData }: Route.ComponentProps) {
             Sign In
           </Button>
         </Form>
+
+        <div className={styles.pwaInstallWrapper}>
+          <PwaInstallButton
+            variant="ghost"
+            className={styles.pwaInstallBtn}
+            label="Download Mobile App"
+          />
+        </div>
       </Card>
     </div>
   );

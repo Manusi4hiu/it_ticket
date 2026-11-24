@@ -36,7 +36,7 @@ def main():
             'title': 'Test Push — IT Aero',
             'body': 'Verifikasi push infra jalan. Kalau kamu lihat ini, setup benar.',
             'tag': 'test-push',
-            'url': '/it_ticket/frontend/dashboard',
+            'url': 'dashboard',
         })
         print(f'Push sent to user {user_id} ({count} subscription(s))')
 

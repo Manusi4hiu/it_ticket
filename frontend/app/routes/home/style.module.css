@@ -524,3 +524,9 @@
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+@media (max-width: 860px) {
+  :global(html[data-pwa-banner="visible"]) .container {
+    padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+  }
+}

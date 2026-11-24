@@ -1,3 +1,4 @@
+import re
 from app import db
 from app.models.user import User
 from app.models.ticket import Ticket
@@ -57,27 +58,55 @@ class UserService:
         return User.query.get(user_id)
 
     @staticmethod
+    def _normalize_phone(raw_phone):
+        """Normalisasi dan validasi nomor telepon (opsional, max 50 karakter sesuai kolom DB)."""
+        if raw_phone is None:
+            return None, None
+        if not isinstance(raw_phone, str):
+            return None, 'Format nomor telepon tidak valid'
+        clean_phone = raw_phone.strip()
+        if not clean_phone:
+            return None, None
+        if len(clean_phone) > 50:
+            return None, 'Nomor telepon maksimal 50 karakter'
+        if not re.match(r'^[\d\s+\-()]{6,20}$', clean_phone) or not re.search(r'\d', clean_phone):
+            return None, 'Format nomor telepon tidak valid (6-20 karakter angka, +, spasi, -, ())'
+        return clean_phone, None
+
+    @staticmethod
     def create_user(data):
+        username = str(data.get('username') or '').strip()
+        full_name = str(data.get('full_name') or '').strip()
+        password = data.get('password') or ''
+        email = str(data.get('email') or '').strip() or None
+
+        if not username or not full_name or not password:
+            return None, 'Username, full_name, dan password tidak boleh kosong'
+
+        clean_phone, phone_error = UserService._normalize_phone(data.get('phone'))
+        if phone_error:
+            return None, phone_error
+
         # Check if email or username already exists
-        if data.get('email'):
-            existing_email = User.query.filter_by(email=data['email']).first()
+        if email:
+            existing_email = User.query.filter_by(email=email).first()
             if existing_email:
                 return None, 'Email sudah terdaftar'
             
-        existing_username = User.query.filter_by(username=data['username']).first()
+        existing_username = User.query.filter_by(username=username).first()
         if existing_username:
             return None, 'Username sudah terdaftar'
         
         user = User(
-            email=data.get('email'),
-            username=data['username'],
-            full_name=data['full_name'],
+            email=email,
+            username=username,
+            full_name=full_name,
             role=data['role'],
             department=data.get('department'),
-            phone=data.get('phone'),
+            phone=clean_phone,
             avatar_url=data.get('avatar_url')
         )
-        user.set_password(data['password'])
+        user.set_password(password)
         
         db.session.add(user)
         db.session.commit()
@@ -101,25 +130,31 @@ class UserService:
         
         # Update fields if provided
         if 'full_name' in data and data['full_name']:
-            user.full_name = str(data['full_name']).strip()
+            clean_full_name = str(data['full_name']).strip()
+            if clean_full_name:
+                user.full_name = clean_full_name
         if 'username' in data and data['username']:
             new_username = str(data['username']).strip()
-            if new_username != user.username:
+            if new_username and new_username != user.username:
                 existing_user = User.query.filter_by(username=new_username).first()
                 if existing_user:
                     return None, 'Username sudah digunakan', 409
                 user.username = new_username
         if 'email' in data:
+            clean_email = (str(data['email']).strip() if data['email'] is not None else '') or None
             # Check uniqueness if email is being changed
-            if data['email'] and data['email'] != user.email:
-                existing_email = User.query.filter_by(email=data['email']).first()
+            if clean_email and clean_email != user.email:
+                existing_email = User.query.filter_by(email=clean_email).first()
                 if existing_email:
                     return None, 'Email sudah terdaftar', 409
-            user.email = data['email'] if data['email'] else None
+            user.email = clean_email
         if 'department' in data:
             user.department = data['department']
         if 'phone' in data:
-            user.phone = data['phone']
+            clean_phone, phone_error = UserService._normalize_phone(data['phone'])
+            if phone_error:
+                return None, phone_error, 400
+            user.phone = clean_phone
         if 'avatar_url' in data:
             user.avatar_url = data['avatar_url']
         
@@ -132,7 +167,7 @@ class UserService:
             user.is_active = bool(data['is_active'])
         
         # Password change
-        if 'password' in data:
+        if data.get('password'):
             user.set_password(data['password'])
         
         db.session.commit()

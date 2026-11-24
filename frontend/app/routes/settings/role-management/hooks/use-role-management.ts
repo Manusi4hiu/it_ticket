@@ -8,9 +8,10 @@
  * fokus pada rendering table + dialogs.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useToast } from "~/hooks/use-toast";
 import { usersApi } from "~/services/api.service";
+import { phoneFormat } from "~/utils/form-validation";
 
 // ─────────────────────────────────────────────
 // Types
@@ -20,7 +21,8 @@ export type UserRole = "Administrator" | "Management" | "Staff";
 
 export interface ManagedUser {
   id: string;
-  email: string;
+  email: string | null;
+  phone: string | null;
   username: string;
   name: string;
   role: UserRole;
@@ -66,6 +68,10 @@ export function useRoleManagement(
 
   // ── User List ──
   const [userList, setUserList] = useState<ManagedUser[]>(initialUsers);
+
+  useEffect(() => {
+    setUserList(initialUsers);
+  }, [initialUsers]);
 
   // ── Create Dialog ──
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -154,16 +160,35 @@ export function useRoleManagement(
   // ─────────────────────────────────────────────
 
   /** Validasi form create user. Return true jika valid. */
-  const validateNewUserForm = (): boolean => {
+  const validateCommonUserFields = (fields: {
+    full_name: string;
+    username: string;
+    email: string;
+    phone: string;
+  }): Record<string, string> => {
     const errors: Record<string, string> = {};
-    if (!newUserForm.full_name.trim()) errors.full_name = "Full name is required";
-    if (!newUserForm.username.trim()) errors.username = "Username is required";
+    if (!fields.full_name.trim()) errors.full_name = "Full name is required";
+    if (!fields.username.trim()) errors.username = "Username is required";
     if (
-      newUserForm.email.trim() &&
-      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newUserForm.email)
+      fields.email.trim() &&
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fields.email.trim())
     ) {
       errors.email = "Invalid email format";
     }
+    const trimmedPhone = fields.phone.trim();
+    if (trimmedPhone) {
+      const phoneRule = phoneFormat("Phone number");
+      if (!phoneRule.test(trimmedPhone)) {
+        errors.phone = phoneRule.message;
+      } else if (!/\d/.test(trimmedPhone)) {
+        errors.phone = "Phone number must contain digits";
+      }
+    }
+    return errors;
+  };
+
+  const validateNewUserForm = (): boolean => {
+    const errors = validateCommonUserFields(newUserForm);
     if (!newUserForm.password) {
       errors.password = "Password is required";
     } else if (newUserForm.password.length < 6) {
@@ -181,11 +206,12 @@ export function useRoleManagement(
 
     setIsCreating(true);
     try {
+      const trimmedPhone = newUserForm.phone.trim() || null;
       const response = await usersApi.create({
-        full_name: newUserForm.full_name,
-        username: newUserForm.username,
-        email: newUserForm.email || null,
-        phone: newUserForm.phone || null,
+        full_name: newUserForm.full_name.trim(),
+        username: newUserForm.username.trim(),
+        email: newUserForm.email.trim() || null,
+        phone: trimmedPhone,
         password: newUserForm.password,
         role: newUserForm.role,
       });
@@ -195,10 +221,12 @@ export function useRoleManagement(
           response.data as {
             user: {
               id: string;
-              email: string;
+              email: string | null;
+              phone?: string | null;
               username: string;
               full_name: string;
               role: string;
+              is_active?: boolean;
             };
           }
         ).user;
@@ -207,11 +235,12 @@ export function useRoleManagement(
           ...prev,
           {
             id: newUser.id,
-            email: newUser.email,
+            email: newUser.email ?? null,
+            phone: newUser.phone ?? trimmedPhone,
             username: newUser.username,
             name: newUser.full_name,
             role: newUser.role as UserRole,
-             isActive: true,
+            isActive: newUser.is_active !== false,
           },
         ]);
         toast({
@@ -257,7 +286,7 @@ export function useRoleManagement(
       full_name: user.name,
       username: user.username,
       email: user.email || "",
-      phone: (user as ManagedUser & { phone?: string }).phone || "",
+      phone: user.phone || "",
       password: "",
     });
     setEditFormErrors({});
@@ -266,15 +295,7 @@ export function useRoleManagement(
 
   /** Validasi form edit user. Return true jika valid. */
   const validateEditForm = (): boolean => {
-    const errors: Record<string, string> = {};
-    if (!editUserForm.full_name.trim()) errors.full_name = "Full name is required";
-    if (!editUserForm.username.trim()) errors.username = "Username is required";
-    if (
-      editUserForm.email.trim() &&
-      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editUserForm.email)
-    ) {
-      errors.email = "Invalid email format";
-    }
+    const errors = validateCommonUserFields(editUserForm);
     if (editUserForm.password && editUserForm.password.length < 6) {
       errors.password = "Password must be at least 6 characters";
     }
@@ -290,6 +311,11 @@ export function useRoleManagement(
 
     setIsUpdating(true);
     try {
+      const trimmedName = editUserForm.full_name.trim();
+      const trimmedUsername = editUserForm.username.trim();
+      const trimmedEmail = editUserForm.email.trim() || null;
+      const trimmedPhone = editUserForm.phone.trim() || null;
+
       const updateData: {
         full_name: string;
         username: string;
@@ -297,10 +323,10 @@ export function useRoleManagement(
         phone?: string | null;
         password?: string;
       } = {
-        full_name: editUserForm.full_name,
-        username: editUserForm.username,
-        email: editUserForm.email || null,
-        phone: editUserForm.phone || null,
+        full_name: trimmedName,
+        username: trimmedUsername,
+        email: trimmedEmail,
+        phone: trimmedPhone,
       };
 
       // Password hanya disertakan jika diisi
@@ -309,14 +335,28 @@ export function useRoleManagement(
       const response = await usersApi.update(editingUser.id, updateData);
 
       if (response.success) {
+        const updatedUser = (
+          response.data as
+            | {
+                user?: {
+                  email?: string | null;
+                  phone?: string | null;
+                  username?: string;
+                  full_name?: string;
+                };
+              }
+            | undefined
+        )?.user;
+
         setUserList((prev) =>
           prev.map((user) => {
             if (user.id === editingUser.id) {
               return {
                 ...user,
-                name: editUserForm.full_name,
-                username: editUserForm.username,
-                email: editUserForm.email,
+                name: updatedUser?.full_name ?? trimmedName,
+                username: updatedUser?.username ?? trimmedUsername,
+                email: updatedUser !== undefined ? (updatedUser.email ?? null) : trimmedEmail,
+                phone: updatedUser !== undefined ? (updatedUser.phone ?? null) : trimmedPhone,
               };
             }
             return user;

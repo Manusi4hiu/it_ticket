@@ -13,7 +13,7 @@ migrate = Migrate()
 jwt = JWTManager()
 
 
-def create_app(config_name=None):
+def create_app(config_name=None, config_overrides=None):
     """Application factory"""
     if config_name is None:
         config_name = os.getenv('FLASK_ENV', 'development')
@@ -25,6 +25,8 @@ def create_app(config_name=None):
 
     app = Flask(__name__)
     app.config.from_object(config[config_name])
+    if config_overrides:
+        app.config.update(config_overrides)
 
     # File upload limit: 5MB max per upload
     app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024
@@ -60,13 +62,18 @@ def create_app(config_name=None):
     migrate.init_app(app, db)
     jwt.init_app(app)
 
-    # CORS configuration
-    frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:5173')
+    # CORS configuration — normalize origin even if FRONTEND_URL includes a subpath
+    from urllib.parse import urlsplit
+    frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:5173').strip()
+    parsed_fe = urlsplit(frontend_url)
+    frontend_origin = f"{parsed_fe.scheme}://{parsed_fe.netloc}" if parsed_fe.scheme and parsed_fe.netloc else frontend_url
+    extra_origins = [o.strip() for o in os.getenv('CORS_ORIGINS', '').split(',') if o.strip()]
+    allowed_origins = list(dict.fromkeys([frontend_origin, *extra_origins]))
     CORS(app, resources={
         r"/api/*": {
-            "origins": [frontend_url],
+            "origins": allowed_origins,
             "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-            "allow_headers": ["Content-Type", "Authorization"],
+            "allow_headers": ["Content-Type", "Authorization", "X-Idempotency-Key"],
             "supports_credentials": True
         }
     })
@@ -165,5 +172,12 @@ def create_app(config_name=None):
         start_holiday_cron_scheduler(app)
     except Exception as e:
         print(f"Warning: Failed to start holiday cron scheduler: {e}")
+
+    # Start background SLA monitor so Web Push warnings/breaches fire even with all mobile tabs closed
+    try:
+        from app.services.sla_cron_service import start_sla_cron_scheduler
+        start_sla_cron_scheduler(app)
+    except Exception as e:
+        print(f"Warning: Failed to start SLA push monitor scheduler: {e}")
 
     return app

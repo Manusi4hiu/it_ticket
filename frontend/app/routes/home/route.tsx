@@ -21,6 +21,7 @@ import {
   Shield,
   Headphones,
 } from "lucide-react";
+import { PwaInstallButton } from "~/components/pwa-install-prompt";
 import styles from "./style.module.css";
 
 export async function loader({ request }: Route.LoaderArgs) {
@@ -101,6 +102,11 @@ export default function Home({ loaderData }: Route.ComponentProps) {
               <Search size={20} />
               Track Your Ticket
             </Button>
+            <PwaInstallButton
+              variant="outline"
+              className={styles.secondaryButton}
+              label="Download Mobile App"
+            />
           </div>
         </div>
 

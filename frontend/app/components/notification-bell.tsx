@@ -5,8 +5,13 @@ import { Button } from "~/components/ui/button/button";
 import { Badge } from "~/components/ui/badge/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "~/components/ui/popover/popover";
 import { getTickets } from "~/services/ticket.service";
-import { getAuthToken } from "~/services/api.service";
-import { subscribePush, isPushSupported } from "~/services/push.service";
+import { notificationsApi } from "~/services/api.service";
+import {
+  subscribePushDetailed,
+  getPushStatus,
+  syncExistingPushSubscription,
+  isPushSupported,
+} from "~/services/push.service";
 import styles from "./notification-bell.module.css";
 import { useNavigate, useLocation } from "react-router";
 
@@ -52,45 +57,67 @@ export function NotificationBell({ userId }: NotificationBellProps) {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Legacy read-dismiss ids (untuk fallback mode) — lazy dari localStorage
-  const [readIds, setReadIds] = useState<Set<string>>(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem(`read_notifications_${userId}`);
-      if (saved) {
-        try { return new Set(JSON.parse(saved)); } catch { /* ignore */ }
-      }
+  // Legacy read-dismiss ids (untuk fallback mode) — load di client via useEffect agar aman terhadap SSR & pergantian userId
+  const [readIds, setReadIds] = useState<Set<string>>(() => new Set());
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const saved = localStorage.getItem(`read_notifications_${userId}`);
+    if (!saved) {
+      setReadIds(new Set());
+      return;
     }
-    return new Set();
-  });
+    try {
+      setReadIds(new Set(JSON.parse(saved)));
+    } catch {
+      setReadIds(new Set());
+    }
+  }, [userId]);
   const readIdsRef = useRef(readIds);
   useEffect(() => { readIdsRef.current = readIds; }, [readIds]);
 
-  // Sync push permission state on mount and when popover opens
+  // Sync real PushManager subscription status (permission + active endpoint)
   useEffect(() => {
-    setPushEnabled(typeof Notification !== "undefined" && Notification.permission === "granted");
-  }, [isOpen]);
+    let active = true;
+    const refreshStatus = async () => {
+      const status = await getPushStatus();
+      if (!active) return;
+      if (status.subscribed) {
+        setPushEnabled(true);
+        return;
+      }
+      if (status.permission === "granted") {
+        const synced = await syncExistingPushSubscription();
+        if (active) setPushEnabled(synced);
+      } else {
+        setPushEnabled(false);
+      }
+    };
+    void refreshStatus();
+    return () => { active = false; };
+  }, [isOpen, userId]);
 
   const handleEnablePush = async () => {
-    const ok = await subscribePush();
-    setPushEnabled(ok);
-    if (ok) {
+    const res = await subscribePushDetailed();
+    setPushEnabled(res.ok);
+    if (res.ok) {
       toast.success("Notifications enabled", { description: "You'll receive push alerts even when app is closed." });
     } else {
-      toast.error("Failed to enable notifications", { description: "Check browser permission settings." });
+      toast.error("Failed to enable notifications", {
+        description: res.message || "Check browser permission settings.",
+      });
     }
   };
 
   const fetchNotifications = useCallback(async () => {
     try {
-      const res = await fetch(`/api/notifications?limit=50`, {
-        headers: getAuthToken() ? { Authorization: `Bearer ${getAuthToken()}` } : {},
-      });
-      if (!res.ok) throw new Error("failed");
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error || "failed");
+      const res = await notificationsApi.getAll(50);
+      if (!res.success || !res.data?.success) {
+        throw new Error(res.error || "failed");
+      }
+      const data = res.data;
 
       // Notifikasi dipertahankan SEMUA (read + unread) — dibedakan via indikator.
-      const items: Notification[] = (data.notifications || []).map((n: any) => ({
+      const items: Notification[] = (data.notifications || []).map((n) => ({
         id: n.id,
         key: `notifdb-${n.id}`,
         title: n.title,
@@ -192,18 +219,12 @@ export function NotificationBell({ userId }: NotificationBellProps) {
       return;
     }
     // Sync ke backend
-    fetch("/api/notifications/read", {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        ...(getAuthToken() ? { Authorization: `Bearer ${getAuthToken()}` } : {}),
-      },
-      body: JSON.stringify({ ids: [notificationId] }),
-    })
-      .then((res) => res.ok ? res.json() : null)
-      .then((data) => {
+    notificationsApi.markRead([notificationId])
+      .then((res) => {
         // angka otoritatif dari server, jaga badge tetap sinkron
-        if (data && typeof data.unreadCount === "number") setUnreadCount(data.unreadCount);
+        if (res.success && typeof res.data?.unreadCount === "number") {
+          setUnreadCount(res.data.unreadCount);
+        }
       })
       .catch(() => {});
   };
@@ -211,17 +232,11 @@ export function NotificationBell({ userId }: NotificationBellProps) {
   const markAllAsRead = () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
     setUnreadCount(0);
-    fetch("/api/notifications/read", {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        ...(getAuthToken() ? { Authorization: `Bearer ${getAuthToken()}` } : {}),
-      },
-      body: JSON.stringify({ ids: [] }),
-    })
-      .then((res) => res.ok ? res.json() : null)
-      .then((data) => {
-        if (data && typeof data.unreadCount === "number") setUnreadCount(data.unreadCount);
+    notificationsApi.markRead([])
+      .then((res) => {
+        if (res.success && typeof res.data?.unreadCount === "number") {
+          setUnreadCount(res.data.unreadCount);
+        }
       })
       .catch(() => {});
   };
@@ -306,22 +321,11 @@ export function NotificationBell({ userId }: NotificationBellProps) {
     if (ids.length === 0) return;
     setIsDeleting(true);
     try {
-      const res = await fetch("/api/notifications/delete", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          ...(getAuthToken() ? { Authorization: `Bearer ${getAuthToken()}` } : {}),
-        },
-        body: JSON.stringify({ ids }),
-      });
-      // WAJIB periksa res.ok: server mengirim 400 untuk id tidak valid, dan
-      // tanpa pengecekan ini UI tetap menghapus notifikasi tanpa pesan apa pun.
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        throw new Error(data?.error || `Server menolak (${res.status})`);
+      const res = await notificationsApi.deleteItems({ ids });
+      if (!res.success) {
+        throw new Error(res.error || "Server menolak penghapusan");
       }
-      const data = await res.json().catch(() => null);
-      if (typeof data?.unreadCount === "number") setUnreadCount(data.unreadCount);
+      if (typeof res.data?.unreadCount === "number") setUnreadCount(res.data.unreadCount);
       fetchNotifications(); // sync ulang
     } catch (e) {
       setNotifications(snapshot);           // rollback
@@ -346,20 +350,11 @@ export function NotificationBell({ userId }: NotificationBellProps) {
     setNotifications([]); // optimistic
     setIsDeleting(true);
     try {
-      const res = await fetch("/api/notifications/delete", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          ...(getAuthToken() ? { Authorization: `Bearer ${getAuthToken()}` } : {}),
-        },
-        body: JSON.stringify({ all: true }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        throw new Error(data?.error || `Server menolak (${res.status})`);
+      const res = await notificationsApi.deleteItems({ all: true });
+      if (!res.success) {
+        throw new Error(res.error || "Server menolak penghapusan");
       }
-      const data = await res.json().catch(() => null);
-      if (typeof data?.unreadCount === "number") setUnreadCount(data.unreadCount);
+      if (typeof res.data?.unreadCount === "number") setUnreadCount(res.data.unreadCount);
     } catch (e) {
       setNotifications(snapshot);           // rollback
       showError(

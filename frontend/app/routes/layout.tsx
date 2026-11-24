@@ -12,9 +12,10 @@ import {
 } from "lucide-react";
 import { NotificationBell } from "~/components/notification-bell";
 import { getUserSession, logout } from "~/services/session.service";
-import { setAuthToken, usersApi } from "~/services/api.service";
+import { clearAuthToken, getAuthToken, setAuthToken, usersApi } from "~/services/api.service";
 import { settingsApi } from "~/services/settings.service";
 import { setWorkingHours } from "~/utils/date";
+import { publicAsset } from "~/utils/asset";
 import type { Route } from "./+types/layout";
 import styles from "./layout.module.css";
 import { useIdleTimeout } from "~/hooks/use-idle-timeout";
@@ -33,12 +34,6 @@ export async function action({ request }: Route.ActionArgs) {
     const intent = formData.get('intent');
 
     if (intent === 'logout') {
-      // Unsubscribe push sebelum clear session — device shared gak ke-tagih notif orang lain.
-      // Silent fail: gak mau push error nge-block logout.
-      if (typeof window !== 'undefined') {
-        const { unsubscribePush } = await import('~/services/push.service');
-        await unsubscribePush().catch(() => {});
-      }
       return redirect('/login', {
         headers: await logout(request),
       });
@@ -86,13 +81,11 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
   // `getUserSession()` hanya berjalan di server. Setelah browser hydration,
   // `authToken` di api.service.ts kembali null. Sync secara sinkron saat render
   // agar child fetch di render pertama sudah dapat token (hindari race 401).
-  if (typeof window !== "undefined" && session?.authToken) {
-    setAuthToken(session.authToken);
+  if (typeof window !== "undefined") {
+    setAuthToken(session?.authToken ?? null);
   }
   useEffect(() => {
-    if (session?.authToken) {
-      setAuthToken(session.authToken);
-    }
+    setAuthToken(session?.authToken ?? null);
   }, [session]);
 
   // Sinkronkan jam kerja operasional (Settings > Break) ke utils tanggal
@@ -220,7 +213,7 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
               style={{ cursor: "pointer" }}
             >
               <div className={styles.logoContainer}>
-                <img src="/logo/logo itani.png" alt="Logo" className={styles.headerIcon} />
+                <img src={publicAsset("logo/logo itani.png")} alt="Logo" className={styles.headerIcon} />
               </div>
               <h1 className={styles.headerTitle}>
                 {isDevMode ? "IT Aero Dev" : "IT Aero Support"}
@@ -230,7 +223,18 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
             {session && (
               <div className={styles.navActionGroup}>
                 <NotificationBell userId={session.userId} />
-                <Form method="post" action="/dashboard" className={styles.logoutForm}>
+                <Form
+                  method="post"
+                  action="/dashboard"
+                  className={styles.logoutForm}
+                  onSubmit={() => {
+                    const tokenSnapshot = getAuthToken();
+                    clearAuthToken();
+                    void import('~/services/push.service')
+                      .then(({ cleanupClientOnLogout }) => cleanupClientOnLogout(tokenSnapshot))
+                      .catch(() => {});
+                  }}
+                >
                   <input type="hidden" name="intent" value="logout" />
                   <button className={styles.logoutBtn} type="submit" title="Logout">
                     <LogOut className={styles.navIcon} />

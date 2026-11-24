@@ -15,24 +15,24 @@ import {
 } from "recharts";
 import { getAllAgentsPerformance, getTicketStats } from "~/services/ticket.service";
 import { usersApi } from "~/services/api.service";
-import { requireAuth } from "~/services/session.service";
+import { runWithAuth } from "~/services/session.service";
 import type { Route } from "./+types/route";
 import styles from "./style.module.css";
 
 export async function loader({ request }: Route.LoaderArgs) {
-  const session = await requireAuth(request);
+  return runWithAuth(request, async (session) => {
+    // Fetch data from API (trend 28 hari untuk agregasi mingguan Week 1–4)
+    const [agentsPerformance, stats] = await Promise.all([
+      getAllAgentsPerformance(),
+      getTicketStats(false, 28)
+    ]);
 
-  // Fetch data from API (trend 28 hari untuk agregasi mingguan Week 1–4)
-  const [agentsPerformance, stats] = await Promise.all([
-    getAllAgentsPerformance(),
-    getTicketStats(false, 28)
-  ]);
-
-  return {
-    session,
-    agentsPerformance,
-    stats,
-  };
+    return {
+      session,
+      agentsPerformance,
+      stats,
+    };
+  });
 }
 
 /** Tooltip gelap bersama untuk chart di halaman ini. */
