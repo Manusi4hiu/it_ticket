@@ -281,7 +281,7 @@ export default function TicketDetail({ loaderData }: Route.ComponentProps) {
               />
             </div>
           ) : (
-            <PublicSidebar status={ticket.status} />
+            <PublicSidebar status={ticket.status} deadline={ticket.slaDeadline} />
           )}
         </div>
 

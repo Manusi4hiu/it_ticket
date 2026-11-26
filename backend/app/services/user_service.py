@@ -48,10 +48,16 @@ class UserService:
         return query.order_by(User.full_name).all()
 
     @staticmethod
-    def get_agents():
+    def get_agents(team_id=None):
         """Get users who can be assigned to tickets: Staff & Administrator saja.
-        Role Management TIDAK termasuk — view-only, tidak mengerjakan tiket."""
-        return User.query.filter(User.role.in_(['Staff', 'Administrator'])).order_by(User.full_name).all()
+        Role Management TIDAK termasuk — view-only, tidak mengerjakan tiket.
+        Bila team_id diberikan, hanya anggota team tsb."""
+        query = User.query.filter(User.role.in_(['Staff', 'Administrator']))
+        if team_id is not None:
+            from app.models.team import user_teams
+            query = query.join(user_teams, user_teams.c.user_id == User.id)\
+                .filter(user_teams.c.team_id == team_id)
+        return query.order_by(User.full_name).all()
 
     @staticmethod
     def get_user_by_id(user_id):
@@ -107,6 +113,16 @@ class UserService:
             avatar_url=data.get('avatar_url')
         )
         user.set_password(password)
+        # Team membership (many-to-many). teamIds = list of team id.
+        from app.models.team import Team
+        team_ids = data.get('teamIds') or data.get('team_id')
+        if isinstance(team_ids, list):
+            teams = Team.query.filter(Team.id.in_(team_ids)).all()
+            user.teams = teams
+        elif team_ids:
+            t = Team.query.get(int(team_ids))
+            if t:
+                user.teams = [t]
         
         db.session.add(user)
         db.session.commit()
@@ -161,6 +177,15 @@ class UserService:
         # Only admin can change role
         if 'role' in data and current_user.role == 'Administrator':
             user.role = data['role']
+
+        # Team membership (admin only)
+        if 'teamIds' in data and current_user.role == 'Administrator':
+            from app.models.team import Team
+            team_ids = data.get('teamIds')
+            if isinstance(team_ids, list):
+                user.teams = Team.query.filter(Team.id.in_([int(x) for x in team_ids])).all()
+            elif team_ids is None:
+                user.teams = []
         
         # Only admin can change is_active
         if 'is_active' in data and current_user.role == 'Administrator':
@@ -300,7 +325,7 @@ class UserService:
         }
 
     @staticmethod
-    def get_all_performance(start=None, end=None):
+    def get_all_performance(start=None, end=None, team_id=None):
         """Performansi user yang bisa mengerjakan tiket: Staff/Administrator saja.
 
         Role Management view-only (tak bisa di-assign, tak ada di get_agents)
@@ -314,10 +339,14 @@ class UserService:
         jendela, resolved = tiket SELESAI (resolved_at fallback updated_at) dalam
         jendela — untuk ranking periode Analytics. Tanpa jendela = all-time.
         """
-        users = User.query.filter(
+        user_query = User.query.filter(
             User.role.in_(['Staff', 'Administrator']),
             User.is_active == True
-        ).all()
+        )
+        if team_id is not None:
+            from app.models.team import Team
+            user_query = user_query.filter(User.teams.any(Team.id == team_id))
+        users = user_query.all()
 
         w_lo, w_hi = UserService._window_bounds(start, end)
         windowed = w_lo is not None
@@ -330,7 +359,10 @@ class UserService:
         for user in users:
             # Get ticket stats for this user (Assigned or Collaborator)
             # — definisi sama dengan get_user_performance (halaman Team/Profile).
-            involved_tickets = Ticket.query.filter(Ticket.category != DEV_CATEGORY).filter(
+            t_query = Ticket.query.filter(Ticket.category != DEV_CATEGORY)
+            if team_id is not None:
+                t_query = t_query.filter(Ticket.team_id == team_id)
+            involved_tickets = t_query.filter(
                 (Ticket.assigned_to_id == user.id) |
                 (Ticket.collaborators.any(User.id == user.id))
             ).all()

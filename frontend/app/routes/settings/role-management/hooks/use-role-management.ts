@@ -22,11 +22,12 @@ export type UserRole = "Administrator" | "Management" | "Staff";
 export interface ManagedUser {
   id: string;
   email: string | null;
-  phone: string | null;
+  phone?: string | null;
   username: string;
   name: string;
   role: UserRole;
   isActive: boolean;
+  teamIds?: string[];
 }
 
 interface NewUserForm {
@@ -36,6 +37,7 @@ interface NewUserForm {
   phone: string;
   password: string;
   role: UserRole;
+  teamIds: string[];
 }
 
 interface EditUserForm {
@@ -44,6 +46,7 @@ interface EditUserForm {
   email: string;
   phone: string;
   password: string;
+  teamIds: string[];
 }
 
 // ─────────────────────────────────────────────
@@ -83,6 +86,7 @@ export function useRoleManagement(
     phone: "",
     password: "",
     role: "Staff",
+    teamIds: [],
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
@@ -96,6 +100,7 @@ export function useRoleManagement(
     email: "",
     phone: "",
     password: "",
+    teamIds: [],
   });
   const [editFormErrors, setEditFormErrors] = useState<Record<string, string>>({});
 
@@ -214,19 +219,21 @@ export function useRoleManagement(
         phone: trimmedPhone,
         password: newUserForm.password,
         role: newUserForm.role,
+        teamIds: newUserForm.teamIds,
       });
 
       if (response.success && response.data) {
         const newUser = (
           response.data as {
             user: {
-              id: string;
+              id: string | number;
               email: string | null;
-              phone?: string | null;
               username: string;
               full_name: string;
               role: string;
-              is_active?: boolean;
+              is_active?: boolean | null;
+              phone?: string | null;
+              teamIds?: (string | number)[];
             };
           }
         ).user;
@@ -234,13 +241,14 @@ export function useRoleManagement(
         setUserList((prev) => [
           ...prev,
           {
-            id: newUser.id,
+            id: String(newUser.id),
             email: newUser.email ?? null,
-            phone: newUser.phone ?? trimmedPhone,
             username: newUser.username,
             name: newUser.full_name,
             role: newUser.role as UserRole,
             isActive: newUser.is_active !== false,
+            phone: newUser.phone ?? trimmedPhone,
+            teamIds: (newUser.teamIds ?? []).map(String),
           },
         ]);
         toast({
@@ -255,6 +263,7 @@ export function useRoleManagement(
           phone: "",
           password: "",
           role: "Staff",
+          teamIds: [],
         });
         setFormErrors({});
       } else {
@@ -288,6 +297,7 @@ export function useRoleManagement(
       email: user.email || "",
       phone: user.phone || "",
       password: "",
+      teamIds: user.teamIds ?? [],
     });
     setEditFormErrors({});
     setShowEditDialog(true);
@@ -322,11 +332,13 @@ export function useRoleManagement(
         email?: string | null;
         phone?: string | null;
         password?: string;
+        teamIds?: string[];
       } = {
         full_name: trimmedName,
         username: trimmedUsername,
         email: trimmedEmail,
         phone: trimmedPhone,
+        teamIds: editUserForm.teamIds,
       };
 
       // Password hanya disertakan jika diisi
@@ -336,16 +348,17 @@ export function useRoleManagement(
 
       if (response.success) {
         const updatedUser = (
-          response.data as
-            | {
-                user?: {
-                  email?: string | null;
-                  phone?: string | null;
-                  username?: string;
-                  full_name?: string;
-                };
-              }
-            | undefined
+          response.data as {
+            user?: {
+              full_name?: string;
+              username?: string;
+              email?: string | null;
+              phone?: string | null;
+              role?: string;
+              is_active?: boolean | null;
+              teamIds?: (string | number)[];
+            };
+          } | null
         )?.user;
 
         setUserList((prev) =>
@@ -357,6 +370,7 @@ export function useRoleManagement(
                 username: updatedUser?.username ?? trimmedUsername,
                 email: updatedUser !== undefined ? (updatedUser.email ?? null) : trimmedEmail,
                 phone: updatedUser !== undefined ? (updatedUser.phone ?? null) : trimmedPhone,
+                teamIds: updatedUser ? (updatedUser.teamIds ?? []).map(String) : editUserForm.teamIds,
               };
             }
             return user;

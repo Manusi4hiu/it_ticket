@@ -172,6 +172,11 @@ export function useTicketActions({
     const newNames = [...collaborators, agent.name];
     setCollaboratorIds(newIds);
     setCollaborators(newNames);
+    setTicket((prev) => ({
+      ...prev,
+      collaborators: newNames,
+      collaboratorIds: newIds.map(Number),
+    }));
 
     try {
       const updated = await updateTicket(String(ticket.id), { collaboratorIds: newIds.map(Number) });
@@ -204,6 +209,11 @@ export function useTicketActions({
     const newNames = collaborators.filter((name) => name !== targetName && name !== identifier);
     setCollaboratorIds(newIds);
     setCollaborators(newNames);
+    setTicket((prev) => ({
+      ...prev,
+      collaborators: newNames,
+      collaboratorIds: newIds.map(Number),
+    }));
 
     try {
       const updated = await updateTicket(String(ticket.id), { collaboratorIds: newIds.map(Number) });

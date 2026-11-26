@@ -84,27 +84,37 @@ const STATUS_ICONS_MAP: Record<string, React.ReactNode> = {
 };
 
 export async function loader({ request }: Route.LoaderArgs) {
-  // Management boleh akses Dev Board (view-only); Admin & Staff full access
+  // Dev Board HANYA untuk anggota team IT (role Staff/Admin/Management).
   return runWithRole(request, ["Administrator", "Staff", "Management"], async (session) => {
-    const [ticketsRes, agents, statusesRes, categoriesRes, prioritiesRes, holidaysRes] = await Promise.all([
-      getTickets({ category: "Development", per_page: 150 }), // Only show Development-scoped tracking tasks
-      getAgents(),
-      settingsApi.getStatuses(),
-      settingsApi.getCategories(),
-      settingsApi.getPriorities(),
-      settingsApi.getHolidays(),
-    ]);
 
-    return {
-      session,
-      initialTickets: ticketsRes.tickets,
-      agents,
-      statuses: (statusesRes.data?.data || []).filter((s: any) => s.showOnDevboard)
-        .sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0)),
-      categories: categoriesRes.data?.data || [],
-      priorities: (prioritiesRes.data?.data || []).filter((p: any) => p.isActive !== false),
-      holidays: holidaysRes.data?.data || [],
-    };
+  // Administrator lintas team boleh akses; non-admin wajib anggota team IT.
+  const isAdmin = session.userRole === "Administrator";
+  const teams = (session as any).teams || [];
+  const inIT = teams.some((t: any) => t.code === "IT");
+  if (!isAdmin && !inIT) {
+    const { redirect } = await import("react-router");
+    throw redirect("/forbidden");
+  }
+
+  const [ticketsRes, agents, statusesRes, categoriesRes, prioritiesRes, holidaysRes] = await Promise.all([
+    getTickets({ category: "Development", per_page: 150 }), // Only show Development-scoped tracking tasks
+    getAgents(),
+    settingsApi.getStatuses(),
+    settingsApi.getCategories(),
+    settingsApi.getPriorities(),
+    settingsApi.getHolidays(),
+  ]);
+
+  return {
+    session,
+    initialTickets: ticketsRes.tickets,
+    agents,
+    statuses: (statusesRes.data?.data || []).filter((s: any) => s.showOnDevboard)
+      .sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0)),
+    categories: categoriesRes.data?.data || [],
+    priorities: (prioritiesRes.data?.data || []).filter((p: any) => p.isActive !== false),
+    holidays: holidaysRes.data?.data || [],
+  };
   });
 }
 

@@ -2,7 +2,7 @@
 /// <reference types="vite-plugin-pwa/client" />
 
 import type { WorkboxPlugin } from "workbox-core";
-import { precacheAndRoute, cleanupOutdatedCaches } from "workbox-precaching";
+import { precacheAndRoute, cleanupOutdatedCaches, matchPrecache } from "workbox-precaching";
 import { registerRoute } from "workbox-routing";
 import { NetworkFirst, NetworkOnly } from "workbox-strategies";
 
@@ -82,7 +82,7 @@ registerRoute(
       // Offline or unreachable — fall back to static offline shell
     }
     const offlineUrl = `${getScopePath()}offline.html`;
-    const cachedOffline = await caches.match(offlineUrl);
+    const cachedOffline = await matchPrecache(offlineUrl);
     return cachedOffline || Response.error();
   },
 );

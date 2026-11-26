@@ -79,7 +79,7 @@ def create_app(config_name=None, config_overrides=None):
     })
 
     # Import models for migrations
-    from app.models import user, ticket, master_data, system_log, notification, push_subscription
+    from app.models import user, ticket, master_data, system_log, notification, push_subscription, team
 
     # Register blueprints
     from app.routes.auth import auth_bp
@@ -179,5 +179,11 @@ def create_app(config_name=None, config_overrides=None):
         start_sla_cron_scheduler(app)
     except Exception as e:
         print(f"Warning: Failed to start SLA push monitor scheduler: {e}")
+    # Start break auto-end scheduler (cek tiap menit)
+    try:
+        from app.services.break_service import start_break_auto_end_scheduler
+        start_break_auto_end_scheduler(app)
+    except Exception as e:
+        print(f"Warning: Failed to start break auto-end scheduler: {e}")
 
     return app

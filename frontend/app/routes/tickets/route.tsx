@@ -27,59 +27,94 @@ import {
   type Ticket,
   type Agent
 } from "~/services/ticket.service";
-import { settingsApi, type Status, type Category, type Priority } from "~/services/settings.service";
+import { settingsApi, type Status, type Category, type Priority, type Team } from "~/services/settings.service";
+import { usersApi } from "~/services/api.service";
 import { runWithAuth } from "~/services/session.service";
 import { sortStatusesByWorkflow, getStatusWorkflowRank, canTakeTicket, inferFilterGroup } from "~/utils/ticket-ui";
+import { getActiveTeamIdFromRequest, setActiveTeamId, getActiveTeamIdClient } from "~/utils/team-cookie";
 import styles from "./style.module.css";
 
 export async function loader({ request }: Route.LoaderArgs) {
   return runWithAuth(request, async (session) => {
-    const url = new URL(request.url);
-    
-    const statusResponse = await settingsApi.getStatuses();
+  const url = new URL(request.url);
 
-    const allStatuses = statusResponse.data?.data || [];
+  // Fetch teams & user team scoping
+  const [teamsRes, statusResponse, categoryResponse, priorityResponse] = await Promise.all([
+    settingsApi.getTeams(),
+    settingsApi.getStatuses(),
+    settingsApi.getCategories(),
+    settingsApi.getPriorities(),
+  ]);
 
-    // Default view (tanpa status param) = grup New — tiket New adalah kerjaan utama helpdesk.
-    // status=all eksplisit = semua status tanpa batasan.
-    const newDefaultNames = allStatuses
-      .filter((s: any) => (s.filterGroup || inferFilterGroup(s.name, s.isDefault)) === "new")
-      .map((s: any) => s.name);
-    const statusParam = url.searchParams.get("status");
-    const filters = {
-      status: !statusParam ? (newDefaultNames.join(",") || undefined) : (statusParam === "all" ? undefined : statusParam),
-      priority: url.searchParams.get("priority") || undefined,
-      category: url.searchParams.get("category") || undefined,
-      assignedTo: url.searchParams.get("assignedTo") || undefined,
-      search: url.searchParams.get("search") || undefined,
-      startDate: url.searchParams.get("startDate") || undefined,
-      endDate: url.searchParams.get("endDate") || undefined,
-      page: parseInt(url.searchParams.get("page") || "1"),
-      per_page: 15
-    };
+  const allTeams = ((teamsRes.data?.data || []) as Team[]).filter((t) => t.isActive !== false);
 
-    const [ticketResponse, agents, categoryResponse, priorityResponse, statsResponse] = await Promise.all([
-      getTickets(filters),
-      getAgents(),
-      settingsApi.getCategories(),
-      settingsApi.getPriorities(),
-      getTicketStats()
-    ]);
+  const isAdmin = session.userRole === "Administrator";
+  let userTeams = ((session as any)?.teams || []) as Team[];
+  if (!isAdmin && session.userId) {
+    try {
+      const userRes = await usersApi.getById(session.userId);
+      if (userRes.success && (userRes.data as any)?.user?.teams) {
+        userTeams = (userRes.data as any).user.teams;
+      }
+    } catch {
+      // fallback ke session teams
+    }
+  }
 
-    return {
-      session,
-      tickets: ticketResponse.tickets,
-      totalTickets: ticketResponse.total,
-      agents,
-      // Closed tetap di-hide dari halaman utama by design; status lain semua masuk
-      statuses: (statusResponse.data?.data || []).filter((s: any) => s.showOnItHelpdesk !== false && s.name.toLowerCase() !== 'closed') as Status[],
-      // Dropdown filter tersinkron master data: hanya yg Active (isActive !== false).
-      // Kategori/priority baru yg Active otomatis muncul tanpa ubah kode.
-      categories: ((categoryResponse.data?.data || []) as Category[]).filter((c: any) => c.isActive !== false),
-      priorities: ((priorityResponse.data?.data || []) as Priority[]).filter((p: any) => p.isActive !== false),
-      stats: statsResponse,
-      filters
-    };
+  const teams = isAdmin
+    ? allTeams
+    : allTeams.filter((t) => userTeams.some((ut) => String(ut.id) === String(t.id)));
+
+  const requestedTeamId = getActiveTeamIdFromRequest(request, url);
+  let selectedTeamId = requestedTeamId;
+  if (!selectedTeamId || !teams.some((t) => String(t.id) === selectedTeamId)) {
+    const itTeam = teams.find((t) => t.code === "IT");
+    selectedTeamId = itTeam ? String(itTeam.id) : teams[0] ? String(teams[0].id) : "";
+  }
+
+  const allStatuses = statusResponse.data?.data || [];
+
+  // Default view (tanpa status param) = grup New — tiket New adalah kerjaan utama helpdesk.
+  // status=all eksplisit = semua status tanpa batasan.
+  const newDefaultNames = allStatuses
+    .filter((s: any) => (s.filterGroup || inferFilterGroup(s.name, s.isDefault)) === "new")
+    .map((s: any) => s.name);
+  const statusParam = url.searchParams.get("status");
+  const filters = {
+    status: !statusParam ? (newDefaultNames.join(",") || undefined) : (statusParam === "all" ? undefined : statusParam),
+    priority: url.searchParams.get("priority") || undefined,
+    category: url.searchParams.get("category") || undefined,
+    assignedTo: url.searchParams.get("assignedTo") || undefined,
+    search: url.searchParams.get("search") || undefined,
+    startDate: url.searchParams.get("startDate") || undefined,
+    endDate: url.searchParams.get("endDate") || undefined,
+    page: parseInt(url.searchParams.get("page") || "1"),
+    per_page: 15,
+    teamId: selectedTeamId || undefined,
+  };
+
+  const [ticketResponse, agents, statsResponse] = await Promise.all([
+    getTickets(filters),
+    getAgents(selectedTeamId ? Number(selectedTeamId) : undefined),
+    getTicketStats(false, undefined, { teamId: selectedTeamId || undefined }),
+  ]);
+
+  return {
+    session,
+    tickets: ticketResponse.tickets,
+    totalTickets: ticketResponse.total,
+    agents,
+    // Closed tetap di-hide dari halaman utama by design; status lain semua masuk
+    statuses: (statusResponse.data?.data || []).filter((s: any) => s.showOnItHelpdesk !== false && s.name.toLowerCase() !== 'closed') as Status[],
+    // Dropdown filter tersinkron master data: hanya yg Active (isActive !== false).
+    categories: ((categoryResponse.data?.data || []) as Category[]).filter((c: any) => c.isActive !== false),
+    priorities: ((priorityResponse.data?.data || []) as Priority[]).filter((p: any) => p.isActive !== false),
+    stats: statsResponse,
+    filters,
+    teams,
+    selectedTeamId,
+    isAdmin,
+  };
   });
 }
 
@@ -93,7 +128,10 @@ export default function TicketsList({ loaderData }: Route.ComponentProps) {
     categories, 
     priorities,
     stats,
-    filters: initialFilters 
+    filters: initialFilters,
+    teams,
+    selectedTeamId,
+    isAdmin,
   } = loaderData;
   
   const [tickets, setTickets] = useState(initialTickets);
@@ -103,6 +141,41 @@ export default function TicketsList({ loaderData }: Route.ComponentProps) {
   }, [initialTickets]);
 
   const [searchParams, setSearchParams] = useSearchParams();
+  const urlTeam = searchParams.get("teamId");
+  const [activeTeamId, setActiveTeamIdState] = useState<string>(() => {
+    return urlTeam || selectedTeamId || getActiveTeamIdClient() || "";
+  });
+
+  useEffect(() => {
+    if (urlTeam && urlTeam !== activeTeamId) {
+      setActiveTeamIdState(urlTeam);
+      setActiveTeamId(urlTeam);
+    }
+  }, [urlTeam]);
+
+  // Sync saved team if URL has no teamId parameter
+  useEffect(() => {
+    const saved = getActiveTeamIdClient();
+    const currentParam = searchParams.get("teamId");
+    if (!currentParam && saved && teams.some((t: Team) => String(t.id) === saved)) {
+      setActiveTeamIdState(saved);
+      const next = new URLSearchParams(searchParams);
+      next.set("teamId", saved);
+      setSearchParams(next, { replace: true });
+    }
+  }, []);
+
+  const handleTeamChange = (newTeamId: string) => {
+    setActiveTeamIdState(newTeamId);
+    setActiveTeamId(newTeamId);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("app-team-changed", { detail: { teamId: newTeamId } }));
+    }
+    const next = new URLSearchParams(searchParams);
+    next.set("teamId", newTeamId);
+    next.delete("page");
+    setSearchParams(next);
+  };
   const navigate = useNavigate();
   const { revalidate } = useRevalidator();
   const [searchValue, setSearchValue] = useState(initialFilters.search || "");
@@ -702,7 +775,25 @@ export default function TicketsList({ loaderData }: Route.ComponentProps) {
   return (
     <div className={styles.container}>
       <div className={styles.header}>
-        <h1 className={styles.title}>Tickets</h1>
+        <div className={styles.titleRow}>
+          <h1 className={styles.title}>Tickets</h1>
+          {teams && teams.length > 1 && (
+            <div className={styles.seg} role="tablist" aria-label="Team workspace">
+              {teams.map((t: Team) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={String(t.id) === String(activeTeamId)}
+                  className={String(t.id) === String(activeTeamId) ? styles.segOn : styles.segBtn}
+                  onClick={() => handleTeamChange(String(t.id))}
+                >
+                  {t.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         
         <div className={styles.filterBar} ref={filterBarRef}>
           {/* 1. Search Input & Date Filter in Top Bar */}

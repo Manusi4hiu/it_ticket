@@ -40,6 +40,7 @@ import { getTickets, getAgents, type Ticket } from "~/services/ticket.service";
 import { usersApi } from "~/services/api.service";
 import { settingsApi } from "~/services/settings.service";
 import { runWithAuth } from "~/services/session.service";
+import { useToast } from "~/hooks/use-toast";
 import type { Route } from "./+types/route";
 import styles from "./style.module.css";
 
@@ -56,11 +57,21 @@ export interface ProfileStaff {
   phone?: string | null;
   role?: string;
   department?: string | null;
+  teams?: { id: number | string; name: string; code?: string }[];
   avatarUrl?: string | null;
   isActive?: boolean;
   updatedAt?: string | null;
   presenceStatus?: 'online' | 'idle' | 'dnd' | 'offline';
   customStatusMessage?: string | null;
+}
+
+function getStaffRoleLabel(staff: ProfileStaff): string {
+  const teamNames = staff.teams?.map((t) => t.name).filter(Boolean);
+  const role = staff.role || "Staff";
+  if (teamNames && teamNames.length > 0) {
+    return `${teamNames.join(" / ")} ${role}`;
+  }
+  return role === "Staff" ? "Staff" : role;
 }
 
 export type ProfileLoaderData = {
@@ -118,6 +129,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
         phone: u.phone,
         role: u.role,
         department: u.department,
+        teams: (u as any).teams || [],
         avatarUrl: u.avatar_url,
         isActive: (u as any).is_active ?? true,
         updatedAt: (u as any).updated_at,
@@ -321,6 +333,7 @@ function getRoleQuote(role: string | undefined) {
 export default function StaffProfile({ loaderData }: Route.ComponentProps) {
   const { session, staffId, staff, isAgent, tickets, performance } = loaderData as ProfileLoaderData;
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<"all" | "in-progress" | "assigned" | "pending" | "resolved" | "breached">("all");
 
   // Break state — seeded from server data, updated optimistically on toggle
@@ -451,9 +464,12 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
     return () => { cancelled = true; };
   }, []);
 
-  // Only show break button for own profile and non-Management roles
+  // Only show break button for own profile and non-Management roles.
+  // Break adalah fitur IT-only — user team COC/Design tidak punya break.
   const isSelf = String(session.userId) === String(staffId);
-  const canToggleBreak = isSelf && staff?.role !== 'Management';
+  const sessionTeams = (session?.teams || []) as { code: string }[];
+  const isCoc = sessionTeams.some(t => t.code === 'COC') && !sessionTeams.some(t => t.code === 'IT');
+  const canToggleBreak = isSelf && staff?.role !== 'Management' && !isCoc;
 
   const handleToggleBreak = () => {
     if (breakLoading) return;
@@ -487,6 +503,12 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
         if (updated.presenceStatus) {
           setPresenceStatusState(updated.presenceStatus as PresenceStatus);
         }
+      } else if (!res.success) {
+        toast({
+          title: isOnBreak ? "Gagal mengakhiri break" : "Break tidak dapat dimulai",
+          description: res.error || "Silakan coba lagi.",
+          variant: "destructive",
+        });
       }
     } catch (e) {
       console.error('Toggle break failed:', e);

@@ -15,12 +15,56 @@
   gap: 14px;
 }
 
+.titleRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
 .title {
   font-size: 1.45rem;
   font-weight: 700;
   color: #fff;
   letter-spacing: -0.3px;
   margin: 0;
+}
+
+/* Team segmented switcher */
+.seg {
+  display: inline-flex;
+  align-items: center;
+  min-height: 38px;
+  padding: 3px;
+  gap: 2px;
+  background: rgba(17, 24, 39, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+
+.segBtn,
+.segOn {
+  cursor: pointer;
+  padding: 0.4rem 0.9rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  border-radius: 8px;
+  border: 1.5px solid transparent;
+  background: transparent;
+  color: #9ca3af;
+  transition: all 0.2s ease;
+}
+
+.segBtn:hover {
+  color: #e5e7eb;
+}
+
+.segOn {
+  background: rgba(59, 130, 246, 0.16);
+  border-color: rgba(59, 130, 246, 0.6);
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.35);
+  color: #fff;
 }
 
 /* Filter bar */

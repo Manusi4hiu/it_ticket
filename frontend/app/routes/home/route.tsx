@@ -84,16 +84,22 @@ export default function Home({ loaderData }: Route.ComponentProps) {
         <div className={styles.heroContent}>
           <h1 className={styles.heroTitle}>IT Aero Nusantara Indonesia</h1>
           <p className={styles.heroSubtitle}>
-            Submit, track, and manage IT support tickets with ease. Our streamlined
+            Submit, track, and manage IT and Corcom requests with ease. Our streamlined
             ticketing system ensures your issues are resolved quickly and efficiently.
           </p>
           <div className={styles.heroCta}>
-            <Link to="/submit-ticket">
-              <Button className={styles.primaryButton}>
+            <Button asChild className={styles.primaryButton}>
+              <Link to="/submit-ticket">
                 <TicketPlus size={20} />
-                Submit a Ticket
-              </Button>
-            </Link>
+                Request IT
+              </Link>
+            </Button>
+            <Button asChild className={styles.primaryButton}>
+              <Link to="/corcom/submit-ticket">
+                <TicketPlus size={20} />
+                Request Corcom
+              </Link>
+            </Button>
             <Button
               variant="outline"
               className={styles.secondaryButton}

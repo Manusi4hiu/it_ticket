@@ -38,6 +38,8 @@ export interface UserSession {
   userRole: string;
   userName: string;
   authToken: string | undefined;
+  teams: NonNullable<AuthUser["teams"]>;
+  lastActiveTeamId: string | number | null;
 }
 
 export async function createUserSession(user: AuthUser, redirectTo: string, token?: string) {
@@ -51,6 +53,8 @@ export async function createUserSession(user: AuthUser, redirectTo: string, toke
     session.set('userEmail', user.email);
     session.set('userRole', user.role);
     session.set('userName', user.full_name);
+    session.set('teams', user.teams || []);
+    session.set('lastActiveTeamId', user.lastActiveTeamId ?? null);
     
     if (token) {
       console.log('[Session Service] Setting authToken in session');
@@ -77,6 +81,8 @@ export async function getUserSession(request: Request): Promise<UserSession | nu
   const userRole = session.get('userRole');
   const userName = session.get('userName');
   const authToken = session.get('authToken');
+  const teams = session.get('teams');
+  const lastActiveTeamId = session.get('lastActiveTeamId');
 
   if (!userId || (typeof userId !== 'string' && typeof userId !== 'number')) {
     return null;
@@ -88,6 +94,8 @@ export async function getUserSession(request: Request): Promise<UserSession | nu
     userRole: String(userRole || ''),
     userName: String(userName || ''),
     authToken: typeof authToken === 'string' ? authToken : undefined,
+    teams: Array.isArray(teams) ? teams : [],
+    lastActiveTeamId: lastActiveTeamId ?? null,
   };
 }
 

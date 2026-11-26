@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import { ChevronRight } from "lucide-react";
 import {
   BarChart,
@@ -16,22 +16,58 @@ import {
 import { getAllAgentsPerformance, getTicketStats } from "~/services/ticket.service";
 import { usersApi } from "~/services/api.service";
 import { runWithAuth } from "~/services/session.service";
+import { settingsApi, type Team } from "~/services/settings.service";
 import type { Route } from "./+types/route";
+import { getActiveTeamIdFromRequest, setActiveTeamId, getActiveTeamIdClient } from "~/utils/team-cookie";
 import styles from "./style.module.css";
 
 export async function loader({ request }: Route.LoaderArgs) {
   return runWithAuth(request, async (session) => {
-    // Fetch data from API (trend 28 hari untuk agregasi mingguan Week 1–4)
-    const [agentsPerformance, stats] = await Promise.all([
-      getAllAgentsPerformance(),
-      getTicketStats(false, 28)
-    ]);
+  const params = new URL(request.url).searchParams;
 
-    return {
-      session,
-      agentsPerformance,
-      stats,
-    };
+  const teamsRes = await settingsApi.getTeams();
+  const allTeams = ((teamsRes.data?.data || []) as Team[]).filter((t) => t.isActive !== false);
+
+  const isAdmin = session.userRole === "Administrator";
+  let userTeams = ((session as any)?.teams || []) as Team[];
+  if (!isAdmin && session.userId) {
+    try {
+      const userRes = await usersApi.getById(session.userId);
+      if (userRes.success && (userRes.data as any)?.user?.teams) {
+        userTeams = (userRes.data as any).user.teams;
+      }
+    } catch {
+      // fallback ke session teams
+    }
+  }
+
+  // Admin melihat semua tim. Non-admin hanya melihat tim yang diikutinya (misal IT & Graphic Design).
+  const teams = isAdmin
+    ? allTeams
+    : allTeams.filter((t) => userTeams.some((ut) => String(ut.id) === String(t.id)));
+
+  // Team scoping: dari query param, fallback ke team IT atau team pertama yang diizinkan
+  const requestedTeamId = getActiveTeamIdFromRequest(request, new URL(request.url));
+  let selectedTeamId = requestedTeamId;
+  if (!selectedTeamId || !teams.some((t) => String(t.id) === selectedTeamId)) {
+    const itTeam = teams.find((t) => t.code === "IT");
+    selectedTeamId = itTeam ? String(itTeam.id) : teams[0] ? String(teams[0].id) : "";
+  }
+
+  // Fetch data from API (trend 28 hari untuk agregasi mingguan Week 1–4)
+  const [agentsPerformance, stats] = await Promise.all([
+    getAllAgentsPerformance({ teamId: selectedTeamId || undefined }),
+    getTicketStats(false, 28, { teamId: selectedTeamId || undefined }),
+  ]);
+
+  return {
+    session,
+    agentsPerformance,
+    stats,
+    teams,
+    selectedTeamId,
+    isAdmin,
+  };
   });
 }
 
@@ -54,9 +90,48 @@ function ChartTip({ active, payload, label }: any) {
 }
 
 export default function StaffPerformance({ loaderData }: Route.ComponentProps) {
-  const { session, agentsPerformance, stats } = loaderData;
+  const { session, agentsPerformance, stats, teams, selectedTeamId, isAdmin } = loaderData;
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlTeam = searchParams.get("teamId");
+  const [activeTeamId, setActiveTeamIdState] = useState<string>(() => {
+    return urlTeam || selectedTeamId || getActiveTeamIdClient() || "";
+  });
+
+  useEffect(() => {
+    if (urlTeam && urlTeam !== activeTeamId) {
+      setActiveTeamIdState(urlTeam);
+      setActiveTeamId(urlTeam);
+    }
+  }, [urlTeam]);
+
+  useEffect(() => {
+    const saved = getActiveTeamIdClient();
+    const currentParam = searchParams.get("teamId");
+    if (!currentParam && saved && teams.some((t: Team) => String(t.id) === saved)) {
+      setActiveTeamIdState(saved);
+      const next = new URLSearchParams(searchParams);
+      next.set("teamId", saved);
+      setSearchParams(next, { replace: true });
+    }
+  }, []);
+
+  const handleTeamChange = (newTeamId: string) => {
+    setActiveTeamIdState(newTeamId);
+    setActiveTeamId(newTeamId);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("app-team-changed", { detail: { teamId: newTeamId } }));
+    }
+    const next = new URLSearchParams(searchParams);
+    next.set("teamId", newTeamId);
+    setSearchParams(next);
+  };
+
+  const currentTeam = (teams as Team[]).find((t) => String(t.id) === String(activeTeamId));
+  const isCocSelected = currentTeam?.code === "COC";
+
   const [activeTab, setActiveTab] = useState<"overview" | "analytics" | "leaderboard" | "break">("overview");
+  const visibleTabs = (["overview", "analytics", "leaderboard", ...(isCocSelected ? [] : (["break"] as const))] as const);
   const [breakPeriod, setBreakPeriod] = useState<"daily" | "weekly" | "monthly">("daily");
   const [breakSummary, setBreakSummary] = useState<Array<{
     userId: number; userName: string; username: string; role: string;
@@ -191,20 +266,39 @@ export default function StaffPerformance({ loaderData }: Route.ComponentProps) {
         <div>
           <p className={styles.kicker}>Team · All time</p>
           <h1 className={styles.title}>Performance insights</h1>
-          <p className={styles.sub}>Who carries the load, how fast work closes, and where it stalls.</p>
+          <p className={styles.sub}>
+            Who carries the load, how fast work closes, and where it stalls for {currentTeam?.name || "Team"}.
+          </p>
         </div>
-        <div className={styles.seg} role="tablist" aria-label="Performance views">
-          {(["overview", "analytics", "leaderboard", "break"] as const).map((t) => (
-            <button
-              key={t}
-              role="tab"
-              aria-selected={activeTab === t}
-              className={activeTab === t ? styles.segOn : styles.segBtn}
-              onClick={() => setActiveTab(t)}
-            >
-              {t === "overview" ? "Overview" : t === "analytics" ? "Analytics" : t === "leaderboard" ? "Leaderboard" : "Break"}
-            </button>
-          ))}
+        <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "center" }}>
+          {teams.length > 1 && (
+            <div className={styles.seg} role="tablist" aria-label="Team workspace">
+              {teams.map((t: Team) => (
+                <button
+                  key={t.id}
+                  role="tab"
+                  aria-selected={String(t.id) === String(activeTeamId)}
+                  className={String(t.id) === String(activeTeamId) ? styles.segOn : styles.segBtn}
+                  onClick={() => handleTeamChange(String(t.id))}
+                >
+                  {t.name}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className={styles.seg} role="tablist" aria-label="Performance views">
+            {visibleTabs.map((t) => (
+              <button
+                key={t}
+                role="tab"
+                aria-selected={activeTab === t}
+                className={activeTab === t ? styles.segOn : styles.segBtn}
+                onClick={() => setActiveTab(t)}
+              >
+                {t === "overview" ? "Overview" : t === "analytics" ? "Analytics" : t === "leaderboard" ? "Leaderboard" : "Break"}
+              </button>
+            ))}
+          </div>
         </div>
       </header>
 

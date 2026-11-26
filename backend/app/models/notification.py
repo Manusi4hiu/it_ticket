@@ -16,6 +16,8 @@ class Notification(db.Model):
     - 'break_ended': Sesi istirahat berakhir otomatis (jam kerja selesai)
     - 'sla_warning': Tiket mendekati batas SLA (< 2 jam tersisa)
     - 'sla_breached': Tiket telah melewati batas waktu SLA
+    - 'sla_warning' / 'sla_breached': tiket IT mendekati / melewati SLA
+    - 'deadline_warning' / 'deadline_breached': tiket Graphic Design mendekati / melewati batas deadline
     """
     __tablename__ = 'notifications'
 

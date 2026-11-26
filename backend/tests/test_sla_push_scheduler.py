@@ -162,6 +162,7 @@ def test_closed_app_background_sla_scheduler_sends_warning_and_breach_webpush(is
             ticket_code='ITD-100',
             status='In Progress',
             assigned_to_id=staff.id,
+            taken_at=now_utc - timedelta(hours=1),
             sla_deadline=now_utc + timedelta(minutes=25),  # inside 30-min milestone
         )
         db.session.add(ticket)
@@ -271,6 +272,7 @@ def test_break_frozen_sla_does_not_fire_false_warnings_or_breaches(isolated_app)
             ticket_code='ITD-200',
             status='In Progress',
             assigned_to_id=staff.id,
+            taken_at=now_utc - timedelta(hours=1),
             sla_deadline=now_utc - timedelta(minutes=5),
         )
         db.session.add(ticket)

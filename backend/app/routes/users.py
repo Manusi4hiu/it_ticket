@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.services.user_service import UserService
 from app.models.user import User
-from app.utils.permissions import admin_required, role_required, get_current_user
+from app.utils.permissions import admin_required, role_required, get_current_user, is_administrator
 from datetime import datetime, timezone, timedelta, date
 import calendar
 import re
@@ -31,8 +31,36 @@ def get_users():
 @users_bp.route('/agents', methods=['GET'])
 @jwt_required()
 def get_agents():
-    """Get users who can be assigned to tickets (all staff)"""
-    users = UserService.get_agents()
+    """Get users who can be assigned to tickets (all staff), optional team scope"""
+    current_user = get_current_user()
+    team_id = request.args.get('teamId', type=int)
+
+    # Scoping team: Non-admin HANYA boleh melihat rekan di team-nya sendiri
+    if not is_administrator(current_user):
+        from app.utils.permissions import get_user_team_ids
+        ids = get_user_team_ids(current_user)
+        if team_id is not None and team_id not in ids:
+            return jsonify({'success': False, 'error': 'Forbidden. Anda tidak punya akses ke team ini.'}), 403
+        if team_id is None:
+            users = UserService.get_agents()
+            users = [u for u in users if any(t.id in ids for t in u.teams)]
+            return jsonify({
+                'success': True,
+                'agents': [{
+                    'id': u.id,
+                    'name': u.full_name,
+                    'username': u.username,
+                    'email': u.email,
+                    'phone': u.phone,
+                    'isActive': u.is_active if u.is_active is not None else True,
+                    'isOnBreak': u.is_on_break or False,
+                    'presenceStatus': u.to_dict().get('presenceStatus', 'online'),
+                    'customStatusMessage': u.to_dict().get('customStatusMessage'),
+                    'teams': [{'id': t.id, 'name': t.name, 'code': t.code} for t in u.teams],
+                } for u in users]
+            }), 200
+
+    users = UserService.get_agents(team_id=team_id)
     
     return jsonify({
         'success': True,
@@ -46,6 +74,7 @@ def get_agents():
             'isOnBreak': u.is_on_break or False,
             'presenceStatus': u.to_dict().get('presenceStatus', 'online'),
             'customStatusMessage': u.to_dict().get('customStatusMessage'),
+            'teams': [{'id': t.id, 'name': t.name, 'code': t.code} for t in u.teams],
         } for u in users]
     }), 200
 
@@ -168,9 +197,26 @@ def get_user_performance(user_id):
 def get_all_performance():
     """Get performance statistics for all staff members (reports/analytics: Admin/Management/Staff)"""
     from flask import request
+    current_user = get_current_user()
+    team_id = request.args.get('teamId', type=int)
+
+    # Scoping team untuk non-admin
+    if not is_administrator(current_user):
+        from app.utils.permissions import get_user_team_ids
+        ids = get_user_team_ids(current_user)
+        if team_id is not None and team_id not in ids:
+            return jsonify({'success': False, 'error': 'Forbidden. Anda tidak punya akses ke team ini.'}), 403
+        if not ids:
+            return jsonify({'success': True, 'performance': []}), 200
+        if team_id is None:
+            team_id = next(iter(ids))
+
     # Jendela opsional (ISO YYYY-MM-DD) untuk ranking periode Analytics.
     results = UserService.get_all_performance(
-        start=request.args.get('start'), end=request.args.get('end'))
+        start=request.args.get('start'),
+        end=request.args.get('end'),
+        team_id=team_id
+    )
 
     return jsonify({
         'success': True,
@@ -202,17 +248,22 @@ def toggle_active(user_id):
 def toggle_break(user_id):
     """Toggle break status untuk staff IT"""
     from app import db
-    from app.models.ticket import Ticket
-    from app.models.master_data import BreakLog
-    from app.services.email_service import EmailService
-    import logging
-    
-    logger = logging.getLogger(__name__)
+
     current_user = get_current_user()
 
     # Guard: hanya bisa toggle break sendiri atau admin
     if current_user.id != user_id and current_user.role != 'Administrator':
         return jsonify({'error': 'Unauthorized'}), 403
+
+    # ── Break hanya untuk anggota team IT (COC/Design tidak ada fitur break) ──
+    from app.utils.permissions import get_user_team_ids
+    from app.models.team import Team
+    target = User.query.get(user_id)
+    target_team_ids = get_user_team_ids(target) if target else set()
+    it_team = Team.query.filter_by(code='IT').first()
+    it_team_id = it_team.id if it_team else None
+    if it_team_id is not None and it_team_id not in target_team_ids and current_user.role != 'Administrator':
+        return jsonify({'error': 'Fitur Break hanya tersedia untuk tim IT'}), 403
 
     # Lock row untuk mencegah race condition (dua request simultan)
     user = User.query.filter_by(id=user_id).with_for_update().first()
@@ -227,86 +278,37 @@ def toggle_break(user_id):
         user.break_total_date = today_wib
 
     from app.services.master_data_service import MasterDataService
-    break_setting = MasterDataService.get_break_setting()
-    max_minutes = break_setting.max_break_minutes or 60
-    daily_max_minutes = break_setting.daily_max_minutes or 20
-    work_start = break_setting.work_start_time or "08:00"
-    work_end = break_setting.work_end_time or "17:00"
-    auto_end_on_shift_end = getattr(break_setting, 'auto_end_on_shift_end', True)
+    from app.services.break_service import (
+        finalize_break, get_capped_break_end, get_work_end_utc,
+    )
+    setting = MasterDataService.get_break_setting()
+    max_minutes = setting.max_break_minutes or 60
+    daily_max_minutes = setting.daily_max_minutes or 20
+    now = datetime.now(timezone.utc)
+    auto_end = setting.auto_end_on_shift_end is not False
+    work_start = setting.work_start_time or '08:00'
+    work_end = setting.work_end_time or '17:00'
 
     if user.is_on_break:
-        # END break: akumulasi durasi AKTUAL (di-cap di jam selesai kerja bila auto-end aktif)
-        if user.break_started_at:
-            break_start = user.break_started_at
-            if break_start.tzinfo is None:
-                break_start = break_start.replace(tzinfo=timezone.utc)
-            
-            end_time = datetime.now(timezone.utc)
-            if auto_end_on_shift_end:
-                wib_tz = timezone(timedelta(hours=7))
-                start_wib = break_start.astimezone(wib_tz)
-                try:
-                    end_h, end_m = [int(x) for x in work_end.split(':')]
-                    shift_end_wib = start_wib.replace(hour=end_h, minute=end_m, second=0, microsecond=0)
-                    shift_end_utc = shift_end_wib.astimezone(timezone.utc)
-                    if end_time > shift_end_utc:
-                        end_time = shift_end_utc
-                except Exception:
-                    pass
-
-            duration = (end_time - break_start).total_seconds()
-            actual = max(0, int(duration))
-            user.total_break_seconds_today = (user.total_break_seconds_today or 0) + actual
-            # Catat riwayat sesi (sumber agregasi harian/mingguan/bulanan).
-            try:
-                with db.session.begin_nested():
-                    db.session.add(BreakLog(
-                        user_id=user.id,
-                        started_at=break_start,
-                        ended_at=end_time,
-                        duration_seconds=actual,
-                        log_date=today_wib,
-                    ))
-            except Exception as log_err:
-                logger.error(f"Break log insert failed: {log_err}")
-            # Notifikasi ke admin bila total break hari ini melebihi kuota harian (best-effort).
-            if (user.total_break_seconds_today or 0) > daily_max_minutes * 60:
-                try:
-                    from app.services.notification_service import NotificationService
-                    admins = User.query.filter(
-                        User.role == 'Administrator', User.id != user.id
-                    ).all()
-                    total_today_min = int(user.total_break_seconds_today or 0) // 60
-                    for admin in admins:
-                        NotificationService.push(
-                            admin.id, None, 'break_overtime',
-                            'Break Melebihi Batas Harian',
-                            f"{user.full_name} break melebihi kuota harian: total hari ini {total_today_min} mnt (kuota harian {daily_max_minutes} mnt).",
-                        )
-                except Exception as notif_err:
-                    logger.error(f"Break overtime notification failed: {notif_err}")
-        user.is_on_break = False
-        user.break_started_at = None
-        # Restore presence ke status sebelum break (simpan di break_pre_status),
-        # fallback ke 'online' kalau tidak ada.
-        restored = getattr(user, 'break_pre_status', None) or 'online'
-        # Pastikan nilai valid setelah restore
-        if restored not in ('online', 'idle', 'dnd', 'offline'):
-            restored = 'online'
-        user.presence_status = restored
+        # END break. Bila auto-end aktif dan jam kerja sudah lewat, potong
+        # durasi tepat di jam selesai kerja agar tidak berjalan semalaman.
+        ended_at = get_capped_break_end(now, user.break_started_at, setting)
+        finalize_break(user, ended_at, setting)
     else:
-        # START break: Cek jam kerja bila auto_end_on_shift_end aktif
-        if auto_end_on_shift_end:
-            now_wib_str = datetime.now(timezone(timedelta(hours=7))).strftime("%H:%M")
-            if now_wib_str < work_start or now_wib_str >= work_end:
-                return jsonify({
-                    'error': f'Fitur break hanya dapat digunakan pada jam kerja ({work_start} - {work_end} WIB).'
-                }), 400
-
+        # START break. Tolak bila jam kerja hari ini sudah berakhir dan
+        # auto-end aktif — mencegah sesi break dimulai setelah pulang.
+        now_wib_time = now.astimezone(timezone(timedelta(hours=7))).strftime('%H:%M')
+        if auto_end and (now_wib_time < work_start or now >= get_work_end_utc(now, setting)):
+            return jsonify({
+                'error': (
+                    f"Fitur break hanya dapat digunakan pada jam kerja "
+                    f"({work_start} - {work_end} WIB)."
+                )
+            }), 400
         # Simpan status saat ini lalu set ke 'break'
         user.break_pre_status = user.presence_status or 'online'
         user.is_on_break = True
-        user.break_started_at = datetime.now(timezone.utc)
+        user.break_started_at = now
         user.presence_status = 'break'
 
     db.session.commit()
@@ -315,7 +317,7 @@ def toggle_break(user_id):
     payload['dailyMaxMinutes'] = daily_max_minutes
     payload['workStartTime'] = work_start
     payload['workEndTime'] = work_end
-    payload['autoEndOnShiftEnd'] = auto_end_on_shift_end
+    payload['autoEndOnShiftEnd'] = auto_end
     return jsonify(payload), 200
 
 

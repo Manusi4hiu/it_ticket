@@ -47,8 +47,15 @@ interface SlaCardProps {
 // Helpers (internal)
 // ─────────────────────────────────────────────
 
+function isGraphicDesignTicket(ticket: Ticket): boolean {
+  return ticket.teamCode === "COC";
+}
+
 /** Return CSS class berdasarkan SLA status dan kondisi deadline. */
 function getSLAStatusClass(ticket: Ticket, stylesObj: Record<string, string>): string {
+  const isGraphicDesign = isGraphicDesignTicket(ticket);
+  const effectiveStatus = ticket.slaStatus || "good";
+
   const hasNoDeadline =
     !ticket.slaDeadline &&
     ticket.status.toLowerCase() !== "resolved" &&
@@ -56,16 +63,23 @@ function getSLAStatusClass(ticket: Ticket, stylesObj: Record<string, string>): s
 
   if (hasNoDeadline) return stylesObj.slaPending ?? "";
 
-  switch (ticket.slaStatus) {
-    case "good": return stylesObj.slaGood ?? "";
-    case "warning": return stylesObj.slaWarning ?? "";
-    case "breached": return stylesObj.slaBreached ?? "";
-    default: return stylesObj.slaGood ?? "";
+  switch (effectiveStatus) {
+    case "good":
+      return stylesObj.slaGood ?? "";
+    case "warning":
+      return stylesObj.slaWarning ?? "";
+    case "breached":
+      return stylesObj.slaBreached ?? "";
+    default:
+      return stylesObj.slaGood ?? "";
   }
 }
 
 /** Return icon JSX berdasarkan SLA status. */
 function getSLAIcon(ticket: Ticket) {
+  const isGraphicDesign = isGraphicDesignTicket(ticket);
+  const effectiveStatus = ticket.slaStatus || "good";
+
   const hasNoDeadline =
     !ticket.slaDeadline &&
     ticket.status.toLowerCase() !== "resolved" &&
@@ -73,10 +87,15 @@ function getSLAIcon(ticket: Ticket) {
 
   if (hasNoDeadline) return <Clock className={`${styles.slaIcon} ${styles.slaIconWarning}`} />;
 
-  switch (ticket.slaStatus) {
-    case "good": return <CheckCircle className={`${styles.slaIcon} ${styles.slaIconGood}`} />;
-    case "warning": return <Clock className={`${styles.slaIcon} ${styles.slaIconWarning}`} />;
-    case "breached": return <AlertTriangle className={`${styles.slaIcon} ${styles.slaIconBreached}`} />;
+  switch (effectiveStatus) {
+    case "good":
+      return <CheckCircle className={`${styles.slaIcon} ${styles.slaIconGood}`} />;
+    case "warning":
+      return <Clock className={`${styles.slaIcon} ${styles.slaIconWarning}`} />;
+    case "breached":
+      return <AlertTriangle className={`${styles.slaIcon} ${styles.slaIconBreached}`} />;
+    default:
+      return <CheckCircle className={`${styles.slaIcon} ${styles.slaIconGood}`} />;
   }
 }
 
@@ -87,8 +106,20 @@ function getSLATitle(ticket: Ticket, holidays?: HolidayLike[]): React.ReactNode 
     ticket.status.toLowerCase() === "closed";
 
   if (isResolved) return "Resolution Time";
-  if (!ticket.slaDeadline) return "SLA Pending";
-  if (ticket.slaPausedAt) return "SLA Paused";
+
+  const isGraphicDesign = isGraphicDesignTicket(ticket);
+
+  if (!ticket.slaDeadline) return isGraphicDesign ? "Deadline Pending" : "SLA Pending";
+  if (ticket.slaPausedAt && !isGraphicDesign) return "SLA Paused";
+
+  const status = ticket.slaStatus?.toLowerCase();
+  const isBreached = status === "breached";
+
+  if (isGraphicDesign) {
+    if (isBreached) return "Deadline Overdue:";
+    if (status === "warning") return "Deadline Warning";
+    return "Deadline On Track";
+  }
 
   const now = new Date();
   if (!isWithinWorkingHours(now, holidays)) {
@@ -97,9 +128,9 @@ function getSLATitle(ticket: Ticket, holidays?: HolidayLike[]): React.ReactNode 
 
   return (
     <>
-      {ticket.slaStatus === "good" && "SLA On Track"}
-      {ticket.slaStatus === "warning" && "SLA Warning"}
-      {ticket.slaStatus === "breached" && "SLA Breached"}
+      {(status === "good" || status === "healthy") && "SLA On Track"}
+      {status === "warning" && "SLA Warning"}
+      {status === "breached" && "SLA Breached"}
     </>
   );
 }
@@ -149,8 +180,20 @@ export function SlaCard({
   const canEditResolvedAt =
     (isAdministrator || ticket.assignedTo === currentUser?.name) && !isManagement;
 
+  const isGraphicDesign = isGraphicDesignTicket(ticket);
+  const effectiveStatus = ticket.slaStatus || "good";
+
   const slaStatusKey =
-    ticket.slaStatus.charAt(0).toUpperCase() + ticket.slaStatus.slice(1);
+    effectiveStatus.charAt(0).toUpperCase() + effectiveStatus.slice(1);
+
+  const rawTimeRemaining = formatTimeRemaining(ticket.slaDeadline, isGraphicDesign ? undefined : ticket.slaPausedAt, holidays);
+  const timeDisplay = isResolved
+    ? formatDuration(ticket.takenAt ?? ticket.createdAt, ticket.resolvedAt || ticket.updatedAt, holidays)
+    : !ticket.slaDeadline
+    ? (isGraphicDesign ? "-" : "Belum Diambil")
+    : isGraphicDesign
+    ? rawTimeRemaining.replace(" overdue", "")
+    : rawTimeRemaining;
 
   return (
     <div className={`${styles.slaCard} ${getSLAStatusClass(ticket, styles)}`}>
@@ -170,9 +213,7 @@ export function SlaCard({
       <div
         className={`${styles.slaTime} ${styles[`slaTime${slaStatusKey}`] ?? ""}`}
       >
-        {isResolved
-          ? formatDuration(ticket.takenAt ?? ticket.createdAt, ticket.resolvedAt || ticket.updatedAt, holidays)
-          : formatTimeRemaining(ticket.slaDeadline, ticket.slaPausedAt, holidays)}
+        {timeDisplay}
       </div>
 
       {/* Deadline / Working Time Detail */}
@@ -194,7 +235,7 @@ export function SlaCard({
             holidays={holidays}
           />
         ) : !ticket.slaDeadline ? (
-          <>Awaiting IT User Assignment</>
+          <>{isGraphicDesign ? "Awaiting Assignment" : "Awaiting IT User Assignment"}</>
         ) : (
           <>Deadline: {formatDate(ticket.slaDeadline)}</>
         )}

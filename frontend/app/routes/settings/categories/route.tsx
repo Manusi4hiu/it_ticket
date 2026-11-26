@@ -20,61 +20,71 @@ import { Plus, Pencil, Trash2, Tag } from "lucide-react";
 import { settingsApi } from "~/services/settings.service";
 import { runWithRole } from "~/services/session.service";
 import styles from "../style.module.css";
-import type { Category } from "~/services/settings.service";
+import type { Category, Team } from "~/services/settings.service";
 
 export async function loader({ request }: Route.LoaderArgs) {
     return runWithRole(request, ["Administrator"], async () => {
-        const response = await settingsApi.getCategories();
-        return Response.json({ categories: response.data?.data || [] });
+    const [catRes, teamsRes] = await Promise.all([
+        settingsApi.getCategories(),
+        settingsApi.getTeams(),
+    ]);
+    return Response.json({
+        categories: catRes.data?.data || [],
+        teams: teamsRes.data?.data || [],
+    });
     });
 }
 
 export async function action({ request }: Route.ActionArgs) {
     return runWithRole(request, ["Administrator"], async () => {
-        const formData = await request.formData();
-        const intent = formData.get("intent");
+    const formData = await request.formData();
+    const intent = formData.get("intent");
 
-        if (intent === "create") {
-            const name = formData.get("name") as string;
-            const description = formData.get("description") as string;
-            const isActive = formData.get("isActive") === "true";
+    if (intent === "create") {
+        const name = formData.get("name") as string;
+        const description = formData.get("description") as string;
+        const isActive = formData.get("isActive") === "true";
+        const teamId = (formData.get("teamId") as string || "").trim();
 
-            if (!name) return Response.json({ error: "Category name is required" }, { status: 400 });
+        if (!name) return Response.json({ error: "Category name is required" }, { status: 400 });
 
-            const response = await settingsApi.createCategory({ name, description, isActive });
-            if (!response.success) return { error: response.error };
-            return { success: true };
-        }
+        const response = await settingsApi.createCategory({ name, description, isActive, teamId: teamId ? Number(teamId) : null });
+        if (!response.success) return { error: response.error };
+        return { success: true };
+    }
 
-        if (intent === "update") {
-            const id = formData.get("id") as string;
-            const name = formData.get("name") as string;
-            const description = formData.get("description") as string;
-            const isActive = formData.get("isActive") === "true";
+    if (intent === "update") {
+        const id = formData.get("id") as string;
+        const name = formData.get("name") as string;
+        const description = formData.get("description") as string;
+        const isActive = formData.get("isActive") === "true";
+        const teamId = (formData.get("teamId") as string || "").trim();
 
-            if (!id || !name) return Response.json({ error: "ID and Name are required" }, { status: 400 });
+        if (!id || !name) return Response.json({ error: "ID and Name are required" }, { status: 400 });
 
-            const response = await settingsApi.updateCategory(id, { name, description, isActive });
-            if (!response.success) return Response.json({ error: response.error }, { status: 400 });
-            return Response.json({ success: true }, { status: 200 });
-        }
+        const response = await settingsApi.updateCategory(id, { name, description, isActive, teamId: teamId ? Number(teamId) : null });
+        if (!response.success) return Response.json({ error: response.error }, { status: 400 });
+        return Response.json({ success: true }, { status: 200 });
+    }
 
-        if (intent === "delete") {
-            const id = formData.get("id") as string;
-            const response = await settingsApi.deleteCategory(id);
-            if (!response.success) return Response.json({ error: response.error }, { status: 400 });
-            return Response.json({ success: true }, { status: 200 });
-        }
+    if (intent === "delete") {
+        const id = formData.get("id") as string;
+        const response = await settingsApi.deleteCategory(id);
+        if (!response.success) return Response.json({ error: response.error }, { status: 400 });
+        return Response.json({ success: true }, { status: 200 });
+    }
 
-        return null;
+    return null;
     });
 }
 
 export default function CategoriesSettings() {
-    const { categories } = useLoaderData() as { categories: Category[] };
+    const { categories, teams } = useLoaderData() as { categories: Category[]; teams: Team[] };
     const actionData = useActionData() as { error?: string; success?: boolean } | undefined;
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+
+    const teamName = (teamId?: number | null) => teamId ? (teams.find(t => Number(t.id) === teamId)?.name ?? "Unknown") : "Global";
 
     const openCreateDialog = () => {
         setEditingCategory(null);
@@ -277,6 +287,20 @@ export default function CategoriesSettings() {
                                 <Label htmlFor="isActive" style={{ cursor: 'pointer', margin: 0, fontWeight: 500 }}>
                                     Active Status
                                 </Label>
+                            </div>
+                            <div className={`${styles.formFullWidth} space-y-2`}>
+                                <Label htmlFor="teamId">Available for Team</Label>
+                                <select
+                                    id="teamId"
+                                    name="teamId"
+                                    defaultValue={editingCategory?.teamId ? String(editingCategory.teamId) : ""}
+                                    style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--color-neutral-6)', background: 'var(--color-neutral-1)', color: 'var(--color-neutral-11)' }}
+                                >
+                                    <option value="">Global (semua team)</option>
+                                    {teams.map((t) => (
+                                        <option key={t.id} value={String(t.id)}>{t.name}</option>
+                                    ))}
+                                </select>
                             </div>
                         </div>
                     </div>

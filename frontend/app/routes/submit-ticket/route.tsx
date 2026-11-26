@@ -1,5 +1,5 @@
 import React from "react";
-import { Form, Link, useNavigate, useNavigation, useSubmit } from "react-router";
+import { Form, Link, redirect, useNavigate, useNavigation, useSubmit } from "react-router";
 import type { Route } from "./+types/route";
 import { Button } from "~/components/ui/button/button";
 import { Input } from "~/components/ui/input/input";
@@ -17,17 +17,28 @@ import {
     Phone,
     Building2,
     Flag,
+    Tag,
     FileText,
     MessageSquare,
     Image as ImageIcon,
     X,
+    Clock,
 } from "lucide-react";
 import styles from "./style.module.css";
 
 import { createTicket } from "~/services/ticket.service";
-import { settingsApi, type Category, type Priority, type Department } from "~/services/settings.service";
+import { settingsApi, type Category, type Priority, type Department, type Team } from "~/services/settings.service";
 import { runWithUserSession } from "~/services/session.service";
 import { compressImage } from "~/utils/image-compression";
+
+const submitBase = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+function destinationCode(request: Request) {
+    const pathname = new URL(request.url).pathname.slice(submitBase.length).replace(/\/$/, "");
+    if (pathname === "/submit-ticket") return "IT";
+    if (pathname === "/corcom/submit-ticket") return "COC";
+    throw new Response("Not Found", { status: 404 });
+}
 
 export async function loader({ request }: Route.LoaderArgs) {
     // Deteksi sesi: pengunjung tanpa login (dari landing page) vs staff login (dari dashboard).
@@ -35,34 +46,58 @@ export async function loader({ request }: Route.LoaderArgs) {
     //   - tanpa login  -> kembali ke landing page "/"
     //   - sudah login -> kembali ke dashboard "/dashboard"
     return runWithUserSession(request, async (session) => {
-        const [categoriesRes, prioritiesRes, departmentsRes] = await Promise.all([
-            settingsApi.getCategories(),
-            settingsApi.getPriorities(),
-            settingsApi.getDepartments()
-        ]);
+    const [categoriesRes, prioritiesRes, departmentsRes, teamsRes] = await Promise.all([
+        settingsApi.getCategories(),
+        settingsApi.getPriorities(),
+        settingsApi.getDepartments(),
+        settingsApi.getTeams()
+    ]);
 
-        return {
-            isAuthenticated: Boolean(session),
-            homePath: session ? "/dashboard" : "/",
-            categories: (categoriesRes.data?.data || []) as Category[],
-            priorities: (prioritiesRes.data?.data || []) as Priority[],
-            departments: (departmentsRes.data?.data || []) as Department[]
-        };
+    const url = new URL(request.url);
+    const teams = (teamsRes.data?.data || []) as Team[];
+    const teamCode = destinationCode(request);
+    const legacyValues = ["team", "teamId", "teamCode"].flatMap(key => url.searchParams.getAll(key));
+    if (legacyValues.length) {
+        const legacyTeams = legacyValues.map(value => teams.find(t =>
+            t.isActive && (String(t.id) === value || t.code.toUpperCase() === value.toUpperCase()) &&
+            ["IT", "COC"].includes(t.code.toUpperCase())
+        ));
+        if (legacyTeams.some(t => !t) || new Set(legacyTeams.map(t => t!.code)).size !== 1) {
+            throw new Response("Team tidak valid", { status: 400 });
+        }
+        const path = legacyTeams[0]!.code.toUpperCase() === "COC" ? "/corcom/submit-ticket" : "/submit-ticket";
+        ["team", "teamId", "teamCode"].forEach(key => url.searchParams.delete(key));
+        const query = url.searchParams.toString();
+        return redirect(path + (query ? `?${query}` : ""));
+    }
+    const team = teams.find(t => t.isActive && t.code.toUpperCase() === teamCode);
+    if (!team) throw new Response("Team tidak tersedia", { status: 503 });
+
+    return {
+        isAuthenticated: Boolean(session),
+        homePath: session ? "/dashboard" : "/",
+        teamCode,
+        categories: ((categoriesRes.data?.data || []) as Category[]).filter(c => c.isActive && (!c.teamId || String(c.teamId) === String(team.id))),
+        priorities: (prioritiesRes.data?.data || []) as Priority[],
+        departments: (departmentsRes.data?.data || []) as Department[],
+    };
     });
 }
 
 export async function action({ request }: Route.ActionArgs) {
     return runWithUserSession(request, async () => {
-        const formData = await request.formData();
-        const name = (formData.get("name") as string || "").trim();
-        const email = (formData.get("email") as string || "").trim();
-        const phone = (formData.get("phone") as string || "").trim();
-        const department = (formData.get("department") as string || "").trim();
-        const priority = (formData.get("priority") as string || 'medium').trim();
-        const category = "Uncategorized";
-        const subject = (formData.get("subject") as string || "").trim();
-        const description = (formData.get("description") as string || "").trim();
-        const receiveUpdates = formData.get("receiveUpdates") === "true" || formData.get("receiveUpdates") === "on";
+    const formData = await request.formData();
+    const name = (formData.get("name") as string || "").trim();
+    const email = (formData.get("email") as string || "").trim();
+    const phone = (formData.get("phone") as string || "").trim();
+    const department = (formData.get("department") as string || "").trim();
+    const priority = (formData.get("priority") as string || 'medium').trim();
+    const category = (formData.get("category") as string || "Uncategorized").trim();
+    const teamCode = destinationCode(request);
+    const deadlineRaw = (formData.get("deadline") as string || "").trim();
+    const subject = (formData.get("subject") as string || "").trim();
+    const description = (formData.get("description") as string || "").trim();
+    const receiveUpdates = formData.get("receiveUpdates") === "true" || formData.get("receiveUpdates") === "on";
 
         const image = formData.get("image") as File | null;
         const validImage = image && typeof image === 'object' && image.size > 0 && image.name ? image : undefined;
@@ -97,18 +132,41 @@ export async function action({ request }: Route.ActionArgs) {
             return { error: "Nomor telepon hanya boleh berisi angka dan simbol +, -, ()" };
         }
 
-        try {
-            const newTicket = await createTicket({
-                title: subject,
-                description: description,
-                priority: priority,
-                category: category,
-                submitterName: name,
-                submitterEmail: email || "",
-                submitterPhone: phone || undefined,
-                submitterDepartment: department,
-                receiveUpdates: receiveUpdates,
-            }, validImage, idempotencyKey);
+    const teamsRes = await settingsApi.getTeams();
+    if (!teamsRes.data?.data.some(t => t.isActive && t.code.toUpperCase() === teamCode)) {
+        return { error: "Team tidak tersedia" };
+    }
+    if (teamCode === "COC" && !deadlineRaw) {
+        return { error: "Waktu deadline wajib diisi untuk tiket Corcom" };
+    }
+
+    let deadlineIso: string | undefined = undefined;
+    if (teamCode === "COC" && deadlineRaw) {
+        const d = new Date(`${deadlineRaw}:00+07:00`);
+        if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(deadlineRaw) || isNaN(d.getTime()) ||
+            new Date(d.getTime() + 7 * 60 * 60 * 1000).toISOString().slice(0, 16) !== deadlineRaw) {
+            return { error: "Format Waktu Deadline tidak valid" };
+        }
+        if (d.getTime() < Date.now() - 60 * 1000) {
+            return { error: "Waktu deadline tidak boleh di masa lalu" };
+        }
+        deadlineIso = d.toISOString();
+    }
+
+    try {
+        const newTicket = await createTicket({
+            title: subject,
+            description: description,
+            priority: priority,
+            category: category,
+            submitterName: name,
+            submitterEmail: email || "",
+            submitterPhone: phone || undefined,
+            submitterDepartment: department,
+            receiveUpdates: receiveUpdates,
+            teamCode,
+            deadline: deadlineIso,
+        }, validImage, idempotencyKey);
 
             if (!newTicket) {
                 return { error: "Gagal membuat ticket." };
@@ -146,7 +204,7 @@ function generateIdempotencyKey(): string {
 }
 
 export default function SubmitTicket({ actionData, loaderData }: Route.ComponentProps) {
-    const { priorities, departments, homePath } = loaderData;
+    const { priorities, departments, homePath, categories, teamCode } = loaderData;
     const activePriorities = priorities.filter((p) => p.isActive);
     const defaultPriority =
         activePriorities.find((p) => p.name.toLowerCase() === "medium")?.name.toLowerCase() ||
@@ -164,6 +222,12 @@ export default function SubmitTicket({ actionData, loaderData }: Route.Component
     }, []);
     const submit = useSubmit();
     const [compressedFile, setCompressedFile] = React.useState<File | null>(null);
+
+    const isGraphicDesign = teamCode === "COC";
+
+    const minDeadline = React.useMemo(() => {
+        return new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().slice(0, 16);
+    }, []);
 
     // "Back to Home" context-aware:
     // - sesi tanpa login (dari landing page)  -> "/" (landing page)
@@ -257,7 +321,7 @@ export default function SubmitTicket({ actionData, loaderData }: Route.Component
                         <CardHeader className={styles.cardHeader}>
                             <CardTitle className={styles.cardTitle}>
                                 <FileText size={24} />
-                                New Support Ticket
+                                {isGraphicDesign ? "Request Corcom" : "Request IT"}
                             </CardTitle>
                             <CardDescription className={styles.cardDescription}>
                                 Please fill out the form below to submit your support request. Our team will respond as soon as possible.
@@ -365,6 +429,46 @@ export default function SubmitTicket({ actionData, loaderData }: Route.Component
                                         <FileText size={18} />
                                         Ticket Details
                                     </h3>
+
+                                    {/* Deadline field khusus tiket Graphic Design (COC) */}
+                                    {isGraphicDesign && (
+                                        <div className={styles.formGroup}>
+                                            <Label htmlFor="deadline" className={styles.label}>
+                                                <Clock size={14} />
+                                                Waktu Deadline (WIB) *
+                                            </Label>
+                                            <Input
+                                                id="deadline"
+                                                name="deadline"
+                                                type="datetime-local"
+                                                required={isGraphicDesign}
+                                                min={minDeadline}
+                                                className={styles.input}
+                                            />
+                                            <p style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
+                                                Tentukan target tanggal & waktu deadline penyelesaian kebutuhan desain ini.
+                                            </p>
+                                        </div>
+                                    )}
+
+                                    <div className={styles.formGroup}>
+                                        <Label htmlFor="category" className={styles.label}>
+                                            <Tag size={14} />
+                                            Category *
+                                        </Label>
+                                        <Select name="category" required>
+                                            <SelectTrigger className={styles.select}>
+                                                <SelectValue placeholder="Select Category" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {categories.map((c) => (
+                                                    <SelectItem key={c.id} value={c.name}>
+                                                        {c.name}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
 
                                     <div className={styles.formGroup}>
                                         <Label htmlFor="priority" className={styles.label}>

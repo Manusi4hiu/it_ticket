@@ -1,7 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-
-import { useLoaderData, useNavigate } from "react-router";
-
+import { useLoaderData, useNavigate, useSearchParams } from "react-router";
 import type { Route } from "./+types/route";
 
 import {
@@ -24,6 +22,7 @@ import {
   Flame,
   CalendarClock,
   ExternalLink,
+  Sparkles,
 } from "lucide-react";
 
 import { Button } from "~/components/ui/button/button";
@@ -63,52 +62,55 @@ import { runWithAuth } from "~/services/session.service";
 import { ReasonDialog } from "~/routes/ticket.$id/components/ReasonDialog";
 
 import { ResolveDialog } from "~/routes/ticket.$id/components/ResolveDialog";
-
 import { isWorkingDay, validateWorkingHoursDateTime, getInitialWorkingDateTime, getSpecialHoliday } from "~/utils/date";
-
+import { getActiveTeamIdFromRequest, setActiveTeamId, getActiveTeamIdClient } from "~/utils/team-cookie";
 import styles from "./style.module.css";
 
 export async function loader({ request }: Route.LoaderArgs) {
   return runWithAuth(request, async (session) => {
-    // Fetch tickets, agents, statuses, categories, priorities, holidays (semua master-driven)
+  const url = new URL(request.url);
+  const teamIdParam = getActiveTeamIdFromRequest(request, url);
 
-    const [ticketsRes, agents, statusesRes, categoriesRes, prioritiesRes, holidaysRes] = await Promise.all([
-      getTickets({ per_page: 1000 }),
+  // Fetch tickets, agents, statuses, categories, priorities, teams, holidays (semua master-driven)
+  const [ticketsRes, agents, statusesRes, categoriesRes, prioritiesRes, teamsRes, holidaysRes] = await Promise.all([
+    getTickets({ per_page: 1000 }),
+    getAgents(),
+    settingsApi.getStatuses(),
+    settingsApi.getCategories(),
+    settingsApi.getPriorities(),
+    settingsApi.getTeams().catch(() => ({ success: false, data: [] })),
+    settingsApi.getHolidays(),
+  ]);
 
-      getAgents(),
-
-      settingsApi.getStatuses(),
-
-      settingsApi.getCategories(),
-
-      settingsApi.getPriorities(),
-
-      settingsApi.getHolidays(),
-    ]);
-
-    return {
-      session,
-
-      initialTickets: ticketsRes.tickets,
-
-      agents,
-
-      statuses: (statusesRes.data?.data || []).filter((s: any) => s.showOnItHelpdesk !== false),
-
-      categories: categoriesRes.data?.data || [],
-
-      priorities: (prioritiesRes.data?.data || []).filter((p: any) => p.isActive !== false),
-
-      holidays: holidaysRes.data?.data || [],
-    };
+  return {
+    session,
+    initialTickets: ticketsRes.tickets,
+    agents,
+    statuses: (statusesRes.data?.data || []).filter((s: any) => s.showOnItHelpdesk !== false),
+    categories: categoriesRes.data?.data || [],
+    priorities: (prioritiesRes.data?.data || []).filter((p: any) => p.isActive !== false),
+    teams: ((teamsRes as any)?.data || []) as any[],
+    activeTeamId: teamIdParam || session.lastActiveTeamId || null,
+    holidays: holidaysRes.data?.data || [],
+  };
   });
 }
 
 export default function TicketCalendar() {
-  const { session, initialTickets, agents, statuses, categories, priorities, holidays } =
-    useLoaderData() as typeof loader extends (...args: any[]) => Promise<infer T> ? T : any;
-
+  const {
+    session,
+    initialTickets,
+    agents,
+    statuses,
+    categories,
+    priorities,
+    teams = [],
+    activeTeamId,
+    holidays = [],
+  } = useLoaderData() as typeof loader extends (...args: any[]) => Promise<infer T> ? T : any;
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlTeam = searchParams.get("teamId");
 
   // Tickets state
 
@@ -116,15 +118,62 @@ export default function TicketCalendar() {
 
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Filters state (strictly for IT Helpdesk - no team workspace dropdown)
+  // Filters state: default to urlTeam if present, else activeTeamId, else "all"
+  const [selectedTeam, setSelectedTeam] = useState<string>(() => {
+    if (urlTeam) return urlTeam;
+    return activeTeamId ? String(activeTeamId) : "all";
+  });
 
+  // Sync tickets with incoming loader data
+  useEffect(() => {
+    setTickets(initialTickets);
+  }, [initialTickets]);
+
+  // Sync selectedTeam whenever urlTeam changes (including when removed -> "all")
+  useEffect(() => {
+    const current = urlTeam || "all";
+    if (current !== selectedTeam) {
+      setSelectedTeam(current);
+    }
+  }, [urlTeam]);
+
+  // Sync when another page/header dispatches app-team-changed
+  useEffect(() => {
+    const handleExternalTeamChange = (e: any) => {
+      const newId = e.detail?.teamId;
+      if (newId === "all" || !newId) {
+        setSelectedTeam("all");
+      } else {
+        setSelectedTeam(String(newId));
+      }
+    };
+    window.addEventListener("app-team-changed", handleExternalTeamChange);
+    return () => window.removeEventListener("app-team-changed", handleExternalTeamChange);
+  }, []);
+
+  const handleTeamChange = (val: string) => {
+    setSelectedTeam(val);
+    if (val === "all") {
+      setActiveTeamId(null);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("app-team-changed", { detail: { teamId: "all" } }));
+      }
+      navigate("/calendar", { replace: true });
+    } else {
+      setActiveTeamId(val);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("app-team-changed", { detail: { teamId: val } }));
+      }
+      navigate(`/calendar?teamId=${val}`, { replace: true });
+    }
+  };
+  const selectedTeamCode = teams.find((team: any) => String(team.id) === selectedTeam)?.code;
   const [selectedCategory, setSelectedCategory] = useState("all");
 
   const [selectedPriority, setSelectedPriority] = useState("all");
 
   const [selectedStatus, setSelectedStatus] = useState("all");
-
-  const [dateField, setDateField] = useState<"deadline" | "created">("deadline"); // "deadline" (SLA Target) or "created" (Created Date)
+  const [dateField, setDateField] = useState<"deadline" | "created">("deadline"); // "deadline" (Target Deadline) or "created" (Created Date)
 
   // Current calendar month view state
 
@@ -306,6 +355,9 @@ export default function TicketCalendar() {
 
   const filteredTickets = useMemo(() => {
     return tickets.filter((t) => {
+      // Team filter
+      if (selectedTeam !== "all" && String(t.teamId) !== selectedTeam) return false;
+
       // Search text filter
 
       const matchesSearch =
@@ -329,7 +381,7 @@ export default function TicketCalendar() {
 
       return matchesSearch && matchesCategory && matchesPriority && matchesStatus;
     });
-  }, [tickets, searchQuery, selectedCategory, selectedPriority, selectedStatus]);
+  }, [tickets, selectedTeam, searchQuery, selectedCategory, selectedPriority, selectedStatus]);
 
   // Map tickets to calendar days and sort chronologically by deadline/created time
 
@@ -337,33 +389,30 @@ export default function TicketCalendar() {
     const map: Record<string, Ticket[]> = {};
 
     filteredTickets.forEach((ticket) => {
+      const isDesign =
+        ticket.teamCode === "COC";
+
       // Di mode deadline: gunakan slaDeadline.
-
       // Tiket IT tanpa deadline tidak boleh ditampilkan di kalender target deadline.
-
       // Di mode created: gunakan createdAt.
-
       const dateToCompare = dateField === "deadline" ? ticket.slaDeadline : ticket.createdAt;
 
       if (!dateToCompare) return;
 
       const dateObj = new Date(dateToCompare);
-
       if (isNaN(dateObj.getTime())) return;
 
       // Aturan bisnis: Jika melihat SLA Target Deadline, tanggal akhir pekan (Sabtu/Minggu)
-
       // dan hari libur nasional harus kosong untuk tiket IT (tidak boleh ada deadline IT di hari libur).
-
       if (dateField === "deadline") {
-        const dayOfWeek = dateObj.getDay();
-
-        if (dayOfWeek === 0 || dayOfWeek === 6) {
-          return;
-        }
-
-        if (!isWorkingDay(dateObj, holidays)) {
-          return;
+        if (!isDesign) {
+          const dayOfWeek = dateObj.getDay();
+          if (dayOfWeek === 0 || dayOfWeek === 6) {
+            return;
+          }
+          if (!isWorkingDay(dateObj, holidays)) {
+            return;
+          }
         }
       }
 
@@ -377,13 +426,12 @@ export default function TicketCalendar() {
     });
 
     // Urutkan tiket di tiap tanggal secara kronologis berdasarkan jam deadline
-
     Object.keys(map).forEach((k) => {
       map[k].sort((a, b) => {
-        const timeA = new Date(dateField === "deadline" ? a.slaDeadline! : a.createdAt).getTime();
-
-        const timeB = new Date(dateField === "deadline" ? b.slaDeadline! : b.createdAt).getTime();
-
+        const strA = dateField === "deadline" ? a.slaDeadline : a.createdAt;
+        const strB = dateField === "deadline" ? b.slaDeadline : b.createdAt;
+        const timeA = strA ? new Date(strA).getTime() : 0;
+        const timeB = strB ? new Date(strB).getTime() : 0;
         return timeA - timeB;
       });
     });
@@ -391,26 +439,19 @@ export default function TicketCalendar() {
     return map;
   }, [filteredTickets, dateField, holidays]);
 
-  // Ringkasan beban kerja bulanan untuk visualisasi metrik SLA
-
+  // Ringkasan beban kerja dan target rilis bulanan (untuk visualisasi hari padat vs longgar)
   const monthSummary = useMemo(() => {
     const inMonth = filteredTickets.filter((t) => {
+      const isDesign = t.teamCode === "COC";
       const d = dateField === "deadline" ? t.slaDeadline : t.createdAt;
-
       if (!d) return false;
-
       const dt = new Date(d);
-
       if (isNaN(dt.getTime())) return false;
-
-      if (dateField === "deadline") {
+      if (dateField === "deadline" && !isDesign) {
         const dayOfWeek = dt.getDay();
-
         if (dayOfWeek === 0 || dayOfWeek === 6) return false;
-
         if (!isWorkingDay(dt, holidays)) return false;
       }
-
       return dt.getFullYear() === year && dt.getMonth() === month;
     });
 
@@ -888,11 +929,19 @@ export default function TicketCalendar() {
         <div>
           <h2 className={styles.bannerTitle}>
             <CalendarClock size={22} className={styles.bannerIcon} />
-            Kalender Jadwal SLA IT Helpdesk
+            {selectedTeamCode === "COC"
+              ? "Kalender Jadwal Rilis & Deadline Graphic Design"
+              : selectedTeamCode === "IT"
+                ? "Kalender Jadwal SLA IT Helpdesk"
+                : "Kalender Jadwal & Deadline (Semua Tim)"}
           </h2>
 
           <p className={styles.bannerSubtitle}>
-            Pantau jadwal SLA penanganan tiket IT helpdesk secara visual berdasarkan Target Deadline dan Tanggal Dibuat
+            {selectedTeamCode === "COC"
+              ? "Pantau jadwal rilis desain dan beban kerja kreatif secara visual berdasarkan Target Deadline"
+              : selectedTeamCode === "IT"
+                ? "Pantau jadwal SLA penanganan tiket IT helpdesk secara visual"
+                : "Pantau seluruh jadwal kerja, target deadline desain, dan SLA helpdesk dari seluruh tim"}
           </p>
         </div>
 
@@ -912,16 +961,14 @@ export default function TicketCalendar() {
           <div className={styles.summaryIconBox} style={{ background: "rgba(59, 130, 246, 0.2)", color: "#60a5fa" }}>
             <CalendarClock size={22} />
           </div>
-
           <div className={styles.summaryContent}>
             <span className={styles.summaryLabel}>
-              {dateField === "deadline" ? "Target SLA Bulan Ini" : "Tiket Dibuat Bulan Ini"}
+              {dateField === "deadline" ? "Target Rilis Bulan Ini" : "Tiket Dibuat Bulan Ini"}
             </span>
-
             <span className={styles.summaryValue}>{monthSummary.total}</span>
-
             <span className={styles.summarySubtext}>
-              {monthNames[month]} {year} • IT Helpdesk
+              {monthNames[month]} {year} •{" "}
+              {selectedTeamCode === "COC" ? "Tim Graphic Design" : selectedTeamCode === "IT" ? "Tim IT" : "Semua Tim"}
             </span>
           </div>
         </div>
@@ -970,16 +1017,13 @@ export default function TicketCalendar() {
           <div className={styles.summaryIconBox} style={{ background: "rgba(239, 68, 68, 0.2)", color: "#ef4444" }}>
             <AlertTriangle size={22} />
           </div>
-
           <div className={styles.summaryContent}>
-            <span className={styles.summaryLabel}>Lewat Deadline (SLA Overdue)</span>
-
+            <span className={styles.summaryLabel}>Lewat Deadline (Overdue)</span>
             <span className={styles.summaryValue} style={{ color: monthSummary.overdue > 0 ? "#f87171" : "#ffffff" }}>
               {monthSummary.overdue}
             </span>
-
             <span className={styles.summarySubtext}>
-              {monthSummary.overdue > 0 ? "⚠️ Melebihi batas SLA resolusi" : "Semua SLA terkendali"}
+              {monthSummary.overdue > 0 ? "⚠️ Melebihi target deadline pembuat" : "Semua deadline terkendali"}
             </span>
           </div>
         </div>
@@ -1013,7 +1057,7 @@ export default function TicketCalendar() {
           <span>
             Mode:{" "}
             <strong>
-              {dateField === "deadline" ? "Berdasarkan Target Waktu SLA" : "Berdasarkan Waktu Tiket Dibuat"}
+              {dateField === "deadline" ? "Berdasarkan Target Waktu Deadline" : "Berdasarkan Waktu Tiket Dibuat"}
             </strong>
           </span>
         </div>
@@ -1040,6 +1084,13 @@ export default function TicketCalendar() {
             {/* 3 Dropdown Filters (Category, Priority, Status) */}
 
             <div className={styles.filterDropdownsRow}>
+              <Select value={selectedTeam} onValueChange={handleTeamChange}>
+                <SelectTrigger className={styles.selectTriggerCompact}><SelectValue placeholder="Semua Tim" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Semua Tim</SelectItem>
+                  {teams.map((team: any) => <SelectItem key={team.id} value={String(team.id)}>{team.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
               {/* Category Select */}
 
               <Select value={selectedCategory} onValueChange={setSelectedCategory}>
@@ -1108,7 +1159,7 @@ export default function TicketCalendar() {
                 type="button"
                 className={`${styles.toggleBtn} ${dateField === "deadline" ? styles.toggleBtnActive : ""}`}
                 onClick={() => setDateField("deadline")}
-                title="Tampilkan berdasarkan Target Waktu SLA"
+                title="Tampilkan berdasarkan Target Deadline penyelesaian desain / SLA"
               >
                 🎯 Target Deadline
               </button>
@@ -1127,7 +1178,7 @@ export default function TicketCalendar() {
           {/* Calendar Month Navigation */}
 
           <div className={styles.calendarNav}>
-            <button onClick={handlePrevMonth} className={styles.navBtn} title="Previous Month">
+            <button onClick={handlePrevMonth} className={styles.navBtn} title="Previous Month" aria-label="Bulan sebelumnya">
               <ChevronLeft size={16} />
             </button>
 
@@ -1144,6 +1195,27 @@ export default function TicketCalendar() {
             </button>
           </div>
         </div>
+
+        {filteredTickets.length === 0 && (
+          <div
+            role="status"
+            aria-live="polite"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.75rem",
+              padding: "1rem 1.25rem",
+              marginBottom: "1rem",
+              borderRadius: "0.75rem",
+              background: "rgba(148, 163, 184, 0.08)",
+              border: "1px dashed rgba(148, 163, 184, 0.35)",
+              color: "#cbd5e1",
+            }}
+          >
+            <Inbox size={20} aria-hidden="true" />
+            <span>Tidak ada ticket yang cocok dengan filter ini. Ubah filter atau buat ticket baru.</span>
+          </div>
+        )}
 
         {/* Calendar Grid wrapper */}
 
@@ -1173,14 +1245,10 @@ export default function TicketCalendar() {
               const isCurr = day.isCurrentMonth;
 
               const isTodayCell = isToday(day.date);
-
               const count = dayTickets.length;
-
               const specialHoliday = getSpecialHoliday(day.date, holidays);
-
-              const isSunday = day.date.getDay() === 0;
-              const isSaturday = day.date.getDay() === 6;
-              const isWeekend = isSunday || isSaturday;
+              const isWeekend = day.date.getDay() === 0 || day.date.getDay() === 6;
+              const isNonWorking = isWeekend || !!specialHoliday;
 
               const densityClass =
                 count >= 5

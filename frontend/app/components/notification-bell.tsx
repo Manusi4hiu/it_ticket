@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Bell, Trash2, CheckCheck, X, AlertTriangle, Clock, Coffee, ShieldAlert } from "lucide-react";
+import { Bell, Trash2, CheckCheck, X, AlertTriangle, Clock, Coffee, ShieldAlert, CalendarClock } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "~/components/ui/button/button";
 import { Badge } from "~/components/ui/badge/badge";
@@ -533,24 +533,34 @@ export function NotificationBell({ userId }: NotificationBellProps) {
           ) : (
             notifications.map((notification) => {
               const isSelected = selectedIds.has(notification.id);
+              const isBreached = notification.type === "deadline_breached" || notification.type === "sla_breached";
+              const isWarning = notification.type === "deadline_warning" || notification.type === "sla_warning";
+
               const typeClass =
-                notification.type === "sla_breached"
+                notification.type === "deadline_breached"
+                  ? styles.deadlineBreached || styles.slaBreached
+                  : notification.type === "sla_breached"
                   ? styles.slaBreached
+                  : notification.type === "deadline_warning"
+                  ? styles.deadlineWarning || styles.slaWarning
                   : notification.type === "sla_warning"
                   ? styles.slaWarning
                   : "";
-              const actionColor =
-                notification.type === "sla_breached"
-                  ? "#f87171"
-                  : notification.type === "sla_warning"
-                  ? "#fbbf24"
-                  : "#60a5fa";
+
+              const actionColor = isBreached
+                ? "#f87171"
+                : isWarning
+                ? "#fbbf24"
+                : "#60a5fa";
 
               const renderIcon = () => {
                 const op = notification.read ? 0.45 : 1;
                 switch (notification.type) {
+                  case "deadline_breached":
+                    return <CalendarClock style={{ width: "18px", height: "18px", color: "#ef4444", opacity: op }} />;
                   case "sla_breached":
                     return <AlertTriangle style={{ width: "18px", height: "18px", color: "#ef4444", opacity: op }} />;
+                  case "deadline_warning":
                   case "sla_warning":
                     return <Clock style={{ width: "18px", height: "18px", color: "#f59e0b", opacity: op }} />;
                   case "break_overtime":
