@@ -36,7 +36,16 @@ class AuthService:
 
     @staticmethod
     def get_current_user(user_id):
-        user = User.query.get(user_id)
+        # Normalisasi ke int: identity map SQLAlchemy memakai (class, pk).
+        # Kalau pk-nya string, identity map menganggap itu key BERBEDA dan
+        # memicu query user kedua kali pada request yang sama.
+        try:
+            user = User.query.get(int(user_id))
+        except (TypeError, ValueError):
+            user = User.query.get(user_id)
         if not user:
+            return None
+        # Akun nonaktif (is_active=False) tidak dianggap login valid.
+        if not user.is_active:
             return None
         return user.to_dict()

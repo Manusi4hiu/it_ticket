@@ -19,7 +19,12 @@ import {
   AlertTriangle,
   Calendar,
   Layers,
+  ArrowLeft,
   ArrowRight,
+  ArrowRightLeft,
+  ChevronUp,
+  ChevronDown,
+  Lock,
   ExternalLink,
   Activity,
   Hourglass,
@@ -29,6 +34,7 @@ import { Button } from "~/components/ui/button/button";
 import { Badge } from "~/components/ui/badge/badge";
 import { Card, CardContent } from "~/components/ui/card/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "~/components/ui/dialog/dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "~/components/ui/sheet/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "~/components/ui/select/select";
 import { Textarea } from "~/components/ui/textarea/textarea";
 import { Alert, AlertDescription } from "~/components/ui/alert/alert";
@@ -50,7 +56,7 @@ import { ReasonDialog } from "~/routes/ticket.$id/components/ReasonDialog";
 import { TransferDialog } from "~/routes/ticket.$id/components/TransferDialog";
 import { PriorityChangeDialog } from "~/routes/ticket.$id/components/PriorityChangeDialog";
 import { ResolveDialog } from "~/routes/ticket.$id/components/ResolveDialog";
-import { requireRole } from "~/services/session.service";
+import { runWithRole } from "~/services/session.service";
 import { isSystemNote } from "~/utils/ticket-history";
 import {
   validateWorkingHoursDateTime,
@@ -79,26 +85,26 @@ const STATUS_ICONS_MAP: Record<string, React.ReactNode> = {
 
 export async function loader({ request }: Route.LoaderArgs) {
   // Management boleh akses Dev Board (view-only); Admin & Staff full access
-  const session = await requireRole(request, ["Administrator", "Staff", "Management"]);
+  return runWithRole(request, ["Administrator", "Staff", "Management"], async (session) => {
+    const [ticketsRes, agents, statusesRes, categoriesRes, prioritiesRes, holidaysRes] = await Promise.all([
+      getTickets({ category: "Development", per_page: 150 }), // Only show Development-scoped tracking tasks
+      getAgents(),
+      settingsApi.getStatuses(),
+      settingsApi.getCategories(),
+      settingsApi.getPriorities(),
+      settingsApi.getHolidays(),
+    ]);
 
-  const [ticketsRes, agents, statusesRes, categoriesRes, prioritiesRes, holidaysRes] = await Promise.all([
-    getTickets({ category: "Development", per_page: 150 }), // Only show Development-scoped tracking tasks
-    getAgents(),
-    settingsApi.getStatuses(),
-    settingsApi.getCategories(),
-    settingsApi.getPriorities(),
-    settingsApi.getHolidays(),
-  ]);
-
-  return Response.json({
-    session,
-    initialTickets: ticketsRes.tickets,
-    agents,
-    statuses: (statusesRes.data?.data || []).filter((s: any) => s.showOnDevboard)
-      .sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0)),
-    categories: categoriesRes.data?.data || [],
-    priorities: (prioritiesRes.data?.data || []).filter((p: any) => p.isActive !== false),
-    holidays: holidaysRes.data?.data || [],
+    return {
+      session,
+      initialTickets: ticketsRes.tickets,
+      agents,
+      statuses: (statusesRes.data?.data || []).filter((s: any) => s.showOnDevboard)
+        .sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0)),
+      categories: categoriesRes.data?.data || [],
+      priorities: (prioritiesRes.data?.data || []).filter((p: any) => p.isActive !== false),
+      holidays: holidaysRes.data?.data || [],
+    };
   });
 }
 
@@ -149,6 +155,18 @@ export default function DevDashboard() {
   const [isTaskUpdating, setIsTaskUpdating] = useState(false);
   const [editTaskErrors, setEditTaskErrors] = useState<Record<string, string>>({});
   const [activeMobileCol, setActiveMobileCol] = useState<string>("");
+  const [isMobileView, setIsMobileView] = useState(false);
+  const [moveSheetTicket, setMoveSheetTicket] = useState<Ticket | null>(null);
+  const kanbanBoardRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(max-width: 768px)");
+    const sync = () => setIsMobileView(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
 
   const devboardStatuses = useMemo(() => {
     return (statuses as any[])
@@ -490,15 +508,37 @@ export default function DevDashboard() {
     }
   };
 
-  const handleDrop = async (e: React.DragEvent, targetStatus: string) => {
-    e.preventDefault();
-    if (isManagement) return; // Management view-only: drop ditolak
-    setDraggedTicketId(null);
-    setActiveDragColumn(null);
-    const ticketIdStr = e.dataTransfer.getData("text/plain") || draggedTicketId?.toString();
-    if (!ticketIdStr) return;
+  const scrollToMobileColumn = (colName: string) => {
+    setActiveMobileCol(colName);
+    const colEl = document.getElementById(`kanban-col-${colName.toLowerCase().replace(/\s+/g, "-")}`);
+    if (colEl) {
+      colEl.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+    }
+  };
 
-    const ticketId = parseInt(ticketIdStr, 10);
+  const handleKanbanScroll = () => {
+    if (!isMobileView || !kanbanBoardRef.current || devboardStatuses.length === 0) return;
+    const container = kanbanBoardRef.current;
+    const center = container.scrollLeft + container.clientWidth / 2;
+    let closestName = "";
+    let closestDist = Infinity;
+    for (const s of devboardStatuses) {
+      const el = document.getElementById(`kanban-col-${s.name.toLowerCase().replace(/\s+/g, "-")}`);
+      if (!el) continue;
+      const colCenter = el.offsetLeft + el.offsetWidth / 2;
+      const dist = Math.abs(colCenter - center);
+      if (dist < closestDist) {
+        closestDist = dist;
+        closestName = s.name;
+      }
+    }
+    if (closestName && closestName !== activeMobileCol) {
+      setActiveMobileCol(closestName);
+    }
+  };
+
+  const requestTicketStatusMove = (ticketId: number, targetStatus: string) => {
+    if (isManagement) return; // Management view-only
     const originalTicket = tickets.find((t) => t.id === ticketId);
     if (!originalTicket) return;
 
@@ -539,6 +579,21 @@ export default function DevDashboard() {
     }
 
     handleUpdateStatusDirect(ticketId, targetStatus);
+    if (isMobileView) {
+      scrollToMobileColumn(targetStatus);
+    }
+  };
+
+  const handleDrop = async (e: React.DragEvent, targetStatus: string) => {
+    e.preventDefault();
+    if (isManagement || isMobileView) return; // Management view-only & mobile pakai Move UI
+    setDraggedTicketId(null);
+    setActiveDragColumn(null);
+    const ticketIdStr = e.dataTransfer.getData("text/plain") || draggedTicketId?.toString();
+    if (!ticketIdStr) return;
+
+    const ticketId = parseInt(ticketIdStr, 10);
+    requestTicketStatusMove(ticketId, targetStatus);
   };
 
   const handleSubmitReason = async () => {
@@ -725,13 +780,7 @@ export default function DevDashboard() {
                 borderColor: isSelected ? s.color || "#3b82f6" : undefined,
                 color: isSelected ? "#ffffff" : undefined,
               }}
-              onClick={() => {
-                setActiveMobileCol(s.name);
-                const colEl = document.getElementById(`kanban-col-${s.name.toLowerCase().replace(/\s+/g, "-")}`);
-                if (colEl) {
-                  colEl.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
-                }
-              }}
+              onClick={() => scrollToMobileColumn(s.name)}
             >
               <span className={styles.mobileColTabDot} style={{ background: s.color || "#3b82f6" }} />
               <span>{s.name}</span>
@@ -742,12 +791,18 @@ export default function DevDashboard() {
       </div>
 
       {/* Kanban Board Layout */}
-      <div className={styles.kanbanBoard}>
-        {devboardStatuses.map((statusDef: any) => {
+      <div
+        ref={kanbanBoardRef}
+        className={styles.kanbanBoard}
+        onScroll={handleKanbanScroll}
+      >
+        {devboardStatuses.map((statusDef: any, colIndex: number) => {
           const colName = statusDef.name;
           const color = statusDef.color || "#6B7280";
           const iconKey = colName.toLowerCase();
           const columnIcon = STATUS_ICONS_MAP[iconKey] || <Inbox size={18} />;
+          const prevStatusDef = colIndex > 0 ? devboardStatuses[colIndex - 1] : null;
+          const nextStatusDef = colIndex < devboardStatuses.length - 1 ? devboardStatuses[colIndex + 1] : null;
 
           // "Resolved" column also includes "closed" tickets
           const columnTickets = filteredTickets.filter((ticket) => {
@@ -779,14 +834,18 @@ export default function DevDashboard() {
               <div className={styles.cardContainer}>
                 {columnTickets.length === 0 ? (
                   <div className={styles.emptyColumn}>
-                    <span>{isManagement ? "No tasks here" : "Drop tickets here"}</span>
+                    <span>{isManagement || isMobileView ? "No tasks here" : "Drop tickets here"}</span>
                   </div>
                 ) : (
-                  columnTickets.map((ticket) => (
+                  columnTickets.map((ticket) => {
+                    const canMovePrev = Boolean(
+                      prevStatusDef && !(ticket.takenAt && prevStatusDef.isDefault)
+                    );
+                    return (
                     <div
                       key={ticket.id}
                       className={`${styles.ticketCard} ${draggedTicketId === ticket.id ? styles.cardIsDragging : ""} ${isManagement ? styles.cardViewOnly : ""}`}
-                      draggable={!isManagement}
+                      draggable={!isManagement && !isMobileView}
                       onDragStart={(e) => handleDragStart(e, ticket.id)}
                       onDragEnd={handleDragEnd}
                       onClick={() => handleOpenDetail(ticket)}
@@ -824,14 +883,124 @@ export default function DevDashboard() {
                           </div>
                         )}
                       </div>
+
+                      {canManage && (
+                        <div
+                          className={styles.mobileCardMoveBar}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            type="button"
+                            className={styles.mobileMoveStepBtn}
+                            disabled={!canMovePrev}
+                            aria-label={prevStatusDef ? `Move to ${prevStatusDef.name}` : "No previous column"}
+                            title={prevStatusDef ? `Move to ${prevStatusDef.name}` : undefined}
+                            onClick={() => {
+                              if (prevStatusDef) requestTicketStatusMove(ticket.id, prevStatusDef.name);
+                            }}
+                          >
+                            <ArrowLeft size={14} />
+                          </button>
+
+                          <button
+                            type="button"
+                            className={styles.mobileMovePickerBtn}
+                            onClick={() => setMoveSheetTicket(ticket)}
+                          >
+                            <ArrowRightLeft size={13} />
+                            <span>Move Status</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            className={styles.mobileMoveStepBtn}
+                            disabled={!nextStatusDef}
+                            aria-label={nextStatusDef ? `Move to ${nextStatusDef.name}` : "No next column"}
+                            title={nextStatusDef ? `Move to ${nextStatusDef.name}` : undefined}
+                            onClick={() => {
+                              if (nextStatusDef) requestTicketStatusMove(ticket.id, nextStatusDef.name);
+                            }}
+                          >
+                            <ArrowRight size={14} />
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  ))
+                  );})
                 )}
               </div>
             </div>
           );
         })}
       </div>
+
+      {/* Mobile Bottom Sheet: Move Task to Any Column */}
+      <Sheet
+        open={Boolean(moveSheetTicket)}
+        onOpenChange={(open) => {
+          if (!open) setMoveSheetTicket(null);
+        }}
+      >
+        <SheetContent side="bottom" className={styles.mobileMoveSheet}>
+          {moveSheetTicket && (
+            <>
+              <SheetHeader>
+                <SheetTitle className={styles.mobileMoveSheetTitle}>
+                  Pindahkan Task {moveSheetTicket.ticketCode || `#${moveSheetTicket.id}`}
+                </SheetTitle>
+                <SheetDescription className={styles.mobileMoveSheetDesc}>
+                  {moveSheetTicket.title}
+                </SheetDescription>
+              </SheetHeader>
+
+              <div className={styles.mobileMoveOptions}>
+                {devboardStatuses.map((statusDef: any) => {
+                  const targetName = statusDef.name;
+                  const targetLower = targetName.toLowerCase();
+                  const currentLower = moveSheetTicket.status.toLowerCase();
+                  const isCurrent =
+                    targetLower === currentLower ||
+                    (targetLower === "resolved" && currentLower === "closed");
+                  const isLockedDefault = Boolean(moveSheetTicket.takenAt && statusDef.isDefault);
+                  const isDisabled = isCurrent || isLockedDefault;
+
+                  return (
+                    <button
+                      key={targetName}
+                      type="button"
+                      disabled={isDisabled}
+                      className={`${styles.mobileMoveOption} ${
+                        isCurrent ? styles.mobileMoveOptionCurrent : ""
+                      } ${isLockedDefault ? styles.mobileMoveOptionDisabled : ""}`}
+                      onClick={() => {
+                        const targetTicketId = moveSheetTicket.id;
+                        setMoveSheetTicket(null);
+                        requestTicketStatusMove(targetTicketId, targetName);
+                      }}
+                    >
+                      <span className={styles.mobileMoveOptionLeft}>
+                        <span
+                          className={styles.mobileMoveOptionDot}
+                          style={{ backgroundColor: statusDef.color || "#3b82f6" }}
+                        />
+                        <span className={styles.mobileMoveOptionName}>{targetName}</span>
+                      </span>
+                      {isCurrent && (
+                        <span className={styles.mobileMoveOptionTag}>Saat ini</span>
+                      )}
+                      {isLockedDefault && (
+                        <span className={styles.mobileMoveOptionLock}>
+                          <Lock size={12} /> Terkunci
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
 
       {/* Developer Ticket Detail Dialog */}
       <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
@@ -1272,16 +1441,13 @@ export default function DevDashboard() {
             <DialogTitle className={styles.detailTitle}>Edit Column Order</DialogTitle>
           </DialogHeader>
           <p style={{ fontSize: "0.78rem", color: "var(--ink-9)", marginTop: 4 }}>
-            Gunakan panah untuk mengatur urutan kolom kanban. Urutan tersimpan untuk semua user.
-          </p>
-          <p style={{ fontSize: "0.78rem", color: "var(--ink-9)", marginTop: 4 }}>
-            Tarik (drag) baris untuk mengatur urutan kolom kanban — sama seperti memindahkan task. Urutan tersimpan untuk semua user.
+            Gunakan tombol panah atau tarik baris (desktop) untuk mengatur urutan kolom kanban. Urutan tersimpan untuk semua user.
           </p>
           <div style={{ display: "flex", flexDirection: "column", gap: 8, margin: "14px 0" }}>
             {columnOrder.map((col, idx) => (
               <div
                 key={col.id}
-                draggable
+                draggable={!isMobileView}
                 onDragStart={(e) => {
                   e.dataTransfer.effectAllowed = "move";
                   e.dataTransfer.setData("text/plain", String(idx));
@@ -1300,16 +1466,33 @@ export default function DevDashboard() {
                   background: "var(--surface-2)",
                   border: "var(--hairline)",
                   borderRadius: "var(--radius-card)",
-                  cursor: "grab",
+                  cursor: isMobileView ? "default" : "grab",
                   userSelect: "none"
                 }}
               >
-                <span style={{ color: "var(--ink-8)", fontSize: "0.9rem" }}>⠿</span>
+                {!isMobileView && <span style={{ color: "var(--ink-8)", fontSize: "0.9rem" }}>⠿</span>}
                 <span style={{ width: 10, height: 10, borderRadius: "50%", background: col.color, flexShrink: 0 }} />
                 <span style={{ flex: 1, fontWeight: 700, fontSize: "0.85rem", color: "var(--ink-12)" }}>{col.name}</span>
-                <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "0.68rem", color: "var(--ink-8)" }}>
-                  {idx + 1}
-                </span>
+                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <button
+                    type="button"
+                    className={styles.colOrderMoveBtn}
+                    disabled={idx === 0}
+                    aria-label={`Move ${col.name} up`}
+                    onClick={() => moveColumn(idx, idx - 1)}
+                  >
+                    <ChevronUp size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.colOrderMoveBtn}
+                    disabled={idx === columnOrder.length - 1}
+                    aria-label={`Move ${col.name} down`}
+                    onClick={() => moveColumn(idx, idx + 1)}
+                  >
+                    <ChevronDown size={14} />
+                  </button>
+                </div>
               </div>
             ))}
           </div>

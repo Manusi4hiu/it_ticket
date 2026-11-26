@@ -1,5 +1,4 @@
 import React from "react";
-import { v4 as uuidv4 } from "uuid";
 import { Form, Link, useNavigate, useNavigation, useSubmit } from "react-router";
 import type { Route } from "./+types/route";
 import { Button } from "~/components/ui/button/button";
@@ -27,7 +26,7 @@ import styles from "./style.module.css";
 
 import { createTicket } from "~/services/ticket.service";
 import { settingsApi, type Category, type Priority, type Department } from "~/services/settings.service";
-import { getUserSession } from "~/services/session.service";
+import { runWithUserSession } from "~/services/session.service";
 import { compressImage } from "~/utils/image-compression";
 
 export async function loader({ request }: Route.LoaderArgs) {
@@ -35,101 +34,134 @@ export async function loader({ request }: Route.LoaderArgs) {
     // Menentukan arah tombol "Back to Home"/"Cancel":
     //   - tanpa login  -> kembali ke landing page "/"
     //   - sudah login -> kembali ke dashboard "/dashboard"
-    const session = await getUserSession(request);
+    return runWithUserSession(request, async (session) => {
+        const [categoriesRes, prioritiesRes, departmentsRes] = await Promise.all([
+            settingsApi.getCategories(),
+            settingsApi.getPriorities(),
+            settingsApi.getDepartments()
+        ]);
 
-    const [categoriesRes, prioritiesRes, departmentsRes] = await Promise.all([
-        settingsApi.getCategories(),
-        settingsApi.getPriorities(),
-        settingsApi.getDepartments()
-    ]);
-
-    return {
-        isAuthenticated: Boolean(session),
-        homePath: session ? "/dashboard" : "/",
-        categories: (categoriesRes.data?.data || []) as Category[],
-        priorities: (prioritiesRes.data?.data || []) as Priority[],
-        departments: (departmentsRes.data?.data || []) as Department[]
-    };
+        return {
+            isAuthenticated: Boolean(session),
+            homePath: session ? "/dashboard" : "/",
+            categories: (categoriesRes.data?.data || []) as Category[],
+            priorities: (prioritiesRes.data?.data || []) as Priority[],
+            departments: (departmentsRes.data?.data || []) as Department[]
+        };
+    });
 }
 
 export async function action({ request }: Route.ActionArgs) {
-    const formData = await request.formData();
-    const name = (formData.get("name") as string || "").trim();
-    const email = (formData.get("email") as string || "").trim();
-    const phone = (formData.get("phone") as string || "").trim();
-    const department = (formData.get("department") as string || "").trim();
-    const priority = (formData.get("priority") as string || 'medium').trim();
-    const category = "Uncategorized";
-    const subject = (formData.get("subject") as string || "").trim();
-    const description = (formData.get("description") as string || "").trim();
-    const receiveUpdates = formData.get("receiveUpdates") === "true" || formData.get("receiveUpdates") === "on";
+    return runWithUserSession(request, async () => {
+        const formData = await request.formData();
+        const name = (formData.get("name") as string || "").trim();
+        const email = (formData.get("email") as string || "").trim();
+        const phone = (formData.get("phone") as string || "").trim();
+        const department = (formData.get("department") as string || "").trim();
+        const priority = (formData.get("priority") as string || 'medium').trim();
+        const category = "Uncategorized";
+        const subject = (formData.get("subject") as string || "").trim();
+        const description = (formData.get("description") as string || "").trim();
+        const receiveUpdates = formData.get("receiveUpdates") === "true" || formData.get("receiveUpdates") === "on";
 
-    const image = formData.get("image") as File | null;
-    const validImage = image && typeof image === 'object' && image.size > 0 && image.name ? image : undefined;
+        const image = formData.get("image") as File | null;
+        const validImage = image && typeof image === 'object' && image.size > 0 && image.name ? image : undefined;
 
-    const idempotencyKey = formData.get("idempotencyKey") as string;
+        const idempotencyKey = formData.get("idempotencyKey") as string;
 
-    if (!name) {
-        return { error: "Full Name tidak boleh kosong atau hanya berisi spasi" };
-    }
-    if (!department) {
-        return { error: "Department wajib dipilih" };
-    }
-    if (!subject) {
-        return { error: "Subject / Judul tidak boleh kosong atau hanya berisi spasi" };
-    }
-    if (subject.length < 3) {
-        return { error: "Subject / Judul minimal 3 karakter" };
-    }
-    if (subject.length > 255) {
-        return { error: "Subject / Judul maksimal 255 karakter" };
-    }
-    if (!description) {
-        return { error: "Description tidak boleh kosong atau hanya berisi spasi" };
-    }
-    if (description.length > 5000) {
-        return { error: "Description maksimal 5000 karakter" };
-    }
-    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        return { error: "Format Email tidak valid" };
-    }
-    if (phone && !/^[\d\s+\-()]{6,20}$/.test(phone)) {
-        return { error: "Nomor telepon hanya boleh berisi angka dan simbol +, -, ()" };
-    }
-
-    try {
-        const newTicket = await createTicket({
-            title: subject,
-            description: description,
-            priority: priority,
-            category: category,
-            submitterName: name,
-            submitterEmail: email || "",
-            submitterPhone: phone || undefined,
-            submitterDepartment: department,
-            receiveUpdates: receiveUpdates,
-        }, validImage, idempotencyKey);
-
-        if (!newTicket) {
-            return { error: "Gagal membuat ticket." };
+        if (!name) {
+            return { error: "Full Name tidak boleh kosong atau hanya berisi spasi" };
+        }
+        if (!department) {
+            return { error: "Department wajib dipilih" };
+        }
+        if (!subject) {
+            return { error: "Subject / Judul tidak boleh kosong atau hanya berisi spasi" };
+        }
+        if (subject.length < 3) {
+            return { error: "Subject / Judul minimal 3 karakter" };
+        }
+        if (subject.length > 255) {
+            return { error: "Subject / Judul maksimal 255 karakter" };
+        }
+        if (!description) {
+            return { error: "Description tidak boleh kosong atau hanya berisi spasi" };
+        }
+        if (description.length > 5000) {
+            return { error: "Description maksimal 5000 karakter" };
+        }
+        if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            return { error: "Format Email tidak valid" };
+        }
+        if (phone && !/^[\d\s+\-()]{6,20}$/.test(phone)) {
+            return { error: "Nomor telepon hanya boleh berisi angka dan simbol +, -, ()" };
         }
 
-        return { success: true, ticketId: newTicket.id, ticketCode: newTicket.ticketCode };
-    } catch (error: any) {
-        console.error("Failed to create ticket:", error);
-        const errorMsg = error?.response?.data?.error || error?.message || "Gagal membuat ticket. Silakan coba lagi nanti.";
-        return { error: errorMsg };
+        try {
+            const newTicket = await createTicket({
+                title: subject,
+                description: description,
+                priority: priority,
+                category: category,
+                submitterName: name,
+                submitterEmail: email || "",
+                submitterPhone: phone || undefined,
+                submitterDepartment: department,
+                receiveUpdates: receiveUpdates,
+            }, validImage, idempotencyKey);
+
+            if (!newTicket) {
+                return { error: "Gagal membuat ticket." };
+            }
+
+            return { success: true, ticketId: newTicket.id, ticketCode: newTicket.ticketCode };
+        } catch (error: any) {
+            console.error("Failed to create ticket:", error);
+            const errorMsg = error?.response?.data?.error || error?.message || "Gagal membuat ticket. Silakan coba lagi nanti.";
+            return { error: errorMsg };
+        }
+    });
+}
+
+/** Generates an RFC 4122 v4 UUID safely on both HTTPS and plain HTTP LAN contexts. */
+function generateIdempotencyKey(): string {
+    if (typeof crypto !== "undefined") {
+        if (typeof crypto.randomUUID === "function") {
+            return crypto.randomUUID();
+        }
+        if (typeof crypto.getRandomValues === "function") {
+            const bytes = new Uint8Array(16);
+            crypto.getRandomValues(bytes);
+            bytes[6] = (bytes[6] & 0x0f) | 0x40;
+            bytes[8] = (bytes[8] & 0x3f) | 0x80;
+            const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, "0"));
+            return `${hex.slice(0, 4).join("")}-${hex.slice(4, 6).join("")}-${hex.slice(6, 8).join("")}-${hex.slice(8, 10).join("")}-${hex.slice(10, 16).join("")}`;
+        }
     }
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+        const r = Math.floor(Math.random() * 16);
+        const v = c === "x" ? r : (r & 0x3) | 0x8;
+        return v.toString(16);
+    });
 }
 
 export default function SubmitTicket({ actionData, loaderData }: Route.ComponentProps) {
     const { priorities, departments, homePath } = loaderData;
+    const activePriorities = priorities.filter((p) => p.isActive);
+    const defaultPriority =
+        activePriorities.find((p) => p.name.toLowerCase() === "medium")?.name.toLowerCase() ||
+        activePriorities[0]?.name.toLowerCase() ||
+        "medium";
     const navigate = useNavigate();
     const navigation = useNavigation();
     const isSubmitting = navigation.state !== "idle";
     const [imagePreview, setImagePreview] = React.useState<string | null>(null);
     const [fileError, setFileError] = React.useState<string | null>(null);
-    const idempotencyKey = React.useMemo(() => uuidv4(), []);
+    // Empty on SSR + first client render to avoid hydration mismatch, then populated on mount.
+    const [idempotencyKey, setIdempotencyKey] = React.useState<string>("");
+    React.useEffect(() => {
+        setIdempotencyKey((prev) => prev || generateIdempotencyKey());
+    }, []);
     const submit = useSubmit();
     const [compressedFile, setCompressedFile] = React.useState<File | null>(null);
 
@@ -177,6 +209,11 @@ export default function SubmitTicket({ actionData, loaderData }: Route.Component
         e.preventDefault();
         if (fileError) return;
         const formData = new FormData(e.currentTarget);
+        if (!formData.get("idempotencyKey")) {
+            const key = idempotencyKey || generateIdempotencyKey();
+            if (!idempotencyKey) setIdempotencyKey(key);
+            formData.set("idempotencyKey", key);
+        }
         formData.delete("image");
         if (compressedFile) {
             formData.append("image", compressedFile);
@@ -185,7 +222,7 @@ export default function SubmitTicket({ actionData, loaderData }: Route.Component
     };
 
     return (
-        <main className={styles.main}>
+        <div className={styles.main}>
             <div style={{ marginBottom: 'var(--space-6)' }}>
                 <Link to={homePath} className={styles.backLink}>
                     <ArrowLeft size={20} />
@@ -334,12 +371,12 @@ export default function SubmitTicket({ actionData, loaderData }: Route.Component
                                             <Flag size={14} />
                                             Priority *
                                         </Label>
-                                        <Select name="priority" defaultValue="medium" required>
+                                        <Select name="priority" defaultValue={defaultPriority} required>
                                             <SelectTrigger className={styles.select}>
                                                 <SelectValue placeholder="Select Priority" />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                {priorities.filter(p => p.isActive).map((p) => (
+                                                {activePriorities.map((p) => (
                                                     <SelectItem key={p.id} value={p.name.toLowerCase()}>
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                                             <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: p.color }} />
@@ -466,6 +503,6 @@ export default function SubmitTicket({ actionData, loaderData }: Route.Component
                     </Card>
                 )}
             </div>
-        </main>
+        </div>
     );
 }

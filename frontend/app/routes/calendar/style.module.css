@@ -2218,3 +2218,389 @@
 
 }
 
+
+/* ─────────────────────────────────────────────────────────────
+   MOBILE CALENDAR & AGENDA VIEW (<= 768px)
+   ───────────────────────────────────────────────────────────── */
+
+.mobileDayIndicators {
+  display: none;
+}
+
+.mobileAgendaSection {
+  display: none;
+}
+
+.dayCellSelected {
+  box-shadow: inset 0 0 0 2px #3b82f6;
+  background: rgba(59, 130, 246, 0.14) !important;
+}
+
+.mobileHolidayDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #f87171;
+  flex-shrink: 0;
+}
+
+.mobileCountPill {
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: 999px;
+}
+
+.mobileCountPadat {
+  background: rgba(239, 68, 68, 0.25);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.45);
+}
+
+.mobileCountSedang {
+  background: rgba(245, 158, 11, 0.22);
+  color: #fde047;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+.mobileCountLonggar {
+  background: rgba(16, 185, 129, 0.2);
+  color: #6ee7b7;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+}
+
+.mobileAgendaHeader {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.mobileAgendaTitleWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mobileAgendaEyebrow {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #60a5fa;
+}
+
+.mobileAgendaTitle {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.mobileAgendaHolidayBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  margin-top: 2px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(239, 68, 68, 0.14);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #fca5a5;
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
+.mobileAgendaModeToggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.mobileAgendaModeBtn {
+  height: 32px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.mobileAgendaList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mobileAgendaEmpty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px 16px;
+  text-align: center;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.45);
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 0.84rem;
+}
+
+.agendaTicketItem {
+  padding: 10px 12px;
+  border-radius: 10px;
+}
+
+.agendaDateChip {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #cbd5e1;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+@media (max-width: 768px) {
+  .container {
+    padding: 12px 12px 84px;
+    gap: 12px;
+  }
+
+  .banner {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 14px;
+    gap: 12px;
+    border-radius: 14px;
+  }
+
+  .bannerTitle {
+    font-size: 1.05rem;
+    line-height: 1.3;
+  }
+
+  .bannerSubtitle {
+    font-size: 0.76rem;
+    line-height: 1.45;
+  }
+
+  .createTaskBtn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .summaryGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .summaryCard {
+    padding: 10px 12px;
+    gap: 10px;
+    align-items: flex-start;
+  }
+
+  .summaryIconBox {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+  }
+
+  .summaryLabel {
+    font-size: 0.64rem;
+    line-height: 1.25;
+  }
+
+  .summaryValue {
+    font-size: 1.08rem;
+  }
+
+  .summarySubtext {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
+    line-height: 1.25;
+  }
+
+  .legendBar {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 10px 12px;
+    gap: 8px;
+  }
+
+  .legendItems {
+    gap: 6px;
+  }
+
+  .legendPill {
+    font-size: 0.68rem;
+    padding: 3px 8px;
+  }
+
+  .filterBar {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 10px 12px;
+    gap: 10px;
+  }
+
+  .filtersGroup {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .searchWrapper {
+    min-width: 0;
+    max-width: none;
+    width: 100%;
+    flex: none;
+  }
+
+  .filterDropdownsRow {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+    width: 100%;
+  }
+
+  .selectTriggerCompact {
+    min-width: 0;
+    max-width: none;
+    width: 100%;
+    font-size: 0.76rem !important;
+    padding: 0 8px !important;
+  }
+
+  .dateFieldToggle {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .toggleBtn {
+    width: 100%;
+    padding: 0 6px;
+    font-size: 0.73rem;
+  }
+
+  .calendarNav {
+    width: 100%;
+    justify-content: space-between;
+    padding: 2px 6px;
+  }
+
+  .currentMonthText {
+    flex: 1;
+    min-width: 0;
+    font-size: 0.84rem;
+  }
+
+  .calendarWrapper {
+    border-radius: 14px;
+    overflow: hidden;
+  }
+
+  .daysHeader {
+    padding: 8px 0;
+  }
+
+  .dayName {
+    font-size: 0.68rem;
+    letter-spacing: 0.4px;
+  }
+
+  .daysGrid {
+    grid-auto-rows: minmax(56px, auto);
+  }
+
+  .dayCell {
+    height: auto;
+    min-height: 56px;
+    max-height: none;
+    padding: 6px 2px;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 4px;
+    cursor: pointer;
+  }
+
+  .cellHeader {
+    justify-content: center;
+    width: 100%;
+  }
+
+  .dayNumber {
+    width: 24px;
+    height: 24px;
+    font-size: 0.8rem;
+  }
+
+  .densityBadgePadat,
+  .densityBadgeSedang,
+  .densityBadgeLonggar,
+  .holidayBanner,
+  .cellTickets {
+    display: none !important;
+  }
+
+  .mobileDayIndicators {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    min-height: 16px;
+  }
+
+  .mobileAgendaSection {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px;
+    border-radius: 14px;
+    background: rgba(15, 23, 42, 0.55);
+    border: 1px solid rgba(59, 130, 246, 0.2);
+  }
+
+  .modalContent {
+    width: calc(100vw - 20px) !important;
+    max-height: 90dvh !important;
+    padding: 16px !important;
+    border-radius: 14px !important;
+  }
+
+  .modalTitle {
+    font-size: 1rem;
+  }
+
+  .modalRight {
+    padding: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .filterDropdownsRow {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .filterDropdownsRow > :nth-child(3) {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 350px) {
+  .summaryGrid {
+    grid-template-columns: 1fr;
+  }
+}

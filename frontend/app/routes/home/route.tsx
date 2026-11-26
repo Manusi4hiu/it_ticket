@@ -21,6 +21,7 @@ import {
   Shield,
   Headphones,
 } from "lucide-react";
+import { PwaInstallButton } from "~/components/pwa-install-prompt";
 import styles from "./style.module.css";
 
 export async function loader({ request }: Route.LoaderArgs) {
@@ -32,11 +33,13 @@ export default function Home({ loaderData }: Route.ComponentProps) {
   const [isTrackDialogOpen, setIsTrackDialogOpen] = React.useState(false);
   const navigate = useNavigate();
 
+  const cleanTrackCode = trackId.trim().replace(/^#+/, "").trim();
+
   const handleTrackTicket = (e: React.FormEvent) => {
     e.preventDefault();
-    if (trackId.trim()) {
+    if (cleanTrackCode) {
       setIsTrackDialogOpen(false);
-      navigate(`/ticket/${trackId.trim()}`);
+      navigate(`/ticket/${encodeURIComponent(cleanTrackCode)}`);
     }
   };
 
@@ -99,6 +102,11 @@ export default function Home({ loaderData }: Route.ComponentProps) {
               <Search size={20} />
               Track Your Ticket
             </Button>
+            <PwaInstallButton
+              variant="outline"
+              className={styles.secondaryButton}
+              label="Download Mobile App"
+            />
           </div>
         </div>
 
@@ -207,7 +215,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={!trackId.trim()} className={styles.trackButton}>
+              <Button type="submit" disabled={!cleanTrackCode} className={styles.trackButton}>
                 <Search size={16} />
                 Track Ticket
               </Button>

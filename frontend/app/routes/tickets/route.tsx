@@ -28,57 +28,58 @@ import {
   type Agent
 } from "~/services/ticket.service";
 import { settingsApi, type Status, type Category, type Priority } from "~/services/settings.service";
-import { requireAuth } from "~/services/session.service";
+import { runWithAuth } from "~/services/session.service";
 import { sortStatusesByWorkflow, getStatusWorkflowRank, canTakeTicket, inferFilterGroup } from "~/utils/ticket-ui";
 import styles from "./style.module.css";
 
 export async function loader({ request }: Route.LoaderArgs) {
-  const session = await requireAuth(request);
-  const url = new URL(request.url);
-  
-  const statusResponse = await settingsApi.getStatuses();
+  return runWithAuth(request, async (session) => {
+    const url = new URL(request.url);
+    
+    const statusResponse = await settingsApi.getStatuses();
 
-  const allStatuses = statusResponse.data?.data || [];
+    const allStatuses = statusResponse.data?.data || [];
 
-  // Default view (tanpa status param) = grup New — tiket New adalah kerjaan utama helpdesk.
-  // status=all eksplisit = semua status tanpa batasan.
-  const newDefaultNames = allStatuses
-    .filter((s: any) => (s.filterGroup || inferFilterGroup(s.name, s.isDefault)) === "new")
-    .map((s: any) => s.name);
-  const statusParam = url.searchParams.get("status");
-  const filters = {
-    status: !statusParam ? (newDefaultNames.join(",") || undefined) : (statusParam === "all" ? undefined : statusParam),
-    priority: url.searchParams.get("priority") || undefined,
-    category: url.searchParams.get("category") || undefined,
-    assignedTo: url.searchParams.get("assignedTo") || undefined,
-    search: url.searchParams.get("search") || undefined,
-    startDate: url.searchParams.get("startDate") || undefined,
-    endDate: url.searchParams.get("endDate") || undefined,
-    page: parseInt(url.searchParams.get("page") || "1"),
-    per_page: 15
-  };
+    // Default view (tanpa status param) = grup New — tiket New adalah kerjaan utama helpdesk.
+    // status=all eksplisit = semua status tanpa batasan.
+    const newDefaultNames = allStatuses
+      .filter((s: any) => (s.filterGroup || inferFilterGroup(s.name, s.isDefault)) === "new")
+      .map((s: any) => s.name);
+    const statusParam = url.searchParams.get("status");
+    const filters = {
+      status: !statusParam ? (newDefaultNames.join(",") || undefined) : (statusParam === "all" ? undefined : statusParam),
+      priority: url.searchParams.get("priority") || undefined,
+      category: url.searchParams.get("category") || undefined,
+      assignedTo: url.searchParams.get("assignedTo") || undefined,
+      search: url.searchParams.get("search") || undefined,
+      startDate: url.searchParams.get("startDate") || undefined,
+      endDate: url.searchParams.get("endDate") || undefined,
+      page: parseInt(url.searchParams.get("page") || "1"),
+      per_page: 15
+    };
 
-  const [ticketResponse, agents, categoryResponse, priorityResponse, statsResponse] = await Promise.all([
-    getTickets(filters),
-    getAgents(),
-    settingsApi.getCategories(),
-    settingsApi.getPriorities(),
-    getTicketStats()
-  ]);
+    const [ticketResponse, agents, categoryResponse, priorityResponse, statsResponse] = await Promise.all([
+      getTickets(filters),
+      getAgents(),
+      settingsApi.getCategories(),
+      settingsApi.getPriorities(),
+      getTicketStats()
+    ]);
 
-  return Response.json({
-    session,
-    tickets: ticketResponse.tickets,
-    totalTickets: ticketResponse.total,
-    agents,
-    // Closed tetap di-hide dari halaman utama by design; status lain semua masuk
-    statuses: (statusResponse.data?.data || []).filter((s: any) => s.showOnItHelpdesk !== false && s.name.toLowerCase() !== 'closed') as Status[],
-    // Dropdown filter tersinkron master data: hanya yg Active (isActive !== false).
-    // Kategori/priority baru yg Active otomatis muncul tanpa ubah kode.
-    categories: ((categoryResponse.data?.data || []) as Category[]).filter((c: any) => c.isActive !== false),
-    priorities: ((priorityResponse.data?.data || []) as Priority[]).filter((p: any) => p.isActive !== false),
-    stats: statsResponse,
-    filters
+    return {
+      session,
+      tickets: ticketResponse.tickets,
+      totalTickets: ticketResponse.total,
+      agents,
+      // Closed tetap di-hide dari halaman utama by design; status lain semua masuk
+      statuses: (statusResponse.data?.data || []).filter((s: any) => s.showOnItHelpdesk !== false && s.name.toLowerCase() !== 'closed') as Status[],
+      // Dropdown filter tersinkron master data: hanya yg Active (isActive !== false).
+      // Kategori/priority baru yg Active otomatis muncul tanpa ubah kode.
+      categories: ((categoryResponse.data?.data || []) as Category[]).filter((c: any) => c.isActive !== false),
+      priorities: ((priorityResponse.data?.data || []) as Priority[]).filter((p: any) => p.isActive !== false),
+      stats: statsResponse,
+      filters
+    };
   });
 }
 

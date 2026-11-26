@@ -25,3 +25,13 @@ html {
   }
 }
 
+/* Native-like mobile app behavior ONLY when launched as an installed standalone PWA */
+@media all and (display-mode: standalone) {
+  html,
+  body {
+    overscroll-behavior-y: contain;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+}
+

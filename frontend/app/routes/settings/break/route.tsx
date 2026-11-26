@@ -63,32 +63,31 @@ import {
 
 import { settingsApi } from "~/services/settings.service";
 
-import { requireRole } from "~/services/session.service";
+import { runWithRole } from "~/services/session.service";
 
 import styles from "../style.module.css";
 
 import type { BreakSetting, Holiday } from "~/services/settings.service";
 
 export async function loader({ request }: Route.LoaderArgs) {
-  await requireRole(request, ["Administrator"]);
+  return runWithRole(request, ["Administrator"], async () => {
+    const [breakRes, holidaysRes] = await Promise.all([settingsApi.getBreakSetting(), settingsApi.getHolidays()]);
 
-  const [breakRes, holidaysRes] = await Promise.all([settingsApi.getBreakSetting(), settingsApi.getHolidays()]);
+    return Response.json({
+      setting: breakRes.data?.data || null,
 
-  return Response.json({
-    setting: breakRes.data?.data || null,
+      holidays: holidaysRes.data?.data || [],
 
-    holidays: holidaysRes.data?.data || [],
-
-    meta: holidaysRes.data?.meta || null,
+      meta: holidaysRes.data?.meta || null,
+    });
   });
 }
 
 export async function action({ request }: Route.ActionArgs) {
-  await requireRole(request, ["Administrator"]);
+  return runWithRole(request, ["Administrator"], async () => {
+    const formData = await request.formData();
 
-  const formData = await request.formData();
-
-  const intent = formData.get("intent") as string;
+    const intent = formData.get("intent") as string;
 
   if (intent === "sync_holidays") {
     const res = await settingsApi.syncHolidays();
@@ -275,6 +274,7 @@ export async function action({ request }: Route.ActionArgs) {
     { success: true, message: "Pengaturan jam kerja, SLA & batas break berhasil disimpan." },
     { status: 200 },
   );
+  });
 }
 
 const indonesianDateFormatter = new Intl.DateTimeFormat("id-ID", {

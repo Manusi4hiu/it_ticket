@@ -1,9 +1,24 @@
 import { createCookieSessionStorage } from 'react-router';
 import type { AuthUser } from './auth.service';
-import { setAuthToken } from './api.service';
+import { runWithServerToken } from './ssr-auth.server';
 
-// Session secret - in production, use environment variable
-const sessionSecret = process.env.SESSION_SECRET || 'default-secret-change-in-production';
+const _DEFAULT_SESSION_SECRET = 'default-secret-change-in-production';
+let _warnedDefaultSecret = false;
+
+function resolveSessionSecret(): string {
+  const secret = process.env.SESSION_SECRET;
+  if (!secret || secret === _DEFAULT_SESSION_SECRET) {
+    if (process.env.NODE_ENV === 'production' && !_warnedDefaultSecret) {
+      _warnedDefaultSecret = true;
+      console.error(
+        '[SECURITY] SESSION_SECRET is unset or using the insecure default in production. ' +
+        'Set a strong random SESSION_SECRET environment variable.'
+      );
+    }
+    return _DEFAULT_SESSION_SECRET;
+  }
+  return secret;
+}
 
 const sessionStorage = createCookieSessionStorage({
   cookie: {
@@ -11,10 +26,19 @@ const sessionStorage = createCookieSessionStorage({
     httpOnly: true,
     path: '/',
     sameSite: 'lax',
-    secrets: [sessionSecret],
+    maxAge: 60 * 60 * 24, // 24 hours — aligned with backend JWT_ACCESS_TOKEN_EXPIRES so mobile PWA survives app close
+    secrets: [resolveSessionSecret()],
     secure: process.env.NODE_ENV === 'production',
   },
 });
+
+export interface UserSession {
+  userId: string;
+  userEmail: string | null;
+  userRole: string;
+  userName: string;
+  authToken: string | undefined;
+}
 
 export async function createUserSession(user: AuthUser, redirectTo: string, token?: string) {
   try {
@@ -46,7 +70,7 @@ export async function createUserSession(user: AuthUser, redirectTo: string, toke
   }
 }
 
-export async function getUserSession(request: Request) {
+export async function getUserSession(request: Request): Promise<UserSession | null> {
   const session = await sessionStorage.getSession(request.headers.get('Cookie'));
   const userId = session.get('userId');
   const userEmail = session.get('userEmail');
@@ -58,21 +82,16 @@ export async function getUserSession(request: Request) {
     return null;
   }
 
-  // Set auth token for API calls
-  if (authToken) {
-    setAuthToken(authToken);
-  }
-
   return {
     userId: String(userId),
-    userEmail,
-    userRole,
-    userName,
-    authToken,
+    userEmail: typeof userEmail === 'string' ? userEmail : null,
+    userRole: String(userRole || ''),
+    userName: String(userName || ''),
+    authToken: typeof authToken === 'string' ? authToken : undefined,
   };
 }
 
-export async function requireAuth(request: Request) {
+export async function requireAuth(request: Request): Promise<UserSession> {
   const session = await getUserSession(request);
   if (!session) {
     throw new Response('Unauthorized', {
@@ -85,7 +104,7 @@ export async function requireAuth(request: Request) {
   return session;
 }
 
-export async function requireRole(request: Request, allowedRoles: string[]) {
+export async function requireRole(request: Request, allowedRoles: string[]): Promise<UserSession> {
   const session = await requireAuth(request);
 
   if (!allowedRoles.includes(session.userRole)) {
@@ -96,6 +115,40 @@ export async function requireRole(request: Request, allowedRoles: string[]) {
   }
 
   return session;
+}
+
+/** Run loader/action with optional session bound to current SSR request context. */
+export async function runWithUserSession<T>(
+  request: Request,
+  fn: (session: UserSession | null) => Promise<T>
+): Promise<T> {
+  const session = await getUserSession(request);
+  return runWithServerToken(session?.authToken ?? null, () => fn(session));
+}
+
+/** Require authenticated user and run loader/action isolated to their request JWT. */
+export async function runWithAuth<T>(
+  request: Request,
+  fn: (session: UserSession) => Promise<T>
+): Promise<T> {
+  const session = await requireAuth(request);
+  return runWithServerToken(session.authToken ?? null, () => fn(session));
+}
+
+/** Require specific role(s) and run loader/action isolated to that user's request JWT. */
+export async function runWithRole<T>(
+  request: Request,
+  allowedRoles: string[],
+  fn: (session: UserSession) => Promise<T>
+): Promise<T> {
+  const session = await requireRole(request, allowedRoles);
+  return runWithServerToken(session.authToken ?? null, () => fn(session));
+}
+
+/** Destroy any leftover session cookie without calling backend (used on 401 expiry recovery). */
+export async function destroyLocalSessionCookie(request: Request): Promise<string> {
+  const session = await sessionStorage.getSession(request.headers.get('Cookie'));
+  return sessionStorage.destroySession(session);
 }
 
 export async function logout(request: Request) {

@@ -39,7 +39,7 @@ import { useToast } from "~/hooks/use-toast";
 import styles from "./style.module.css";
 console.log(styles); // Workaround: pastikan CSS Modules ter-load
 import settingsStyles from "../style.module.css";
-import { requireRole } from "~/services/session.service";
+import { runWithRole } from "~/services/session.service";
 import { useRoleManagement, type UserRole, type ManagedUser } from "./hooks/use-role-management";
 
 // ─────────────────────────────────────────────
@@ -47,21 +47,22 @@ import { useRoleManagement, type UserRole, type ManagedUser } from "./hooks/use-
 // ─────────────────────────────────────────────
 
 export async function loader({ request }: Route.LoaderArgs) {
-  const session = await requireRole(request, ["Administrator"]);
+  return runWithRole(request, ["Administrator"], async (session) => {
+    const response = await usersApi.getAll();
+    const users = response.success && response.data ? response.data.users : [];
 
-  const response = await usersApi.getAll();
-  const users = response.success && response.data ? response.data.users : [];
-
-  return Response.json({
-    session,
-    users: users.map((u) => ({
-      id: u.id,
-      email: u.email,
-      username: u.username,
-      name: u.full_name,
-      role: u.role as UserRole,
-      isActive: u.is_active !== false,
-    })) as ManagedUser[],
+    return {
+      session,
+      users: users.map((u) => ({
+        id: u.id,
+        email: u.email ?? null,
+        phone: u.phone ?? null,
+        username: u.username,
+        name: u.full_name,
+        role: u.role as UserRole,
+        isActive: u.is_active !== false,
+      })) as ManagedUser[],
+    };
   });
 }
 
@@ -123,7 +124,7 @@ export default function RoleManagementSettings({
                 <tr>
                   <th style={{ minWidth: "160px" }}>User Information</th>
                   <th style={{ minWidth: "90px" }}>Username</th>
-                  <th style={{ minWidth: "140px" }}>Email</th>
+                  <th style={{ minWidth: "150px" }}>Email / Phone</th>
                   <th style={{ minWidth: "90px" }}>Status</th>
                   <th style={{ minWidth: "110px" }}>Current Role</th>
                   <th style={{ minWidth: "140px" }}>Change Role</th>
@@ -167,9 +168,19 @@ export default function RoleManagementSettings({
                       </span>
                     </td>
 
-                    {/* Email */}
+                    {/* Email & Phone */}
                     <td>
-                      <span className={styles.userEmail}>{user.email}</span>
+                      <div className={styles.userEmail}>
+                        {user.email || "—"}
+                      </div>
+                      {user.phone && (
+                        <div
+                          className={styles.userEmail}
+                          style={{ fontSize: "0.78rem", opacity: 0.75, marginTop: "2px" }}
+                        >
+                          {user.phone}
+                        </div>
+                      )}
                     </td>
 
                     {/* Status badge only */}
@@ -268,6 +279,7 @@ export default function RoleManagementSettings({
                         <Button
                           variant="outline"
                           size="sm"
+                          title="Edit user"
                           onClick={() => rm.openEditDialog(user)}
                           style={{
                             background: "rgba(255,255,255,0.05)",
@@ -384,6 +396,12 @@ export default function RoleManagementSettings({
                 <span className={settingsStyles.settingCardMetaLabel}>Email</span>
                 <span className={styles.userEmail} style={{ textAlign: "right", maxWidth: "65%", color: user.email ? undefined : "rgba(255,255,255,0.4)" }}>
                   {user.email || "—"}
+                </span>
+              </div>
+              <div className={settingsStyles.settingCardMetaRow}>
+                <span className={settingsStyles.settingCardMetaLabel}>Phone</span>
+                <span className={styles.userEmail} style={{ textAlign: "right", maxWidth: "65%", color: user.phone ? undefined : "rgba(255,255,255,0.4)" }}>
+                  {user.phone || "—"}
                 </span>
               </div>
               <div className={settingsStyles.settingCardMetaRow}>
@@ -549,8 +567,10 @@ export default function RoleManagementSettings({
               <FormField
                 id="phone"
                 label="Phone Number (Optional)"
+                type="tel"
                 value={rm.newUserForm.phone}
                 onChange={(v) => rm.setNewUserForm((p) => ({ ...p, phone: v }))}
+                error={rm.formErrors.phone}
                 placeholder="+62..."
               />
               <FormField
@@ -626,8 +646,10 @@ export default function RoleManagementSettings({
               <FormField
                 id="editPhone"
                 label="Phone Number (Optional)"
+                type="tel"
                 value={rm.editUserForm.phone}
                 onChange={(v) => rm.setEditUserForm((p) => ({ ...p, phone: v }))}
+                error={rm.editFormErrors.phone}
                 placeholder="+62..."
               />
               <FormField
@@ -698,7 +720,7 @@ export default function RoleManagementSettings({
                   fontSize: "var(--font-size-1)",
                 }}
               >
-                Email: {rm.userToDelete.email}
+                Email: {rm.userToDelete.email || "—"}
               </p>
               <p
                 style={{

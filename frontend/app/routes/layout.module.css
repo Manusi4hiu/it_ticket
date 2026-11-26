@@ -1,5 +1,6 @@
 .container {
   height: 100vh;
+  height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
   display: flex;
   flex-direction: column;
   background: linear-gradient(135deg, #050b14 0%, #0a192f 50%, #020c1b 100%);
@@ -335,6 +336,10 @@
   .navIcon {
     width: 14px;
     height: 14px;
+  }
+
+  :global(html[data-pwa-banner="visible"]) .main {
+    padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px));
   }
 }
 

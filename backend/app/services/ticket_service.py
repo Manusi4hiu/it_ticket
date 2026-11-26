@@ -765,12 +765,26 @@ class TicketService:
         if actor and not is_admin and ticket.assigned_to_id:
             if int(actor.id) != int(ticket.assigned_to_id):
                 forbidden = [k for k in ('status', 'category', 'priority') if k in data]
+                # PERBAIKAN (takeover senyap): perubahan assignee juga WAJIB
+                # beralasan. Sebelumnya 'assignedToId' tidak masuk daftar
+                # terlarang, sehingga staff non-pemilik bisa mengambil alih
+                # tiket milik orang lain lewat PUT /tickets/<id> TANPA alasan
+                # dan TANPA notifikasi ke pemilik lama.
+                # Alur "Admin Override" di frontend sudah mengirim 'reason',
+                # jadi permintaan beralasan tetap diterima (dan pemilik lama
+                # tetap diberi tahu - lihat blok notifikasi di bawah).
+                if 'assignedToId' in data and data['assignedToId'] != old_assigned_id:
+                    takeover_reason = data.get('reason') or data.get('adminReason')
+                    if not (takeover_reason and str(takeover_reason).strip()):
+                        forbidden.append('assignedToId')
                 if forbidden:
                     raise ValueError(
                         f"Unauthorized: tiket ini sudah dipegang/dioper ke "
                         f"'{ticket.assigned_user.full_name if ticket.assigned_user else 'staff lain'}'. "
                         "Hanya pemilik tiket atau Administrator yang bisa mengubah "
                         f"{', '.join(forbidden)}."
+                        + (" Perubahan assignee wajib disertai alasan."
+                           if 'assignedToId' in forbidden else "")
                     )
 
         # ── Kategori berubah:
@@ -1002,7 +1016,12 @@ class TicketService:
                             is_internal=True
                         ))
                     ticket.priority = priority_val
-                priority_changed = True
+                    # PERBAIKAN: flag hanya di-set bila prioritas BENAR-BENAR
+                    # berubah. Sebelumnya flag ini di-set di luar blok `if`,
+                    # sehingga setiap form edit yang mengirim priority yang
+                    # sama tetap memicu recalculation SLA deadline - dan
+                    # ekstensi jam dari pause ikut hilang.
+                    priority_changed = True
 
         if 'category' in data:
             new_category_val = str(data['category']).strip()
@@ -1023,7 +1042,9 @@ class TicketService:
                             is_internal=True
                         ))
                     ticket.category = new_category_val
-                category_changed = True
+                    # PERBAIKAN: sama seperti priority - flag hanya di-set bila
+                    # kategori benar-benar berubah (lihat catatan di blok priority).
+                    category_changed = True
 
         if 'resolutionSummary' in data:
             ticket.resolution_summary = sanitize_html(str(data['resolutionSummary']).strip())
@@ -1222,6 +1243,25 @@ class TicketService:
             except Exception as notif_err:
                 db.session.rollback()
                 print(f"Admin override notification failed: {notif_err}")
+
+        # ── Notifikasi takeover oleh STAFF non-pemilik (alur Admin Override):
+        # staff lain yang mengambil alih tiket WAJIB memberi alasan (divalidasi
+        # di guard kepemilikan di atas). Pemilik lama harus diberi tahu supaya
+        # tiket tidak hilang diam-diam dari meja kerjanya.
+        if (not is_admin and actor and ticket.taken_at and admin_reason
+                and old_assigned_id and ticket.assigned_to_id != old_assigned_id):
+            try:
+                from app.services.notification_service import NotificationService
+
+                NotificationService.notify_admin_assignee_change(
+                    ticket, actor, old_assigned_id, ticket.assigned_to_id, admin_reason,
+                    actor_label='Staff'
+                )
+                ticket.transferred_at = datetime.now(timezone.utc)
+                db.session.commit()
+            except Exception as notif_err:
+                db.session.rollback()
+                print(f"Assignee takeover notification failed: {notif_err}")
 
         return ticket
 

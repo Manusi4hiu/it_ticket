@@ -62,6 +62,7 @@ export interface Ticket {
     createdAt: Date;
     updatedAt: Date;
     notes: TicketNote[];
+    hasStaffAccess?: boolean;
 }
 
 // ─────────────────────────────────────────────

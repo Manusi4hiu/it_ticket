@@ -17,7 +17,7 @@ import {
 } from "recharts";
 import { getTicketStats, getAllAgentsPerformance } from "~/services/ticket.service";
 import { settingsApi, type Category, type Priority, type Status, type Department } from "~/services/settings.service";
-import { requireRole } from "~/services/session.service";
+import { runWithRole } from "~/services/session.service";
 import type { Route } from "./+types/route";
 import styles from "./style.module.css";
 
@@ -95,60 +95,60 @@ function customBounds(startRaw: string | null, endRaw: string | null, now: Date)
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
-  const session = await requireRole(request, ["Administrator", "Management"]);
+  return runWithRole(request, ["Administrator", "Management"], async (session) => {
+    const params = new URL(request.url).searchParams;
+    const raw = params.get("range") || "7d";
+    let range: TrendRange = (RANGES as readonly string[]).includes(raw) ? (raw as TrendRange) : "7d";
 
-  const params = new URL(request.url).searchParams;
-  const raw = params.get("range") || "7d";
-  let range: TrendRange = (RANGES as readonly string[]).includes(raw) ? (raw as TrendRange) : "7d";
+    // Jendela eksplisit per periode — HANYA untuk sub-page Overview (KPI kohort
+    // + tren). Rolling dari hari ini: 7d = 7 hari terakhir, 30d = 30 hari
+    // terakhir, custom = pilihan user (divalidasi, fallback 7d bila invalid),
+    // q* = quarter kalender (jangan diubah).
+    // Distribution & Staff ranking selalu all-time (semua data, tanpa
+    // filter waktu), jadi diambil dari panggilan terpisah tanpa window.
+    const now = new Date();
+    let window;
+    if (range === "custom") {
+      const custom = customBounds(params.get("start"), params.get("end"), now);
+      if (!custom) range = "7d";
+      window = custom ?? last7Days(now);
+    } else {
+      window =
+        range === "7d" ? last7Days(now)
+        : range === "30d" ? last30Days(now)
+        : quarterBounds(Number(range.slice(1)), now);
+    }
 
-  // Jendela eksplisit per periode — HANYA untuk sub-page Overview (KPI kohort
-  // + tren). Rolling dari hari ini: 7d = 7 hari terakhir, 30d = 30 hari
-  // terakhir, custom = pilihan user (divalidasi, fallback 7d bila invalid),
-  // q* = quarter kalender (jangan diubah).
-  // Distribution & Staff ranking selalu all-time (semua data, tanpa
-  // filter waktu), jadi diambil dari panggilan terpisah tanpa window.
-  const now = new Date();
-  let window;
-  if (range === "custom") {
-    const custom = customBounds(params.get("start"), params.get("end"), now);
-    if (!custom) range = "7d";
-    window = custom ?? last7Days(now);
-  } else {
-    window =
-      range === "7d" ? last7Days(now)
-      : range === "30d" ? last30Days(now)
-      : quarterBounds(Number(range.slice(1)), now);
-  }
+    const [stats, statsAll, agentsPerformance, categoriesRes, prioritiesRes, statusesRes, departmentsRes] = await Promise.all([
+      getTicketStats(false, undefined, window),
+      getTicketStats(),
+      getAllAgentsPerformance(),
+      settingsApi.getCategories(),
+      settingsApi.getPriorities(),
+      settingsApi.getStatuses(),
+      settingsApi.getDepartments(),
+    ]);
 
-  const [stats, statsAll, agentsPerformance, categoriesRes, prioritiesRes, statusesRes, departmentsRes] = await Promise.all([
-    getTicketStats(false, undefined, window),
-    getTicketStats(),
-    getAllAgentsPerformance(),
-    settingsApi.getCategories(),
-    settingsApi.getPriorities(),
-    settingsApi.getStatuses(),
-    settingsApi.getDepartments(),
-  ]);
+    // Master hanya yang aktif (isActive !== false) — sama dengan aturan dropdown Tickets.
+    // Status tambahan: hanya yang muncul di IT Helpdesk (bukan Development board).
+    const categories = ((categoriesRes.data?.data || []) as Category[]).filter((c) => c.isActive !== false);
+    const priorities = ((prioritiesRes.data?.data || []) as Priority[]).filter((p) => p.isActive !== false);
+    const statuses = ((statusesRes.data?.data || []) as Status[]).filter((s) => s.showOnItHelpdesk !== false);
+    const departments = ((departmentsRes.data?.data || []) as Department[]).filter((d) => d.isActive !== false);
 
-  // Master hanya yang aktif (isActive !== false) — sama dengan aturan dropdown Tickets.
-  // Status tambahan: hanya yang muncul di IT Helpdesk (bukan Development board).
-  const categories = ((categoriesRes.data?.data || []) as Category[]).filter((c) => c.isActive !== false);
-  const priorities = ((prioritiesRes.data?.data || []) as Priority[]).filter((p) => p.isActive !== false);
-  const statuses = ((statusesRes.data?.data || []) as Status[]).filter((s) => s.showOnItHelpdesk !== false);
-  const departments = ((departmentsRes.data?.data || []) as Department[]).filter((d) => d.isActive !== false);
-
-  return Response.json({
-    session,
-    range,
-    start: window.start,
-    end: window.end,
-    stats,
-    statsAll,
-    agentsPerformance,
-    categories,
-    priorities,
-    statuses,
-    departments
+    return {
+      session,
+      range,
+      start: window.start,
+      end: window.end,
+      stats,
+      statsAll,
+      agentsPerformance,
+      categories,
+      priorities,
+      statuses,
+      departments
+    };
   });
 }
 
@@ -329,7 +329,7 @@ function AnalyticsBody({
     return categories
       .map((c, index) => ({
         name: c.name,
-        value: countByLower.get(c.name.toLowerCase()) || 0,
+        value: (countByLower.get(c.name.toLowerCase()) as number) || 0,
         color: autoColor(index),
       }))
       .filter((c) => c.value > 0);
@@ -341,7 +341,7 @@ function AnalyticsBody({
     const activeNames = new Set(categories.map((c) => c.name.toLowerCase()));
     return Object.entries(statsAll.byCategory)
       .filter(([name]) => !activeNames.has(name.toLowerCase()))
-      .sort((a, b) => b[1] - a[1]);
+      .sort((a, b) => (b[1] as number) - (a[1] as number));
   }, [statsAll.byCategory, categories]);
 
   // Department: sinkron master seperti Category — iterasi master departments
@@ -355,7 +355,7 @@ function AnalyticsBody({
     return departments
       .map((d, index) => ({
         name: d.name,
-        count: countByLower.get(d.name.toLowerCase()) || 0,
+        count: (countByLower.get(d.name.toLowerCase()) as number) || 0,
         color: autoColor(index),
       }))
       .filter((d) => d.count > 0);
@@ -367,7 +367,7 @@ function AnalyticsBody({
     const activeNames = new Set(departments.map((d) => d.name.toLowerCase()));
     return Object.entries(statsAll.byDepartment)
       .filter(([name]) => !activeNames.has(name.toLowerCase()))
-      .sort((a, b) => b[1] - a[1]);
+      .sort((a, b) => (b[1] as number) - (a[1] as number));
   }, [statsAll.byDepartment, departments]);
 
   // Staff dinilai hanya jika punya tiket. Angka rata-rata hanya muncul bila

@@ -58,7 +58,7 @@ import {
 
 import { settingsApi } from "~/services/settings.service";
 
-import { requireAuth } from "~/services/session.service";
+import { runWithAuth } from "~/services/session.service";
 
 import { ReasonDialog } from "~/routes/ticket.$id/components/ReasonDialog";
 
@@ -69,38 +69,38 @@ import { isWorkingDay, validateWorkingHoursDateTime, getInitialWorkingDateTime, 
 import styles from "./style.module.css";
 
 export async function loader({ request }: Route.LoaderArgs) {
-  const session = await requireAuth(request);
+  return runWithAuth(request, async (session) => {
+    // Fetch tickets, agents, statuses, categories, priorities, holidays (semua master-driven)
 
-  // Fetch tickets, agents, statuses, categories, priorities, holidays (semua master-driven)
+    const [ticketsRes, agents, statusesRes, categoriesRes, prioritiesRes, holidaysRes] = await Promise.all([
+      getTickets({ per_page: 1000 }),
 
-  const [ticketsRes, agents, statusesRes, categoriesRes, prioritiesRes, holidaysRes] = await Promise.all([
-    getTickets({ per_page: 500 }),
+      getAgents(),
 
-    getAgents(),
+      settingsApi.getStatuses(),
 
-    settingsApi.getStatuses(),
+      settingsApi.getCategories(),
 
-    settingsApi.getCategories(),
+      settingsApi.getPriorities(),
 
-    settingsApi.getPriorities(),
+      settingsApi.getHolidays(),
+    ]);
 
-    settingsApi.getHolidays(),
-  ]);
+    return {
+      session,
 
-  return Response.json({
-    session,
+      initialTickets: ticketsRes.tickets,
 
-    initialTickets: ticketsRes.tickets,
+      agents,
 
-    agents,
+      statuses: (statusesRes.data?.data || []).filter((s: any) => s.showOnItHelpdesk !== false),
 
-    statuses: (statusesRes.data?.data || []).filter((s: any) => s.showOnItHelpdesk !== false),
+      categories: categoriesRes.data?.data || [],
 
-    categories: categoriesRes.data?.data || [],
+      priorities: (prioritiesRes.data?.data || []).filter((p: any) => p.isActive !== false),
 
-    priorities: (prioritiesRes.data?.data || []).filter((p: any) => p.isActive !== false),
-
-    holidays: holidaysRes.data?.data || [],
+      holidays: holidaysRes.data?.data || [],
+    };
   });
 }
 
@@ -129,6 +129,12 @@ export default function TicketCalendar() {
   // Current calendar month view state
 
   const [currentDate, setCurrentDate] = useState(new Date());
+
+  // Mobile agenda selection state (used on <= 768px compact calendar + agenda panel)
+
+  const [selectedMobileDay, setSelectedMobileDay] = useState<Date>(() => new Date());
+
+  const [mobileAgendaMode, setMobileAgendaMode] = useState<"day" | "month">("day");
 
   // Ticket Detail Modal State
 
@@ -214,16 +220,40 @@ export default function TicketCalendar() {
     "December",
   ];
 
+  const syncMobileDayToMonth = (targetYear: number, targetMonth: number) => {
+    const today = new Date();
+    if (today.getFullYear() === targetYear && today.getMonth() === targetMonth) {
+      setSelectedMobileDay(today);
+    } else {
+      setSelectedMobileDay(new Date(targetYear, targetMonth, 1));
+    }
+  };
+
   const handlePrevMonth = () => {
-    setCurrentDate(new Date(year, month - 1, 1));
+    const next = new Date(year, month - 1, 1);
+    setCurrentDate(next);
+    syncMobileDayToMonth(next.getFullYear(), next.getMonth());
   };
 
   const handleNextMonth = () => {
-    setCurrentDate(new Date(year, month + 1, 1));
+    const next = new Date(year, month + 1, 1);
+    setCurrentDate(next);
+    syncMobileDayToMonth(next.getFullYear(), next.getMonth());
   };
 
   const handleToday = () => {
-    setCurrentDate(new Date());
+    const today = new Date();
+    setCurrentDate(today);
+    setSelectedMobileDay(today);
+    setMobileAgendaMode("day");
+  };
+
+  const handleSelectMobileDay = (date: Date) => {
+    setSelectedMobileDay(date);
+    setMobileAgendaMode("day");
+    if (date.getFullYear() !== year || date.getMonth() !== month) {
+      setCurrentDate(new Date(date.getFullYear(), date.getMonth(), 1));
+    }
   };
 
   // Build grid of 42 cells (6 rows * 7 columns) for the calendar
@@ -462,6 +492,32 @@ export default function TicketCalendar() {
       date.getFullYear() === today.getFullYear()
     );
   };
+
+  const isSameDay = (a: Date, b: Date) =>
+    a.getDate() === b.getDate() && a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear();
+
+  const selectedDayKey = `${selectedMobileDay.getFullYear()}-${selectedMobileDay.getMonth()}-${selectedMobileDay.getDate()}`;
+  const selectedDayTickets = ticketsByDay[selectedDayKey] || [];
+  const selectedDayHoliday = getSpecialHoliday(selectedMobileDay, holidays);
+
+  const monthAgendaTickets = useMemo(() => {
+    const list: { date: Date; ticket: Ticket }[] = [];
+    filteredTickets.forEach((t) => {
+      const d = dateField === "deadline" ? t.slaDeadline : t.createdAt;
+      if (!d) return;
+      const dt = new Date(d);
+      if (isNaN(dt.getTime())) return;
+      if (dateField === "deadline") {
+        const dow = dt.getDay();
+        if (dow === 0 || dow === 6 || !isWorkingDay(dt, holidays)) return;
+      }
+      if (dt.getFullYear() === year && dt.getMonth() === month) {
+        list.push({ date: dt, ticket: t });
+      }
+    });
+    list.sort((a, b) => a.date.getTime() - b.date.getTime());
+    return list;
+  }, [filteredTickets, dateField, year, month, holidays]);
 
   // Helper to color priorities — warna diambil dari master, fallback ke peta lama
 
@@ -708,9 +764,9 @@ export default function TicketCalendar() {
 
         category: addTaskCategory,
 
-        submitterName: session?.name || "IT Staff",
+        submitterName: session?.userName || "IT Staff",
 
-        submitterEmail: session?.email || "staff@internal.corp",
+        submitterEmail: session?.userEmail || "staff@internal.corp",
 
         assignedToId: addTaskAssigneeId === "unassigned" ? undefined : addTaskAssigneeId,
       });
@@ -755,6 +811,75 @@ export default function TicketCalendar() {
     }).format(new Date(date));
   };
 
+  const formatSelectedAgendaDate = (date: Date) =>
+    new Intl.DateTimeFormat("id-ID", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    }).format(date);
+
+  const renderTicketCard = (t: Ticket, dateBadge?: string) => {
+    const isDone = ["resolved", "closed", "completed"].includes((t.status || "").toLowerCase());
+    const isOverdue = t.slaDeadline && new Date(t.slaDeadline).getTime() < Date.now() && !isDone;
+    const isDueToday = t.slaDeadline && isToday(new Date(t.slaDeadline)) && !isDone;
+    const targetDateStr = dateField === "deadline" ? t.slaDeadline : t.createdAt;
+    const timeStr = targetDateStr
+      ? new Date(targetDateStr).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })
+      : null;
+
+    return (
+      <div
+        key={`${dateBadge || "cell"}-${t.id}`}
+        className={`${styles.ticketItem} ${dateBadge !== undefined ? styles.agendaTicketItem : ""}`}
+        style={{ borderLeftColor: getPriorityColor(t.priority) }}
+        onClick={(e) => {
+          e.stopPropagation();
+          handleOpenDetail(t);
+        }}
+        title={`${t.ticketCode || t.id}: ${t.title} (${t.status})`}
+      >
+        <div className={styles.ticketCardHeader}>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
+            {dateBadge && <span className={styles.agendaDateChip}>{dateBadge}</span>}
+            {timeStr ? (
+              <span className={styles.ticketTime}>
+                <Clock size={10} />
+                {timeStr}
+              </span>
+            ) : (
+              <span style={{ fontSize: "0.65rem", color: "rgba(255,255,255,0.45)" }}>
+                {t.ticketCode || `#${t.id}`}
+              </span>
+            )}
+          </div>
+
+          {isDone ? (
+            <span className={styles.badgeDone}>✓ Selesai</span>
+          ) : isOverdue ? (
+            <span className={styles.badgeOverdue}>⚠️ Overdue</span>
+          ) : isDueToday ? (
+            <span className={styles.badgeDueToday}>🎯 Hari Ini</span>
+          ) : null}
+        </div>
+
+        <span className={styles.ticketTitleText}>
+          {t.ticketCode ? `[${t.ticketCode}] ` : ""}
+          {t.title}
+        </span>
+
+        <div className={styles.ticketFooter}>
+          <span className={styles.ticketAssignee}>
+            <User size={10} />
+            {t.assignedTo || "Unassigned"}
+          </span>
+
+          <span style={{ opacity: 0.6 }}>{t.category}</span>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className={styles.container}>
       {/* Banner / Title Header */}
@@ -773,7 +898,7 @@ export default function TicketCalendar() {
 
         <Button
           onClick={() => setIsAddDialogOpen(true)}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
+          className={`${styles.createTaskBtn} flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg`}
         >
           <Plus size={16} />
           Create Task
@@ -1066,10 +1191,13 @@ export default function TicketCalendar() {
                       ? styles.dayCellLonggar
                       : "";
 
+              const isSelectedMobile = isSameDay(day.date, selectedMobileDay);
+
               return (
                 <div
                   key={idx}
-                  className={`${styles.dayCell} ${!isCurr ? styles.dayCellOutside : ""} ${isTodayCell ? styles.dayCellToday : ""} ${specialHoliday ? styles.dayCellSpecialHoliday : ""} ${densityClass}`}
+                  onClick={() => handleSelectMobileDay(day.date)}
+                  className={`${styles.dayCell} ${!isCurr ? styles.dayCellOutside : ""} ${isTodayCell ? styles.dayCellToday : ""} ${isSelectedMobile ? styles.dayCellSelected : ""} ${specialHoliday ? styles.dayCellSpecialHoliday : ""} ${densityClass}`}
                 >
                   <div className={styles.cellHeader}>
                     <span
@@ -1093,6 +1221,24 @@ export default function TicketCalendar() {
                     ) : null}
                   </div>
 
+                  {/* Mobile compact indicators inside 7-col date cell */}
+                  <div className={styles.mobileDayIndicators}>
+                    {specialHoliday && <span className={styles.mobileHolidayDot} title={specialHoliday.name} />}
+                    {count > 0 && (
+                      <span
+                        className={`${styles.mobileCountPill} ${
+                          count >= 5
+                            ? styles.mobileCountPadat
+                            : count >= 3
+                              ? styles.mobileCountSedang
+                              : styles.mobileCountLonggar
+                        }`}
+                      >
+                        {count}
+                      </span>
+                    )}
+                  </div>
+
                   {specialHoliday && (
                     <div
                       className={styles.holidayBanner}
@@ -1105,74 +1251,75 @@ export default function TicketCalendar() {
                   )}
 
                   <div className={styles.cellTickets}>
-                    {dayTickets.map((t) => {
-                      const isDone = ["resolved", "closed", "completed"].includes((t.status || "").toLowerCase());
-
-                      const isOverdue = t.slaDeadline && new Date(t.slaDeadline).getTime() < Date.now() && !isDone;
-
-                      const isDueToday = t.slaDeadline && isToday(new Date(t.slaDeadline)) && !isDone;
-
-                      const targetDateStr = dateField === "deadline" ? t.slaDeadline : t.createdAt;
-
-                      const timeStr = targetDateStr
-                        ? new Date(targetDateStr).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })
-                        : null;
-
-                      return (
-                        <div
-                          key={t.id}
-                          className={styles.ticketItem}
-                          style={{ borderLeftColor: getPriorityColor(t.priority) }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-
-                            handleOpenDetail(t);
-                          }}
-                          title={`${t.ticketCode || t.id}: ${t.title} (${t.status})`}
-                        >
-                          <div className={styles.ticketCardHeader}>
-                            {timeStr ? (
-                              <span className={styles.ticketTime}>
-                                <Clock size={10} />
-
-                                {timeStr}
-                              </span>
-                            ) : (
-                              <span style={{ fontSize: "0.65rem", color: "rgba(255,255,255,0.45)" }}>
-                                {t.ticketCode || `#${t.id}`}
-                              </span>
-                            )}
-
-                            {isDone ? (
-                              <span className={styles.badgeDone}>✓ Selesai</span>
-                            ) : isOverdue ? (
-                              <span className={styles.badgeOverdue}>⚠️ Overdue</span>
-                            ) : isDueToday ? (
-                              <span className={styles.badgeDueToday}>🎯 Hari Ini</span>
-                            ) : null}
-                          </div>
-
-                          <span className={styles.ticketTitleText}>
-                            {t.ticketCode ? `[${t.ticketCode}] ` : ""}
-                            {t.title}
-                          </span>
-
-                          <div className={styles.ticketFooter}>
-                            <span className={styles.ticketAssignee}>
-                              <User size={10} />
-
-                              {t.assignedTo || "Unassigned"}
-                            </span>
-
-                            <span style={{ opacity: 0.6 }}>{t.category}</span>
-                          </div>
-                        </div>
-                      );
-                    })}
+                    {dayTickets.map((t) => renderTicketCard(t))}
                   </div>
                 </div>
               );
             })}
+          </div>
+        </div>
+
+        {/* Mobile Agenda Panel (replaces cramped 7-col card lists on <= 768px) */}
+        <div className={styles.mobileAgendaSection}>
+          <div className={styles.mobileAgendaHeader}>
+            <div className={styles.mobileAgendaTitleWrap}>
+              <span className={styles.mobileAgendaEyebrow}>
+                {mobileAgendaMode === "day" ? "Agenda Tanggal Dipilih" : `Agenda ${monthNames[month]} ${year}`}
+              </span>
+              <h3 className={styles.mobileAgendaTitle}>
+                {mobileAgendaMode === "day"
+                  ? formatSelectedAgendaDate(selectedMobileDay)
+                  : `${monthAgendaTickets.length} Tiket Terjadwal`}
+              </h3>
+              {mobileAgendaMode === "day" && selectedDayHoliday && (
+                <div className={styles.mobileAgendaHolidayBadge}>
+                  <span className={styles.holidayBannerDot} />
+                  <span>{selectedDayHoliday.name}</span>
+                </div>
+              )}
+            </div>
+
+            <div className={styles.mobileAgendaModeToggle}>
+              <button
+                type="button"
+                className={`${styles.mobileAgendaModeBtn} ${mobileAgendaMode === "day" ? styles.toggleBtnActive : ""}`}
+                onClick={() => setMobileAgendaMode("day")}
+              >
+                Tanggal ({selectedDayTickets.length})
+              </button>
+              <button
+                type="button"
+                className={`${styles.mobileAgendaModeBtn} ${mobileAgendaMode === "month" ? styles.toggleBtnActive : ""}`}
+                onClick={() => setMobileAgendaMode("month")}
+              >
+                Bulan ({monthAgendaTickets.length})
+              </button>
+            </div>
+          </div>
+
+          <div className={styles.mobileAgendaList}>
+            {mobileAgendaMode === "day" ? (
+              selectedDayTickets.length > 0 ? (
+                selectedDayTickets.map((t) => renderTicketCard(t, ""))
+              ) : (
+                <div className={styles.mobileAgendaEmpty}>
+                  <Calendar size={24} style={{ opacity: 0.35 }} />
+                  <span>Tidak ada tiket terjadwal pada tanggal ini.</span>
+                </div>
+              )
+            ) : monthAgendaTickets.length > 0 ? (
+              monthAgendaTickets.map(({ date, ticket }) =>
+                renderTicketCard(
+                  ticket,
+                  new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "short" }).format(date),
+                ),
+              )
+            ) : (
+              <div className={styles.mobileAgendaEmpty}>
+                <Calendar size={24} style={{ opacity: 0.35 }} />
+                <span>Tidak ada tiket terjadwal pada bulan ini.</span>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -1459,7 +1606,7 @@ export default function TicketCalendar() {
       {/* Add Dev Task Dialog */}
 
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-        <DialogContent className="max-w-md bg-slate-900 text-white border border-slate-700 rounded-xl p-6">
+        <DialogContent className="w-[calc(100vw-24px)] max-w-md max-h-[90dvh] overflow-y-auto bg-slate-900 text-white border border-slate-700 rounded-xl p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold text-white flex items-center gap-2">
               <Plus size={18} />
@@ -1508,7 +1655,7 @@ export default function TicketCalendar() {
               </select>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div className={styles.formGroup}>
                 <span className={styles.formLabel}>Priority</span>
 
