@@ -133,8 +133,7 @@ export async function createTicket(ticket: {
     const response = await ticketsApi.create(ticket, image, idempotencyKey);
 
     if (!response.success || !response.data) {
-        console.error('Failed to create ticket:', response.error);
-        return null;
+        throw new Error(response.error || 'Gagal membuat ticket.');
     }
 
     const data = response.data as { ticket: Record<string, unknown> };

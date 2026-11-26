@@ -1,6 +1,6 @@
 import React from "react";
 import { v4 as uuidv4 } from "uuid";
-import { Form, Link, useNavigate, useNavigation, useSubmit } from "react-router";
+import { Form, Link, redirect, useNavigate, useNavigation, useSubmit } from "react-router";
 import type { Route } from "./+types/route";
 import { Button } from "~/components/ui/button/button";
 import { Input } from "~/components/ui/input/input";
@@ -25,13 +25,21 @@ import {
     X,
     Clock,
 } from "lucide-react";
-import { toDatetimeLocalString } from "~/utils/date";
 import styles from "./style.module.css";
 
 import { createTicket } from "~/services/ticket.service";
 import { settingsApi, type Category, type Priority, type Department, type Team } from "~/services/settings.service";
 import { getUserSession } from "~/services/session.service";
 import { compressImage } from "~/utils/image-compression";
+
+const submitBase = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+function destinationCode(request: Request) {
+    const pathname = new URL(request.url).pathname.slice(submitBase.length).replace(/\/$/, "");
+    if (pathname === "/submit-ticket") return "IT";
+    if (pathname === "/corcom/submit-ticket") return "COC";
+    throw new Response("Not Found", { status: 404 });
+}
 
 export async function loader({ request }: Route.LoaderArgs) {
     // Deteksi sesi: pengunjung tanpa login (dari landing page) vs staff login (dari dashboard).
@@ -48,16 +56,32 @@ export async function loader({ request }: Route.LoaderArgs) {
     ]);
 
     const url = new URL(request.url);
-    const initialTeamParam = url.searchParams.get("team") || url.searchParams.get("teamId") || url.searchParams.get("teamCode") || "";
+    const teams = (teamsRes.data?.data || []) as Team[];
+    const teamCode = destinationCode(request);
+    const legacyValues = ["team", "teamId", "teamCode"].flatMap(key => url.searchParams.getAll(key));
+    if (legacyValues.length) {
+        const legacyTeams = legacyValues.map(value => teams.find(t =>
+            t.isActive && (String(t.id) === value || t.code.toUpperCase() === value.toUpperCase()) &&
+            ["IT", "COC"].includes(t.code.toUpperCase())
+        ));
+        if (legacyTeams.some(t => !t) || new Set(legacyTeams.map(t => t!.code)).size !== 1) {
+            throw new Response("Team tidak valid", { status: 400 });
+        }
+        const path = legacyTeams[0]!.code.toUpperCase() === "COC" ? "/corcom/submit-ticket" : "/submit-ticket";
+        ["team", "teamId", "teamCode"].forEach(key => url.searchParams.delete(key));
+        const query = url.searchParams.toString();
+        return redirect(path + (query ? `?${query}` : ""));
+    }
+    const team = teams.find(t => t.isActive && t.code.toUpperCase() === teamCode);
+    if (!team) throw new Response("Team tidak tersedia", { status: 503 });
 
     return {
         isAuthenticated: Boolean(session),
         homePath: session ? "/dashboard" : "/",
-        initialTeamParam,
-        categories: (categoriesRes.data?.data || []) as Category[],
+        teamCode,
+        categories: ((categoriesRes.data?.data || []) as Category[]).filter(c => c.isActive && (!c.teamId || String(c.teamId) === String(team.id))),
         priorities: (prioritiesRes.data?.data || []) as Priority[],
         departments: (departmentsRes.data?.data || []) as Department[],
-        teams: (teamsRes.data?.data || []) as Team[],
     };
 }
 
@@ -69,8 +93,7 @@ export async function action({ request }: Route.ActionArgs) {
     const department = (formData.get("department") as string || "").trim();
     const priority = (formData.get("priority") as string || 'medium').trim();
     const category = (formData.get("category") as string || "Uncategorized").trim();
-    const teamId = (formData.get("teamId") as string || "").trim();
-    const teamCode = (formData.get("teamCode") as string || "").trim();
+    const teamCode = destinationCode(request);
     const deadlineRaw = (formData.get("deadline") as string || "").trim();
     const subject = (formData.get("subject") as string || "").trim();
     const description = (formData.get("description") as string || "").trim();
@@ -109,16 +132,19 @@ export async function action({ request }: Route.ActionArgs) {
         return { error: "Nomor telepon hanya boleh berisi angka dan simbol +, -, ()" };
     }
 
-    // Validasi deadline untuk tiket Graphic Design / COC
-    const isGraphicDesignTicket = teamCode.toUpperCase() === "COC" || category.toLowerCase().includes("design");
-    if (isGraphicDesignTicket && !deadlineRaw) {
-        return { error: "Waktu deadline wajib diisi untuk tiket Graphic Design" };
+    const teamsRes = await settingsApi.getTeams();
+    if (!teamsRes.data?.data.some(t => t.isActive && t.code.toUpperCase() === teamCode)) {
+        return { error: "Team tidak tersedia" };
+    }
+    if (teamCode === "COC" && !deadlineRaw) {
+        return { error: "Waktu deadline wajib diisi untuk tiket Corcom" };
     }
 
     let deadlineIso: string | undefined = undefined;
-    if (deadlineRaw) {
-        const d = new Date(deadlineRaw);
-        if (isNaN(d.getTime())) {
+    if (teamCode === "COC" && deadlineRaw) {
+        const d = new Date(`${deadlineRaw}:00+07:00`);
+        if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(deadlineRaw) || isNaN(d.getTime()) ||
+            new Date(d.getTime() + 7 * 60 * 60 * 1000).toISOString().slice(0, 16) !== deadlineRaw) {
             return { error: "Format Waktu Deadline tidak valid" };
         }
         if (d.getTime() < Date.now() - 60 * 1000) {
@@ -138,8 +164,7 @@ export async function action({ request }: Route.ActionArgs) {
             submitterPhone: phone || undefined,
             submitterDepartment: department,
             receiveUpdates: receiveUpdates,
-            teamId: teamId || undefined,
-            teamCode: teamCode || undefined,
+            teamCode,
             deadline: deadlineIso,
         }, validImage, idempotencyKey);
 
@@ -156,38 +181,20 @@ export async function action({ request }: Route.ActionArgs) {
 }
 
 export default function SubmitTicket({ actionData, loaderData }: Route.ComponentProps) {
-    const { priorities, departments, homePath, teams, categories, initialTeamParam } = loaderData;
+    const { priorities, departments, homePath, categories, teamCode } = loaderData;
     const navigate = useNavigate();
     const navigation = useNavigation();
     const isSubmitting = navigation.state !== "idle";
     const [imagePreview, setImagePreview] = React.useState<string | null>(null);
     const [fileError, setFileError] = React.useState<string | null>(null);
-    const [selectedTeamId, setSelectedTeamId] = React.useState<string>(() => {
-        if (initialTeamParam) {
-            const found = teams.find(t => String(t.id) === initialTeamParam || t.code.toLowerCase() === initialTeamParam.toLowerCase());
-            if (found) return String(found.id);
-        }
-        // Default: team IT (code IT), fallback team pertama.
-        const it = teams.find(t => t.code === 'IT') ?? teams[0];
-        return it ? String(it.id) : "";
-    });
     const idempotencyKey = React.useMemo(() => uuidv4(), []);
     const submit = useSubmit();
     const [compressedFile, setCompressedFile] = React.useState<File | null>(null);
 
-    // Kategori difilter berdasarkan team yang dipilih:
-    // - teamId NULL = global (tampil semua team)
-    // - teamId terpilih = global + kategori team tsb
-    const filteredCategories = categories.filter(c => c.isActive && (!c.teamId || String(c.teamId) === selectedTeamId));
-
-    const selectedTeam = teams.find(t => String(t.id) === selectedTeamId);
-    const isGraphicDesign = Boolean(
-        selectedTeam?.code === 'COC' ||
-        selectedTeam?.name.toLowerCase().includes('design')
-    );
+    const isGraphicDesign = teamCode === "COC";
 
     const minDeadline = React.useMemo(() => {
-        return toDatetimeLocalString(new Date());
+        return new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().slice(0, 16);
     }, []);
 
     // "Back to Home" context-aware:
@@ -277,7 +284,7 @@ export default function SubmitTicket({ actionData, loaderData }: Route.Component
                         <CardHeader className={styles.cardHeader}>
                             <CardTitle className={styles.cardTitle}>
                                 <FileText size={24} />
-                                New Support Ticket
+                                {isGraphicDesign ? "Request Corcom" : "Request IT"}
                             </CardTitle>
                             <CardDescription className={styles.cardDescription}>
                                 Please fill out the form below to submit your support request. Our team will respond as soon as possible.
@@ -386,33 +393,12 @@ export default function SubmitTicket({ actionData, loaderData }: Route.Component
                                         Ticket Details
                                     </h3>
 
-                                    <div className={styles.formGroup}>
-                                        <Label htmlFor="teamId" className={styles.label}>
-                                            <Building2 size={14} />
-                                            Ticket For *
-                                        </Label>
-                                        <Select name="teamId" value={selectedTeamId} onValueChange={setSelectedTeamId} required>
-                                            <SelectTrigger className={styles.select}>
-                                                <SelectValue placeholder="Select Team" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {teams.filter(t => t.isActive).map((t) => (
-                                                    <SelectItem key={t.id} value={String(t.id)}>
-                                                        {t.name}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                        <input type="hidden" name="teamId" value={selectedTeamId} />
-                                        <input type="hidden" name="teamCode" value={selectedTeam?.code || ""} />
-                                    </div>
-
                                     {/* Deadline field khusus tiket Graphic Design (COC) */}
                                     {isGraphicDesign && (
                                         <div className={styles.formGroup}>
                                             <Label htmlFor="deadline" className={styles.label}>
                                                 <Clock size={14} />
-                                                Waktu Deadline *
+                                                Waktu Deadline (WIB) *
                                             </Label>
                                             <Input
                                                 id="deadline"
@@ -433,12 +419,12 @@ export default function SubmitTicket({ actionData, loaderData }: Route.Component
                                             <Tag size={14} />
                                             Category *
                                         </Label>
-                                        <Select name="category" defaultValue="Uncategorized" required>
+                                        <Select name="category" required>
                                             <SelectTrigger className={styles.select}>
                                                 <SelectValue placeholder="Select Category" />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                {filteredCategories.map((c) => (
+                                                {categories.map((c) => (
                                                     <SelectItem key={c.id} value={c.name}>
                                                         {c.name}
                                                     </SelectItem>

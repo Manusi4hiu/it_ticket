@@ -12,6 +12,7 @@ export default [
     route("dev-dashboard", "routes/dev-dashboard/route.tsx"),
     route("profile/:staffId", "routes/profile.$staffId/route.tsx"),
     route("submit-ticket", "routes/submit-ticket/route.tsx"),
+    route("corcom/submit-ticket", "routes/submit-ticket/route.tsx", { id: "corcom-submit-ticket" }),
     // Settings Routes
     route("settings", "routes/settings/route.tsx", [
       route("role-management", "routes/settings/role-management/route.tsx"),

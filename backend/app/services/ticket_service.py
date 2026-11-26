@@ -311,10 +311,8 @@ class TicketService:
         if not ticket:
             return False
         team = getattr(ticket, 'team', None)
-        if team and (team.code == TEAM_COC_CODE or 'design' in (team.name or '').lower()):
-            return True
-        if getattr(ticket, 'team_id', None) == 2:
-            return True
+        if team:
+            return team.code == TEAM_COC_CODE
         cat = getattr(ticket, 'category', '') or ''
         if 'design' in cat.lower():
             return True
@@ -324,34 +322,26 @@ class TicketService:
     def _resolve_team(data):
         """Resolve team pemilik ticket dari input.
 
-        Prioritas: teamId (int) > teamCode (str) > default IT.
-        teamCode menerima nilai seperti 'IT', 'COC' (atau lowercase/uppercase).
+        Default IT hanya bila tujuan tidak diberikan; tujuan eksplisit harus aktif.
+        teamId dan teamCode harus cocok bila keduanya diberikan.
         """
         from app.constants import TEAM_DEFAULT_CODE
 
         team_id = data.get('teamId')
-        if team_id:
-            t = Team.query.get(int(team_id))
-            if t:
-                return t
-
         team_code = data.get('teamCode') or data.get('team')
-        if team_code:
-            t = Team.query.filter(Team.code.ilike(str(team_code).strip())).first()
-            if t:
-                return t
-
-        # Fallback: team default (IT).
-        t = Team.query.filter_by(code=TEAM_DEFAULT_CODE).first()
-        if t:
-            return t
-
-        # Last resort: team pertama yang aktif.
-        t = Team.query.filter_by(is_active=True).first()
-        if t:
-            return t
-
-        raise ValueError("Tidak ada team yang tersedia untuk membuat ticket")
+        if team_id:
+            try:
+                team = db.session.get(Team, int(team_id))
+            except (TypeError, ValueError):
+                raise ValueError("Team tidak valid")
+            if team and team_code and team.code.upper() != str(team_code).strip().upper():
+                raise ValueError("Team ID dan kode tidak cocok")
+        else:
+            code = str(team_code).strip() if team_code else TEAM_DEFAULT_CODE
+            team = Team.query.filter(db.func.lower(Team.code) == code.lower()).first()
+        if not team or not team.is_active:
+            raise ValueError("Team tidak tersedia")
+        return team
 
     def get_response_time_minutes_for_ticket(priority_name, category_name=None):
         """Get Response SLA minutes dynamically from Priority or SLAPolicy, falling back to defaults"""
@@ -624,6 +614,10 @@ class TicketService:
 
         # 6b. Team pemilik ticket (workspace tujuan). Default IT bila kosong.
         team = TicketService._resolve_team(data)
+        category_obj = Category.query.filter(db.func.lower(Category.name) == category.lower()).first()
+        if not category_obj or not category_obj.is_active or category_obj.team_id not in (None, team.id):
+            raise ValueError("Category tidak tersedia untuk team ini")
+        category = category_obj.name
 
         # 7. Mass Assignment Protection for unauthenticated creations
         if not is_authenticated:
@@ -649,13 +643,10 @@ class TicketService:
             # SLA & Deadline Logic
             # Untuk tiket Graphic Design / COC, deadline ditentukan oleh pembuat tiket (pasti),
             # sedangkan tiket IT ditentukan oleh SLA priority setelah diambil/di-assign.
-            is_coc_or_design = (
-                (team and (team.code == TEAM_COC_CODE or 'design' in (team.name or '').lower())) or
-                (str(category or '').strip().lower() in ('graphic design', 'design', 'desain')) or
-                ('design' in str(category or '').lower())
-            )
-
-            deadline_input = data.get('deadline') or data.get('slaDeadline')
+            is_coc_or_design = team.code == TEAM_COC_CODE
+            deadline_input = (data.get('deadline') or data.get('slaDeadline')) if is_coc_or_design else None
+            if is_coc_or_design and not str(deadline_input or '').strip():
+                raise ValueError("Waktu deadline wajib diisi untuk tiket Corcom")
             now_utc = datetime.now(timezone.utc)
             # Response SLA starts from creation time using operational business hours
             resp_minutes = TicketService.get_response_time_minutes_for_ticket(priority, category)
@@ -669,13 +660,14 @@ class TicketService:
             if deadline_input and str(deadline_input).strip():
                 clean_dl = str(deadline_input).strip()
                 try:
-                    if clean_dl.endswith('Z') or '+' in clean_dl.split('T')[-1] or ('-' in clean_dl.split('T')[-1] and not clean_dl.split('T')[-1].startswith('-')):
-                        dt_parsed = datetime.fromisoformat(clean_dl.replace('Z', '+00:00'))
-                        sla_deadline = dt_parsed.astimezone(timezone.utc).replace(tzinfo=None)
-                    else:
-                        sla_deadline = datetime.fromisoformat(clean_dl)
-                except Exception as e:
+                    dt_parsed = datetime.fromisoformat(clean_dl.replace('Z', '+00:00'))
+                    if dt_parsed.tzinfo is None:
+                        dt_parsed = dt_parsed.replace(tzinfo=timezone(timedelta(hours=7)))
+                    sla_deadline = dt_parsed.astimezone(timezone.utc).replace(tzinfo=None)
+                except (ValueError, TypeError) as e:
                     raise ValueError(f"Format deadline tidak valid: {str(e)}")
+                if sla_deadline < (now_utc - timedelta(minutes=1)).replace(tzinfo=None):
+                    raise ValueError("Waktu deadline tidak boleh di masa lalu")
             elif assigned_to_id and not is_coc_or_design:
                 hours = TicketService.get_sla_hours_for_ticket(priority, category)
                 sla_deadline = TicketService.calculate_business_deadline(now_utc, hours=hours)
