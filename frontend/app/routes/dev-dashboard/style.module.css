@@ -843,4 +843,196 @@
     overflow-wrap: break-word;
     white-space: normal;
   }
+  .ticketCard {
+    cursor: pointer;
+  }
+  .ticketCard:active {
+    cursor: pointer;
+  }
+}
+
+/* Mobile quick-move controls: hidden on desktop where drag-and-drop is available */
+.mobileCardMoveBar {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .mobileCardMoveBar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+  }
+}
+
+.mobileMoveStepBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(15, 23, 42, 0.75);
+  color: #e2e8f0;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.mobileMoveStepBtn:active:not(:disabled) {
+  background: rgba(59, 130, 246, 0.25);
+  border-color: rgba(59, 130, 246, 0.55);
+}
+
+.mobileMoveStepBtn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.mobileMovePickerBtn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 9px;
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  background: rgba(59, 130, 246, 0.14);
+  color: #93c5fd;
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.mobileMovePickerBtn:active {
+  background: rgba(59, 130, 246, 0.28);
+  border-color: rgba(59, 130, 246, 0.65);
+}
+
+.mobileMoveSheet {
+  background: #0a1428 !important;
+  border-top: 1px solid rgba(59, 130, 246, 0.35) !important;
+  border-radius: 20px 20px 0 0 !important;
+  padding: 20px 16px calc(20px + env(safe-area-inset-bottom, 0px)) !important;
+  max-height: 75dvh;
+  overflow-y: auto;
+}
+
+.mobileMoveSheetTitle {
+  color: #f8fafc !important;
+  font-size: 1rem !important;
+  font-weight: 700 !important;
+  text-align: left;
+}
+
+.mobileMoveSheetDesc {
+  color: #94a3b8 !important;
+  font-size: 0.82rem !important;
+  text-align: left;
+  margin-top: 2px;
+}
+
+.mobileMoveOptions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.mobileMoveOption {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  color: #f1f5f9;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.mobileMoveOption:active:not(:disabled) {
+  background: rgba(59, 130, 246, 0.2);
+  border-color: rgba(59, 130, 246, 0.5);
+}
+
+.mobileMoveOptionCurrent {
+  background: rgba(59, 130, 246, 0.16);
+  border-color: rgba(59, 130, 246, 0.5);
+  color: #93c5fd;
+  cursor: default;
+}
+
+.mobileMoveOptionDisabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.mobileMoveOptionLeft {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.mobileMoveOptionDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.mobileMoveOptionName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobileMoveOptionTag {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(59, 130, 246, 0.22);
+  color: #93c5fd;
+  flex-shrink: 0;
+}
+
+.mobileMoveOptionLock {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+
+.colOrderMoveBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: #cbd5e1;
+  cursor: pointer;
+}
+
+.colOrderMoveBtn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
 }

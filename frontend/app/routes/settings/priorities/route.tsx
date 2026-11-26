@@ -18,62 +18,67 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Alert, AlertDescription } from "~/components/ui/alert/alert";
 import { Plus, Pencil, Trash2, Flag, Circle } from "lucide-react";
 import { settingsApi } from "~/services/settings.service";
+import { runWithRole } from "~/services/session.service";
 import styles from "../style.module.css";
 import type { Priority } from "~/services/settings.service";
 
 export async function loader({ request }: Route.LoaderArgs) {
-    const response = await settingsApi.getPriorities();
-    return Response.json({ priorities: response.data?.data || [] });
+    return runWithRole(request, ["Administrator"], async () => {
+        const response = await settingsApi.getPriorities();
+        return Response.json({ priorities: response.data?.data || [] });
+    });
 }
 
 export async function action({ request }: Route.ActionArgs) {
-    const formData = await request.formData();
-    const intent = formData.get("intent");
+    return runWithRole(request, ["Administrator"], async () => {
+        const formData = await request.formData();
+        const intent = formData.get("intent");
 
-    if (intent === "create") {
-        const name = formData.get("name") as string;
-        const slaHours = parseInt(formData.get("slaHours") as string);
-        const responseTimeMinutes = parseInt(formData.get("responseTimeMinutes") as string);
-        const level = parseInt(formData.get("level") as string);
-        const color = formData.get("color") as string;
-        const description = formData.get("description") as string;
+        if (intent === "create") {
+            const name = formData.get("name") as string;
+            const slaHours = parseInt(formData.get("slaHours") as string);
+            const responseTimeMinutes = parseInt(formData.get("responseTimeMinutes") as string);
+            const level = parseInt(formData.get("level") as string);
+            const color = formData.get("color") as string;
+            const description = formData.get("description") as string;
 
-        if (!name) return Response.json({ error: "Name is required" }, { status: 400 });
+            if (!name) return Response.json({ error: "Name is required" }, { status: 400 });
 
-        const response = await settingsApi.createPriority({
-            name, slaHours, responseTimeMinutes, level, color, description, isActive: true
-        });
-        if (!response.success) return Response.json({ error: response.error }, { status: 400 });
-        return Response.json({ success: true }, { status: 200 });
-    }
+            const response = await settingsApi.createPriority({
+                name, slaHours, responseTimeMinutes, level, color, description, isActive: true
+            });
+            if (!response.success) return Response.json({ error: response.error }, { status: 400 });
+            return Response.json({ success: true }, { status: 200 });
+        }
 
-    if (intent === "update") {
-        const id = formData.get("id") as string;
-        const name = formData.get("name") as string;
-        const slaHours = parseInt(formData.get("slaHours") as string);
-        const responseTimeMinutes = parseInt(formData.get("responseTimeMinutes") as string);
-        const level = parseInt(formData.get("level") as string);
-        const color = formData.get("color") as string;
-        const description = formData.get("description") as string;
-        const isActive = formData.get("isActive") === "true";
+        if (intent === "update") {
+            const id = formData.get("id") as string;
+            const name = formData.get("name") as string;
+            const slaHours = parseInt(formData.get("slaHours") as string);
+            const responseTimeMinutes = parseInt(formData.get("responseTimeMinutes") as string);
+            const level = parseInt(formData.get("level") as string);
+            const color = formData.get("color") as string;
+            const description = formData.get("description") as string;
+            const isActive = formData.get("isActive") === "true";
 
-        if (!id || !name) return Response.json({ error: "ID and Name are required" }, { status: 400 });
+            if (!id || !name) return Response.json({ error: "ID and Name are required" }, { status: 400 });
 
-        const response = await settingsApi.updatePriority(id, {
-            name, slaHours, responseTimeMinutes, level, color, description, isActive
-        });
-        if (!response.success) return Response.json({ error: response.error }, { status: 400 });
-        return Response.json({ success: true }, { status: 200 });
-    }
+            const response = await settingsApi.updatePriority(id, {
+                name, slaHours, responseTimeMinutes, level, color, description, isActive
+            });
+            if (!response.success) return Response.json({ error: response.error }, { status: 400 });
+            return Response.json({ success: true }, { status: 200 });
+        }
 
-    if (intent === "delete") {
-        const id = formData.get("id") as string;
-        const response = await settingsApi.deletePriority(id);
-        if (!response.success) return Response.json({ error: response.error }, { status: 400 });
-        return Response.json({ success: true }, { status: 200 });
-    }
+        if (intent === "delete") {
+            const id = formData.get("id") as string;
+            const response = await settingsApi.deletePriority(id);
+            if (!response.success) return Response.json({ error: response.error }, { status: 400 });
+            return Response.json({ success: true }, { status: 200 });
+        }
 
-    return null;
+        return null;
+    });
 }
 
 export default function PrioritiesSettings() {

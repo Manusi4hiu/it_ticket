@@ -18,52 +18,57 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Alert, AlertDescription } from "~/components/ui/alert/alert";
 import { Plus, Pencil, Trash2, Building2 } from "lucide-react";
 import { settingsApi } from "~/services/settings.service";
+import { runWithRole } from "~/services/session.service";
 import styles from "../style.module.css";
 import type { Department } from "~/services/settings.service";
 
 export async function loader({ request }: Route.LoaderArgs) {
-    const response = await settingsApi.getDepartments(1, 5);
-    return Response.json({ initialDepartments: response.data?.data || [] });
+    return runWithRole(request, ["Administrator"], async () => {
+        const response = await settingsApi.getDepartments(1, 5);
+        return Response.json({ initialDepartments: response.data?.data || [] });
+    });
 }
 
 export async function action({ request }: Route.ActionArgs) {
-    const formData = await request.formData();
-    const intent = formData.get("intent");
+    return runWithRole(request, ["Administrator"], async () => {
+        const formData = await request.formData();
+        const intent = formData.get("intent");
 
-    if (intent === "create") {
-        const name = formData.get("name") as string;
-        const code = formData.get("code") as string;
-        const description = formData.get("description") as string;
+        if (intent === "create") {
+            const name = formData.get("name") as string;
+            const code = formData.get("code") as string;
+            const description = formData.get("description") as string;
 
-        if (!name) return Response.json({ error: "Department name is required" }, { status: 400 });
+            if (!name) return Response.json({ error: "Department name is required" }, { status: 400 });
 
-        const response = await settingsApi.createDepartment({ name, code, description, isActive: true });
-        if (!response.success) return Response.json({ error: response.error }, { status: 400 });
-        return Response.json({ success: true }, { status: 200 });
-    }
+            const response = await settingsApi.createDepartment({ name, code, description, isActive: true });
+            if (!response.success) return Response.json({ error: response.error }, { status: 400 });
+            return Response.json({ success: true }, { status: 200 });
+        }
 
-    if (intent === "update") {
-        const id = formData.get("id") as string;
-        const name = formData.get("name") as string;
-        const code = formData.get("code") as string;
-        const description = formData.get("description") as string;
-        const isActive = formData.get("isActive") === "true";
+        if (intent === "update") {
+            const id = formData.get("id") as string;
+            const name = formData.get("name") as string;
+            const code = formData.get("code") as string;
+            const description = formData.get("description") as string;
+            const isActive = formData.get("isActive") === "true";
 
-        if (!id || !name) return Response.json({ error: "ID and Name are required" }, { status: 400 });
+            if (!id || !name) return Response.json({ error: "ID and Name are required" }, { status: 400 });
 
-        const response = await settingsApi.updateDepartment(id, { name, code, description, isActive });
-        if (!response.success) return Response.json({ error: response.error }, { status: 400 });
-        return Response.json({ success: true }, { status: 200 });
-    }
+            const response = await settingsApi.updateDepartment(id, { name, code, description, isActive });
+            if (!response.success) return Response.json({ error: response.error }, { status: 400 });
+            return Response.json({ success: true }, { status: 200 });
+        }
 
-    if (intent === "delete") {
-        const id = formData.get("id") as string;
-        const response = await settingsApi.deleteDepartment(id);
-        if (!response.success) return Response.json({ error: response.error }, { status: 400 });
-        return Response.json({ success: true }, { status: 200 });
-    }
+        if (intent === "delete") {
+            const id = formData.get("id") as string;
+            const response = await settingsApi.deleteDepartment(id);
+            if (!response.success) return Response.json({ error: response.error }, { status: 400 });
+            return Response.json({ success: true }, { status: 200 });
+        }
 
-    return null;
+        return null;
+    });
 }
 
 export default function DepartmentsSettings() {

@@ -19,68 +19,73 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "~
 import { Alert, AlertDescription } from "~/components/ui/alert/alert";
 import { Plus, Pencil, Trash2, Clock, ShieldCheck, Tag, Flag } from "lucide-react";
 import { settingsApi } from "~/services/settings.service";
+import { runWithRole } from "~/services/session.service";
 import styles from "../style.module.css";
 import type { SLAPolicy, Priority, Category } from "~/services/settings.service";
 
 export async function loader({ request }: Route.LoaderArgs) {
-    const [policiesRes, prioritiesRes, categoriesRes] = await Promise.all([
-        settingsApi.getSLAPolicies(),
-        settingsApi.getPriorities(),
-        settingsApi.getCategories()
-    ]);
+    return runWithRole(request, ["Administrator"], async () => {
+        const [policiesRes, prioritiesRes, categoriesRes] = await Promise.all([
+            settingsApi.getSLAPolicies(),
+            settingsApi.getPriorities(),
+            settingsApi.getCategories()
+        ]);
 
-    return Response.json({
-        policies: policiesRes.data?.data || [],
-        priorities: prioritiesRes.data?.data || [],
-        categories: categoriesRes.data?.data || []
+        return {
+            policies: policiesRes.data?.data || [],
+            priorities: prioritiesRes.data?.data || [],
+            categories: categoriesRes.data?.data || []
+        };
     });
 }
 
 export async function action({ request }: Route.ActionArgs) {
-    const formData = await request.formData();
-    const intent = formData.get("intent");
+    return runWithRole(request, ["Administrator"], async () => {
+        const formData = await request.formData();
+        const intent = formData.get("intent");
 
-    if (intent === "create") {
-        const priorityId = formData.get("priorityId") as string;
-        const categoryId = formData.get("categoryId") as string;
-        const responseTimeMinutes = parseInt(formData.get("responseTimeMinutes") as string);
-        const resolutionTimeHours = parseInt(formData.get("resolutionTimeHours") as string);
+        if (intent === "create") {
+            const priorityId = formData.get("priorityId") as string;
+            const categoryId = formData.get("categoryId") as string;
+            const responseTimeMinutes = parseInt(formData.get("responseTimeMinutes") as string);
+            const resolutionTimeHours = parseInt(formData.get("resolutionTimeHours") as string);
 
-        const response = await settingsApi.createSLAPolicy({
-            priorityId: priorityId || undefined,
-            categoryId: categoryId || undefined,
-            responseTimeMinutes,
-            resolutionTimeHours
-        });
-        if (!response.success) return Response.json({ error: response.error }, { status: 400 });
-        return Response.json({ success: true }, { status: 200 });
-    }
+            const response = await settingsApi.createSLAPolicy({
+                priorityId: priorityId || undefined,
+                categoryId: categoryId || undefined,
+                responseTimeMinutes,
+                resolutionTimeHours
+            });
+            if (!response.success) return Response.json({ error: response.error }, { status: 400 });
+            return Response.json({ success: true }, { status: 200 });
+        }
 
-    if (intent === "update") {
-        const id = formData.get("id") as string;
-        const priorityId = formData.get("priorityId") as string;
-        const categoryId = formData.get("categoryId") as string;
-        const responseTimeMinutes = parseInt(formData.get("responseTimeMinutes") as string);
-        const resolutionTimeHours = parseInt(formData.get("resolutionTimeHours") as string);
+        if (intent === "update") {
+            const id = formData.get("id") as string;
+            const priorityId = formData.get("priorityId") as string;
+            const categoryId = formData.get("categoryId") as string;
+            const responseTimeMinutes = parseInt(formData.get("responseTimeMinutes") as string);
+            const resolutionTimeHours = parseInt(formData.get("resolutionTimeHours") as string);
 
-        const response = await settingsApi.updateSLAPolicy(id, {
-            priorityId: priorityId || undefined,
-            categoryId: categoryId || undefined,
-            responseTimeMinutes,
-            resolutionTimeHours
-        });
-        if (!response.success) return Response.json({ error: response.error }, { status: 400 });
-        return Response.json({ success: true }, { status: 200 });
-    }
+            const response = await settingsApi.updateSLAPolicy(id, {
+                priorityId: priorityId || undefined,
+                categoryId: categoryId || undefined,
+                responseTimeMinutes,
+                resolutionTimeHours
+            });
+            if (!response.success) return Response.json({ error: response.error }, { status: 400 });
+            return Response.json({ success: true }, { status: 200 });
+        }
 
-    if (intent === "delete") {
-        const id = formData.get("id") as string;
-        const response = await settingsApi.deleteSLAPolicy(id);
-        if (!response.success) return Response.json({ error: response.error }, { status: 400 });
-        return Response.json({ success: true }, { status: 200 });
-    }
+        if (intent === "delete") {
+            const id = formData.get("id") as string;
+            const response = await settingsApi.deleteSLAPolicy(id);
+            if (!response.success) return Response.json({ error: response.error }, { status: 400 });
+            return Response.json({ success: true }, { status: 200 });
+        }
 
-    return null;
+        return null;
+    });
 }
 
 export default function SLAPoliciesSettings() {

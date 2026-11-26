@@ -25,7 +25,7 @@ import {
   type Category,
   type Status,
 } from "~/services/settings.service";
-import { getUserSession } from "~/services/session.service";
+import { runWithUserSession } from "~/services/session.service";
 import type { Route } from "./+types/route";
 import styles from "./style.module.css";
 
@@ -50,47 +50,51 @@ import type { TicketViewMode } from "./types";
 // ─────────────────────────────────────────────
 
 export async function loader({ request, params }: Route.LoaderArgs) {
-  const session = await getUserSession(request);
-  const ticketId_val = params.id!;
+  return runWithUserSession(request, async (session) => {
+    const ticketId_val = params.id!.trim();
 
-  // Blokir akses via numeric ID langsung (e.g. /ticket/105)
-  // User harus menggunakan ticket code (e.g. FIN-006)
-  if (/^\d+$/.test(ticketId_val)) {
-    return Response.json({
+    // Blokir akses via numeric ID langsung (e.g. /ticket/105)
+    // User harus menggunakan ticket code (e.g. FIN-006)
+    if (/^\d+$/.test(ticketId_val)) {
+      return {
+        session,
+        ticket: null as Ticket | null,
+        invalidNumericId: true,
+        agents: [],
+        priorities: [] as Priority[],
+        statuses: [] as Status[],
+        categories: [] as Category[],
+        holidays: [],
+      };
+    }
+
+    // Fetch semua data secara paralel (endpoint khusus staff dilewati saat mode public guest)
+    const [ticket, agents, prioritiesRes, statusesRes, categoriesRes, holidaysRes] =
+      await Promise.all([
+        getTicketById(ticketId_val),
+        session ? getAgents() : Promise.resolve([]),
+        session
+          ? settingsApi.getPriorities()
+          : Promise.resolve({ success: true, data: { data: [] } }),
+        settingsApi.getStatuses(),
+        session
+          ? settingsApi.getCategories()
+          : Promise.resolve({ success: true, data: { data: [] } }),
+        session
+          ? settingsApi.getHolidays()
+          : Promise.resolve({ success: true, data: { data: [] } }),
+      ]);
+
+    return {
       session,
-      ticket: null as Ticket | null,
-      invalidNumericId: true,
-      agents: [],
-      priorities: [] as Priority[],
-      statuses: [] as Status[],
-      categories: [] as Category[],
-    });
-  }
-
-  // Fetch semua data secara paralel
-  const [ticket, agents, prioritiesRes, statusesRes, categoriesRes, holidaysRes] =
-    await Promise.all([
-      getTicketById(ticketId_val),
-      getAgents(),
-      session
-        ? settingsApi.getPriorities()
-        : Promise.resolve({ success: true, data: { data: [] } }),
-      settingsApi.getStatuses(),
-      session
-        ? settingsApi.getCategories()
-        : Promise.resolve({ success: true, data: { data: [] } }),
-      settingsApi.getHolidays(),
-    ]);
-
-  return Response.json({
-    session,
-    ticket,
-    invalidNumericId: false,
-    agents,
-    priorities: (prioritiesRes.data?.data || []) as Priority[],
-    statuses: ((statusesRes.data?.data || []) as Status[]).filter(s => s.showOnItHelpdesk !== false),
-    categories: (categoriesRes.data?.data || []) as Category[],
-    holidays: (holidaysRes.data?.data || []),
+      ticket,
+      invalidNumericId: false,
+      agents,
+      priorities: (prioritiesRes.data?.data || []) as Priority[],
+      statuses: ((statusesRes.data?.data || []) as Status[]).filter(s => s.showOnItHelpdesk !== false),
+      categories: (categoriesRes.data?.data || []) as Category[],
+      holidays: (holidaysRes.data?.data || []),
+    };
   });
 }
 
@@ -114,7 +118,7 @@ export default function TicketDetail({ loaderData }: Route.ComponentProps) {
   const params = useParams();
 
   // ── View Mode ──
-  const isPublic = !session;
+  const isPublic = !session || initialTicket?.hasStaffAccess === false;
   const isManagement = session?.userRole === "Management";
   const isAdministrator = session?.userRole === "Administrator";
 
@@ -277,7 +281,7 @@ export default function TicketDetail({ loaderData }: Route.ComponentProps) {
               />
             </div>
           ) : (
-            <PublicSidebar status={ticket.status} />
+            <PublicSidebar status={ticket.status} deadline={ticket.slaDeadline} />
           )}
         </div>
 

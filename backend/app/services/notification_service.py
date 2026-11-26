@@ -8,11 +8,11 @@ from app.models.notification import Notification
 from app.models.ticket import Ticket
 from app.models.user import User
 
-
 # Milestone warning SLA (sisa menit): tiap pemindaian hanya mengirim
 # milestone paling mendesak yang tercapai; milestone yang terlewat sekaligus
 # (mis. tiket dibuat dengan sisa 12 menit) tidak dikirim susulan.
 SLA_WARNING_MILESTONES = (30, 20, 10, 5)
+_SLA_ADVISORY_LOCK_KEY = 74829103
 
 
 def _sla_warning_milestone(remaining_secs):
@@ -55,6 +55,7 @@ class NotificationService:
     - assignee baru saat take/assign/oper
     - pemilik lama + assignee baru saat Admin mengubah assignee tiket yang sudah diambil
     - pemilik tiket saat Admin mengubah status/kategori tiketnya
+    - assignee + admin saat mendekati / melewati SLA (IT) atau Deadline (Graphic Design)
     """
 
     _last_sla_check_time = 0.0
@@ -75,6 +76,32 @@ class NotificationService:
             reason=reason,
         )
         db.session.add(notif)
+
+        # Dispatch web push asynchronously after commit — isolated from this DB session.
+        # once=True: listener auto-cleanup, gak leak across sessions.
+        from flask import current_app, has_app_context
+        from sqlalchemy import event
+
+        _app_obj = current_app._get_current_object() if has_app_context() else None
+        _user_id = int(user_id)
+        _ticket_id = ticket.id if ticket else None
+        _ticket_code = ticket.ticket_code if ticket else None
+        _ntype = ntype
+        _title = title
+        _message = message
+
+        @event.listens_for(db.session, 'after_commit', once=True)
+        def _dispatch_webpush(*_):
+            from app.services.push_service import dispatch_push_async
+            dispatch_push_async(_app_obj, _user_id, {
+                'type': _ntype,
+                'title': _title,
+                'body': _message,
+                'tag': f'ticket-{_ticket_id}' if _ticket_id else 'it-aero',
+                # Route relative to SW scope — sw.ts resolves both dev (/) and prod (/it_ticket/frontend/)
+                'url': f'ticket/{_ticket_code}' if _ticket_code else 'dashboard',
+            })
+
         return notif
 
     # ── Take / oper biasa (oleh staff) ──
@@ -100,12 +127,16 @@ class NotificationService:
 
     # ── Admin override ──
     @staticmethod
-    def notify_admin_assignee_change(ticket, admin_user, prev_assignee_id, new_assignee_id, reason):
+    def notify_admin_assignee_change(ticket, admin_user, prev_assignee_id, new_assignee_id, reason,
+                                     actor_label='Admin'):
         """
         Admin mengubah assignee tiket yang sudah diambil/assigned.
         Notifikasi + alasan WAJIB ke DUA pihak:
         - pemilik lama (staff sebelumnya)
         - assignee baru (staff pengganti)
+
+        actor_label: 'Admin' untuk aksi admin, 'Staff' untuk aksi staff lain
+        yang mengambil alih lewat alur Admin Override (tetap wajib alasan).
         """
         reason_clean = str(reason or '').strip()
         admin_name = admin_user.full_name if admin_user else 'Administrator'
@@ -115,8 +146,8 @@ class NotificationService:
         if prev_assignee_id and int(prev_assignee_id) != int(new_assignee_id or 0):
             NotificationService.push(
                 prev_assignee_id, ticket, 'admin_override',
-                'Admin Mengoper Tiket Anda ke Staff Lain',
-                f"{tcode}: {ticket.title} — pekerjaan dialihkan oleh Admin ({admin_name}) ke staff lain.",
+                f'{actor_label} Mengoper Tiket Anda ke Staff Lain',
+                f"{tcode}: {ticket.title} — pekerjaan dialihkan oleh {actor_label} ({admin_name}) ke staff lain.",
                 reason=reason_clean or '(tanpa alasan)',
             )
 
@@ -124,8 +155,8 @@ class NotificationService:
         if new_assignee_id and int(new_assignee_id) != int(prev_assignee_id or 0):
             NotificationService.push(
                 new_assignee_id, ticket, 'admin_override',
-                'Admin Menugaskan Tiket Operan ke Anda',
-                f"{tcode}: {ticket.title} — dialihkan oleh Admin ({admin_name}) untuk Anda kerjakan.",
+                f'{actor_label} Menugaskan Tiket Operan ke Anda',
+                f"{tcode}: {ticket.title} — dialihkan oleh {actor_label} ({admin_name}) untuk Anda kerjakan.",
                 reason=reason_clean or '(tanpa alasan)',
             )
 
@@ -253,176 +284,257 @@ class NotificationService:
                 return 0
             cls._last_sla_check_time = now_ts
 
+            from app.services.master_data_service import _infer_filter_group
+            from sqlalchemy.orm import joinedload
             from app.models.system_log import SystemLog
             from app.models.master_data import Status
             from app.services.ticket_service import TicketService
 
-            now_utc = datetime.now(timezone.utc)
+            # Dedicated AUTOCOMMIT connection so multi-worker PostgreSQL processes
+            # never race on duplicate SLA pushes and release happens on the exact connection.
+            lock_conn = None
+            if db.engine.dialect.name == 'postgresql':
+                lock_conn = db.engine.connect().execution_options(isolation_level='AUTOCOMMIT')
+                acquired = lock_conn.execute(
+                    db.text('SELECT pg_try_advisory_lock(:key)'),
+                    {'key': _SLA_ADVISORY_LOCK_KEY},
+                ).scalar()
+                if not acquired:
+                    lock_conn.close()
+                    return 0
 
-            # ── Himpun semua nama status yang tergolong "done" / selesai ──
-            # Termasuk dari master data dinamis + default fallback guard
-            done_status_names = {'resolved', 'closed', 'completed', 'done', 'selesai', 'finish', 'finished', 'cancelled', 'canceled'}
             try:
-                for s in Status.query.all():
-                    grp = s.filter_group or _infer_filter_group(s.name, s.is_default)
-                    if grp == 'done':
-                        done_status_names.add(str(s.name).strip().lower())
+                now_utc = datetime.now(timezone.utc)
+
+                # Himpun status selesai/done
+                done_status_names = {'resolved', 'closed', 'completed', 'done', 'selesai', 'finish', 'finished', 'cancelled', 'canceled'}
+                try:
+                    for s in Status.query.all():
+                        grp = s.filter_group or _infer_filter_group(s.name, s.is_default)
+                        if grp == 'done':
+                            done_status_names.add(str(s.name).strip().lower())
+                except Exception:
+                    pass
+
+                # Pindai tiket aktif yang belum selesai dan memiliki deadline
+                active_tickets = Ticket.query.options(joinedload(Ticket.assigned_user), joinedload(Ticket.team)).filter(
+                    Ticket.resolved_at.is_(None),
+                    Ticket.sla_deadline.isnot(None),
+                    db.func.lower(Ticket.status).notin_(list(done_status_names))
+                ).all()
+
+                if not active_tickets:
+                    return 0
+
+                # Batch load existing SystemLog
+                target_ids = [str(t.id) for t in active_tickets]
+                existing_logs = SystemLog.query.filter(
+                    SystemLog.action.in_([
+                        'SLA Warning Notification', 'SLA Breach Notification',
+                        'Deadline Warning Notification', 'Deadline Breach Notification'
+                    ]),
+                    SystemLog.target_id.in_(target_ids)
+                ).all()
+
+                logs_by_target = defaultdict(list)
+                for log in existing_logs:
+                    logs_by_target[(log.action, str(log.target_id))].append(log)
+
+                admins = User.query.filter(User.role == 'Administrator', User.is_active != False).all()
+                created_count = 0
+
+                for ticket in active_tickets:
+                    if ticket.resolved_at is not None:
+                        continue
+                    if str(ticket.status).strip().lower() in done_status_names:
+                        continue
+
+                    is_coc = TicketService.is_graphic_design_ticket(ticket)
+
+                    # Tiket IT yang belum di-assign atau belum di-take sama sekali (atau masih berstatus New)
+                    # TIDAK memulai SLA resolution countdown dan tidak boleh memicu notifikasi breach/warning
+                    if not is_coc and (not ticket.assigned_to_id or not ticket.taken_at or str(ticket.status).strip().lower() in ('new', 'baru')):
+                        if ticket.sla_deadline is not None:
+                            ticket.sla_deadline = None
+                        if ticket.sla_status != 'good':
+                            ticket.sla_status = 'good'
+                        continue
+
+                    current_sla = TicketService.calculate_sla_status(
+                        ticket.sla_deadline,
+                        resolved_at=None,
+                        sla_paused_at=ticket.sla_paused_at,
+                        assigned_user=ticket.assigned_user,
+                        is_design=is_coc,
+                        status=ticket.status,
+                        taken_at=ticket.taken_at
+                    )
+
+                    if ticket.sla_status != current_sla:
+                        ticket.sla_status = current_sla
+
+                    # Sinkronkan response_sla_status jika lewat response deadline tanpa respons
+                    if not ticket.first_responded_at and ticket.response_deadline:
+                        resp_dl = ticket.response_deadline
+                        if getattr(resp_dl, 'tzinfo', None) is None:
+                            resp_dl = resp_dl.replace(tzinfo=timezone.utc)
+                        if now_utc > resp_dl and ticket.response_sla_status != 'breached':
+                            ticket.response_sla_status = 'breached'
+
+                    if current_sla == 'good':
+                        continue
+
+                    deadline_key = ticket.sla_deadline.isoformat()[:16] if ticket.sla_deadline else ""
+                    tcode = ticket.ticket_code or f"#{ticket.id}"
+                    target_id_str = str(ticket.id)
+
+                    sla_dl = ticket.sla_deadline
+                    if getattr(sla_dl, 'tzinfo', None) is None:
+                        sla_dl = sla_dl.replace(tzinfo=timezone.utc)
+
+                    paused_at = ticket.sla_paused_at
+                    if paused_at is not None and getattr(paused_at, "tzinfo", None) is None:
+                        paused_at = paused_at.replace(tzinfo=timezone.utc)
+                    comparison_time = now_utc if is_coc else (paused_at or now_utc)
+                    if not is_coc and ticket.assigned_user and ticket.assigned_user.is_on_break and ticket.assigned_user.break_started_at:
+                        comparison_time = ticket.assigned_user.break_started_at
+                        if comparison_time.tzinfo is None:
+                            comparison_time = comparison_time.replace(tzinfo=timezone.utc)
+                    time_diff = sla_dl - comparison_time
+
+
+                    # ── 1. Warning (< 30 menit) ──
+                    if current_sla == 'warning':
+                        secs = max(0, int(time_diff.total_seconds()))
+                        milestone = _sla_warning_milestone(secs)
+                        if milestone is None:
+                            continue
+                        hours = secs // 3600
+                        mins = (secs % 3600) // 60
+                        remaining_text = f"tersisa {hours}j {mins}m" if hours > 0 else f"tersisa {mins} menit"
+
+                        action_name = 'Deadline Warning Notification' if is_coc else 'SLA Warning Notification'
+                        existing_warn = logs_by_target.get((action_name, target_id_str), [])
+                        if not existing_warn and is_coc:
+                            existing_warn = logs_by_target.get(('SLA Warning Notification', target_id_str), [])
+
+                        already_logged = any(
+                            _sla_warn_already_logged(l, deadline_key, milestone)
+                            for l in existing_warn
+                        )
+
+                        if not already_logged:
+                            recipients = [ticket.assigned_to_id] if ticket.assigned_to_id else [a.id for a in admins]
+                            for r_id in recipients:
+                                if not r_id:
+                                    continue
+                                if is_coc:
+                                    NotificationService.push(
+                                        user_id=r_id,
+                                        ticket=ticket,
+                                        ntype='deadline_warning',
+                                        title=f"Deadline {milestone} menit: {tcode}",
+                                        message=f"Tiket Graphic Design '{ticket.title}' {remaining_text} (peringatan deadline {milestone} menit). Segera tindak lanjuti.",
+                                    )
+                                else:
+                                    NotificationService.push(
+                                        user_id=r_id,
+                                        ticket=ticket,
+                                        ntype='sla_warning',
+                                        title=f"SLA {milestone} menit: {tcode}",
+                                        message=f"Tiket '{ticket.title}' {remaining_text} (peringatan {milestone} menit). Segera tindak lanjuti.",
+                                    )
+                                created_count += 1
+
+                            new_warn_log = SystemLog(
+                                action=action_name,
+                                target_id=target_id_str,
+                                details=f"{action_name} ({milestone}m) sent for ticket {tcode} (deadline: {deadline_key})",
+                                metadata_json=json.dumps({'ticket_id': ticket.id, 'deadline': deadline_key, 'threshold': milestone})
+                            )
+                            db.session.add(new_warn_log)
+                            logs_by_target[(action_name, target_id_str)].append(new_warn_log)
+
+                    # ── 2. Breached (> deadline) ──
+                    elif current_sla == 'breached':
+                        action_name = 'Deadline Breach Notification' if is_coc else 'SLA Breach Notification'
+                        existing_breach = logs_by_target.get((action_name, target_id_str), [])
+                        if not existing_breach and is_coc:
+                            existing_breach = logs_by_target.get(('SLA Breach Notification', target_id_str), [])
+
+                        already_logged = any(
+                            (deadline_key and deadline_key in (l.details or '')) or
+                            (l.metadata_json and deadline_key and deadline_key in l.metadata_json)
+                            for l in existing_breach
+                        )
+
+                        if not already_logged:
+                            assignee_name = ticket.assigned_user.full_name if ticket.assigned_user else "belum di-assign"
+
+                            # 1. Kirim ke Assignee tiket (jika ada)
+                            if ticket.assigned_to_id:
+                                if is_coc:
+                                    NotificationService.push(
+                                        user_id=ticket.assigned_to_id,
+                                        ticket=ticket,
+                                        ntype='deadline_breached',
+                                        title=f"Deadline Overdue: {tcode}",
+                                        message=f"Tiket Graphic Design '{ticket.title}' telah melewati batas waktu deadline! Harap segera diselesaikan.",
+                                    )
+                                else:
+                                    NotificationService.push(
+                                        user_id=ticket.assigned_to_id,
+                                        ticket=ticket,
+                                        ntype='sla_breached',
+                                        title=f"SLA Breached: {tcode}",
+                                        message=f"Tiket '{ticket.title}' telah melewati batas waktu SLA! Harap segera diselesaikan atau dieskalasi.",
+                                    )
+                                created_count += 1
+
+                            # 2. Kirim juga ke semua Administrator (eskalasi tim supervisor)
+                            for admin in admins:
+                                if ticket.assigned_to_id and admin.id == ticket.assigned_to_id:
+                                    continue
+                                if is_coc:
+                                    NotificationService.push(
+                                        user_id=admin.id,
+                                        ticket=ticket,
+                                        ntype='deadline_breached',
+                                        title=f"Deadline Overdue: {tcode}",
+                                        message=f"Tiket Graphic Design '{ticket.title}' ({assignee_name}) telah melewati batas waktu deadline.",
+                                    )
+                                else:
+                                    NotificationService.push(
+                                        user_id=admin.id,
+                                        ticket=ticket,
+                                        ntype='sla_breached',
+                                        title=f"SLA Breached: {tcode}",
+                                        message=f"Tiket '{ticket.title}' ({assignee_name}) telah melewati batas waktu SLA.",
+                                    )
+                                created_count += 1
+
+                            new_breach_log = SystemLog(
+                                action=action_name,
+                                target_id=target_id_str,
+                                details=f"{action_name} sent for ticket {tcode} (deadline: {deadline_key})",
+                                metadata_json=json.dumps({'ticket_id': ticket.id, 'deadline': deadline_key})
+                            )
+                            db.session.add(new_breach_log)
+                            logs_by_target[(action_name, target_id_str)].append(new_breach_log)
+
+                db.session.commit()
+                return created_count
             except Exception:
-                pass
-
-            # ── MUTLAK: Hanya pindai tiket yang BELUM diselesaikan ──
-            # 1. resolved_at IS NULL (belum pernah diselesaikan)
-            # 2. status TIDAK termasuk dalam grup status done/resolved/closed
-            # 3. sla_deadline IS NOT NULL
-            active_tickets = Ticket.query.filter(
-                Ticket.resolved_at.is_(None),
-                Ticket.sla_deadline.isnot(None),
-                db.func.lower(Ticket.status).notin_(list(done_status_names))
-            ).all()
-
-            if not active_tickets:
-                return 0
-
-            # ── ELIMINASI N+1 QUERY: Batch load existing SystemLog untuk semua tiket aktif ──
-            target_ids = [str(t.id) for t in active_tickets]
-            existing_logs = SystemLog.query.filter(
-                SystemLog.action.in_(['SLA Warning Notification', 'SLA Breach Notification']),
-                SystemLog.target_id.in_(target_ids)
-            ).all()
-
-            logs_by_target = defaultdict(list)
-            for log in existing_logs:
-                logs_by_target[(log.action, str(log.target_id))].append(log)
-
-            admins = User.query.filter(User.role == 'Administrator', User.is_active != False).all()
-            created_count = 0
-
-            for ticket in active_tickets:
-                # Double Defense Guard: Tolak mutlak jika tiket berstatus selesai atau resolved_at terisi
-                if ticket.resolved_at is not None:
-                    continue
-                if str(ticket.status).strip().lower() in done_status_names:
-                    continue
-
-                current_sla = TicketService.calculate_sla_status(
-                    ticket.sla_deadline,
-                    resolved_at=None,  # Tiket aktif belum ada resolved_at
-                    sla_paused_at=ticket.sla_paused_at,
-                    assigned_user=ticket.assigned_user
-                )
-
-                # Sinkronkan sla_status di DB jika ada perubahan
-                if ticket.sla_status != current_sla:
-                    ticket.sla_status = current_sla
-
-                # Sinkronkan response_sla_status jika lewat response deadline tanpa respons
-                if not ticket.first_responded_at and ticket.response_deadline:
-                    resp_dl = ticket.response_deadline
-                    if getattr(resp_dl, 'tzinfo', None) is None:
-                        resp_dl = resp_dl.replace(tzinfo=timezone.utc)
-                    if now_utc > resp_dl and ticket.response_sla_status != 'breached':
-                        ticket.response_sla_status = 'breached'
-
-                if current_sla == 'good':
-                    continue
-
-                deadline_key = ticket.sla_deadline.isoformat()[:16] if ticket.sla_deadline else ""
-                tcode = ticket.ticket_code or f"#{ticket.id}"
-                target_id_str = str(ticket.id)
-
-                sla_dl = ticket.sla_deadline
-                if getattr(sla_dl, 'tzinfo', None) is None:
-                    sla_dl = sla_dl.replace(tzinfo=timezone.utc)
-
-                # Sisa memakai acuan beku saat pause (konsisten dgn countdown)
-                paused_at = ticket.sla_paused_at
-                if paused_at is not None and getattr(paused_at, "tzinfo", None) is None:
-                    paused_at = paused_at.replace(tzinfo=timezone.utc)
-                time_diff = sla_dl - (paused_at or now_utc)
-
-                # ── 1. SLA Warning bertingkat (30/20/10/5 menit) ──
-                if current_sla == 'warning':
-                    secs = max(0, int(time_diff.total_seconds()))
-                    milestone = _sla_warning_milestone(secs)
-                    if milestone is None:
-                        continue  # sisa >30 mnt: status warning, tanpa notif
-                    hours = secs // 3600
-                    mins = (secs % 3600) // 60
-                    remaining_text = f"tersisa {hours}j {mins}m" if hours > 0 else f"tersisa {mins} menit"
-
-                    existing_warn = logs_by_target.get(('SLA Warning Notification', target_id_str), [])
-                    already_logged = any(
-                        _sla_warn_already_logged(l, deadline_key, milestone)
-                        for l in existing_warn
-                    )
-
-                    if not already_logged:
-                        recipients = [ticket.assigned_to_id] if ticket.assigned_to_id else [a.id for a in admins]
-                        for r_id in recipients:
-                            if not r_id:
-                                continue
-                            NotificationService.push(
-                                user_id=r_id,
-                                ticket=ticket,
-                                ntype='sla_warning',
-                                title=f"SLA {milestone} menit: {tcode}",
-                                message=f"Tiket '{ticket.title}' tersisa {remaining_text} (peringatan {milestone} menit). Segera tindak lanjuti.",
-                            )
-                            created_count += 1
-
-                        new_warn_log = SystemLog(
-                            action='SLA Warning Notification',
-                            target_id=target_id_str,
-                            details=f"SLA Warning ({milestone}m) sent for ticket {tcode} (deadline: {deadline_key})",
-                            metadata_json=json.dumps({'ticket_id': ticket.id, 'deadline': deadline_key, 'threshold': milestone})
+                db.session.rollback()
+                raise
+            finally:
+                if lock_conn is not None:
+                    try:
+                        lock_conn.execute(
+                            db.text('SELECT pg_advisory_unlock(:key)'),
+                            {'key': _SLA_ADVISORY_LOCK_KEY},
                         )
-                        db.session.add(new_warn_log)
-                        logs_by_target[('SLA Warning Notification', target_id_str)].append(new_warn_log)
-
-                # ── 2. SLA Breached (> deadline) ──
-                elif current_sla == 'breached':
-                    existing_breach = logs_by_target.get(('SLA Breach Notification', target_id_str), [])
-                    already_logged = any(
-                        (deadline_key and deadline_key in (l.details or '')) or
-                        (l.metadata_json and deadline_key and deadline_key in l.metadata_json)
-                        for l in existing_breach
-                    )
-
-                    if not already_logged:
-                        assignee_name = ticket.assigned_user.full_name if ticket.assigned_user else "belum di-assign"
-
-                        # 1. Kirim ke Assignee tiket (jika ada)
-                        if ticket.assigned_to_id:
-                            NotificationService.push(
-                                user_id=ticket.assigned_to_id,
-                                ticket=ticket,
-                                ntype='sla_breached',
-                                title=f"SLA Breached: {tcode}",
-                                message=f"Tiket '{ticket.title}' telah melewati batas waktu SLA! Harap segera diselesaikan atau dieskalasi.",
-                            )
-                            created_count += 1
-
-                        # 2. Kirim juga ke semua Administrator (eskalasi tim supervisor)
-                        for admin in admins:
-                            if ticket.assigned_to_id and admin.id == ticket.assigned_to_id:
-                                continue
-                            NotificationService.push(
-                                user_id=admin.id,
-                                ticket=ticket,
-                                ntype='sla_breached',
-                                title=f"SLA Breached: {tcode}",
-                                message=f"Tiket '{ticket.title}' ({assignee_name}) telah melewati batas waktu SLA.",
-                            )
-                            created_count += 1
-
-                        new_breach_log = SystemLog(
-                            action='SLA Breach Notification',
-                            target_id=target_id_str,
-                            details=f"SLA Breach sent for ticket {tcode} (deadline: {deadline_key})",
-                            metadata_json=json.dumps({'ticket_id': ticket.id, 'deadline': deadline_key})
-                        )
-                        db.session.add(new_breach_log)
-                        logs_by_target[('SLA Breach Notification', target_id_str)].append(new_breach_log)
-
-            db.session.commit()
-            return created_count
+                    except Exception:
+                        pass
+                    finally:
+                        lock_conn.close()

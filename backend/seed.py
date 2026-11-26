@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from app import create_app, db
 from app.models.user import User
 from app.models.ticket import Ticket, TicketNote
+from app.models.team import Team
 
 
 def seed_database():
@@ -22,12 +23,26 @@ def seed_database():
         TicketNote.query.delete()
         Ticket.query.delete()
         User.query.delete()
+        Team.query.delete()
         from app.models.master_data import Category, Priority, SLAPolicy, Department, Status
         SLAPolicy.query.delete()
         Category.query.delete()
         Priority.query.delete()
         Department.query.delete()
         Status.query.delete()
+
+        # Create teams (workspace/board)
+        teams_data = [
+            {"name": "IT", "code": "IT", "slug": "it", "description": "Information Technology", "is_active": True},
+            {"name": "Graphic Design", "code": "COC", "slug": "coc", "description": "Graphic Design / Creative", "is_active": True},
+        ]
+        teams = {}
+        for td in teams_data:
+            t = Team(**td)
+            db.session.add(t)
+            teams[td["code"]] = t
+        db.session.flush()
+        print(f"Created {len(teams_data)} teams")
         
         # Create categories
         categories_data = [
@@ -101,6 +116,7 @@ def seed_database():
             role=admin_data['role']
         )
         user.set_password(admin_data['password'])
+        user.teams = [teams.get('IT'), teams.get('COC')] if teams.get('IT') and teams.get('COC') else ([teams.get('IT')] if teams.get('IT') else [])
         db.session.add(user)
         
         db.session.commit()

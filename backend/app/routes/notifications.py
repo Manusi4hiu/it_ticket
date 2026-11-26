@@ -1,6 +1,8 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.services.notification_service import NotificationService
+from app.models.push_subscription import PushSubscription
+from app import db
 
 notifications_bp = Blueprint('notifications', __name__)
 
@@ -9,16 +11,15 @@ notifications_bp = Blueprint('notifications', __name__)
 @jwt_required()
 def list_notifications():
     """List notifikasi milik user login (unread_only optional).
-    Otomatis menyinkronkan status SLA tiket aktif dan memicu notifikasi jika ada
-    tiket mendekati (< 2 jam) atau melewati batas SLA.
+    Otomatis menyinkronkan status SLA/Deadline tiket aktif dan memicu notifikasi jika ada
+    tiket mendekati (< 30 menit) atau melewati batas SLA/Deadline.
     """
     user_id = int(get_jwt_identity())
 
-    # Auto-evaluasi SLA tiket aktif secara real-time
+    # Auto-evaluasi SLA / Deadline tiket aktif secara real-time
     try:
         NotificationService.check_and_generate_sla_notifications(user_id=user_id)
     except Exception as exc:
-        # Logging error tanpa menghentikan pemuatan notifikasi eksisting
         print(f"[WARN] check_and_generate_sla_notifications error: {exc}")
 
     unread_only = request.args.get('unread_only', default=False, type=lambda v: v.lower() == 'true')
@@ -86,3 +87,86 @@ def delete_notifications():
         'deleted': deleted,
         'unreadCount': NotificationService.unread_count(user_id),
     }), 200
+
+
+# ── Web Push subscription management ──────────────────────────────────────────
+
+@notifications_bp.route('/vapid-public-key', methods=['GET'])
+@jwt_required()
+def vapid_public_key():
+    """Return active VAPID public key for browser PushManager subscription."""
+    from app.services.push_service import get_vapid_public_key
+
+    public_key = get_vapid_public_key()
+    if not public_key:
+        return jsonify({
+            'success': False,
+            'error': 'Web Push belum dikonfigurasi pada server (VAPID key kosong)',
+        }), 503
+    return jsonify({'success': True, 'publicKey': public_key}), 200
+
+
+@notifications_bp.route('/subscribe', methods=['POST'])
+@jwt_required()
+def subscribe_push():
+    """Register a push subscription for the logged-in user (multi-device OK).
+
+    Body: PushSubscription JSON from browser PushManager.subscribe():
+    { endpoint, keys: { p256dh, auth }, expirationTime? }
+    Idempotent via unique(user_id, endpoint) — repeated calls safe.
+    """
+    user_id = int(get_jwt_identity())
+    data = request.get_json(silent=True) or {}
+
+    endpoint = data.get('endpoint')
+    keys = data.get('keys') or {}
+
+    # Trust boundary: validate required fields
+    if not endpoint or not isinstance(endpoint, str) or not endpoint.startswith('https://'):
+        return jsonify({'success': False, 'error': 'endpoint wajib valid HTTPS URL'}), 400
+    if not keys.get('p256dh') or not keys.get('auth'):
+        return jsonify({'success': False, 'error': 'keys.p256dh dan keys.auth wajib diisi'}), 400
+
+    # Upsert — unique constraint on (user_id, endpoint) handles duplicates
+    existing = PushSubscription.query.filter_by(
+        user_id=user_id, endpoint=endpoint
+    ).first()
+    if existing:
+        # Update keys in case browser rotated them
+        existing.p256dh = keys['p256dh']
+        existing.auth = keys['auth']
+    else:
+        sub = PushSubscription(
+            user_id=user_id,
+            endpoint=endpoint,
+            p256dh=keys['p256dh'],
+            auth=keys['auth'],
+        )
+        db.session.add(sub)
+    db.session.commit()
+
+    return jsonify({'success': True}), 200
+
+
+@notifications_bp.route('/unsubscribe', methods=['POST'])
+@jwt_required()
+def unsubscribe_push():
+    """Remove a push subscription (e.g. on logout / device switch).
+
+    Body: { endpoint: "..." }
+    """
+    user_id = int(get_jwt_identity())
+    data = request.get_json(silent=True) or {}
+    endpoint = data.get('endpoint')
+
+    if not endpoint or not isinstance(endpoint, str):
+        return jsonify({'success': False, 'error': 'endpoint wajib diisi'}), 400
+
+    sub = PushSubscription.query.filter_by(
+        user_id=user_id, endpoint=endpoint
+    ).first()
+    if sub:
+        db.session.delete(sub)
+        db.session.commit()
+
+    return jsonify({'success': True}), 200

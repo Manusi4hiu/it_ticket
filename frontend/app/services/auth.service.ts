@@ -15,6 +15,8 @@ export interface AuthUser {
   department: string | null;
   phone: string | null;
   avatar_url: string | null;
+  teams?: { id: string | number; name: string; code: string }[];
+  lastActiveTeamId?: string | number | null;
 }
 
 export interface LoginResult {
@@ -80,6 +82,8 @@ export async function login(credentials: LoginCredentials): Promise<LoginResult>
         department: user.department,
         phone: user.phone,
         avatar_url: user.avatar_url,
+        teams: user.teams || [],
+        lastActiveTeamId: user.teams?.[0]?.id ?? null,
       },
     };
   } catch (error) {
@@ -123,6 +127,8 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
       department: user.department,
       phone: user.phone,
       avatar_url: user.avatar_url,
+      teams: user.teams || [],
+      lastActiveTeamId: user.teams?.[0]?.id ?? null,
     };
   } catch (error) {
     console.error('Get current user error:', error);
@@ -155,6 +161,8 @@ export async function getUserById(userId: string): Promise<AuthUser | null> {
       department: user.department,
       phone: user.phone,
       avatar_url: user.avatar_url,
+      teams: user.teams || [],
+      lastActiveTeamId: user.teams?.[0]?.id ?? null,
     };
   } catch (error) {
     console.error('Get user error:', error);

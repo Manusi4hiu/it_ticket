@@ -306,3 +306,40 @@
     transform: translateX(8px);
   }
 }
+
+.pwaInstallWrapper {
+  padding: 0 32px 24px;
+  display: flex;
+  justify-content: center;
+}
+
+.pwaInstallWrapper:empty {
+  display: none;
+}
+
+.pwaInstallBtn {
+  width: 100%;
+  border: 1px dashed rgba(96, 165, 250, 0.35) !important;
+  border-radius: 12px !important;
+  color: #93c5fd !important;
+  background: rgba(59, 130, 246, 0.06) !important;
+  font-size: 0.875rem !important;
+  font-weight: 600 !important;
+  padding: 11px 16px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+}
+
+.pwaInstallBtn:hover {
+  background: rgba(59, 130, 246, 0.14) !important;
+  border-color: rgba(96, 165, 250, 0.6) !important;
+  color: #ffffff !important;
+}
+
+@media (max-width: 860px) {
+  :global(html[data-pwa-banner="visible"]) .container {
+    padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  }
+}

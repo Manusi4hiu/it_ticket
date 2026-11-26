@@ -39,7 +39,8 @@ import { TicketPagination } from "~/components/ui/ticket-pagination/ticket-pagin
 import { getTickets, getAgents, type Ticket } from "~/services/ticket.service";
 import { usersApi } from "~/services/api.service";
 import { settingsApi } from "~/services/settings.service";
-import { requireAuth } from "~/services/session.service";
+import { runWithAuth } from "~/services/session.service";
+import { useToast } from "~/hooks/use-toast";
 import type { Route } from "./+types/route";
 import styles from "./style.module.css";
 
@@ -56,11 +57,21 @@ export interface ProfileStaff {
   phone?: string | null;
   role?: string;
   department?: string | null;
+  teams?: { id: number | string; name: string; code?: string }[];
   avatarUrl?: string | null;
   isActive?: boolean;
   updatedAt?: string | null;
   presenceStatus?: 'online' | 'idle' | 'dnd' | 'offline';
   customStatusMessage?: string | null;
+}
+
+function getStaffRoleLabel(staff: ProfileStaff): string {
+  const teamNames = staff.teams?.map((t) => t.name).filter(Boolean);
+  const role = staff.role || "Staff";
+  if (teamNames && teamNames.length > 0) {
+    return `${teamNames.join(" / ")} ${role}`;
+  }
+  return role === "Staff" ? "Staff" : role;
 }
 
 export type ProfileLoaderData = {
@@ -74,92 +85,94 @@ export type ProfileLoaderData = {
 };
 
 export async function loader({ request, params }: Route.LoaderArgs) {
-  const session = await requireAuth(request);
-  const staffId = params.staffId;
+  return runWithAuth(request, async (session) => {
+    const staffId = params.staffId;
 
-  // User can only view their own profile unless they are Admin or Management
-  const isAuthorized =
-    String(session.userId) === String(staffId) ||
-    session.userRole === "Administrator" ||
-    session.userRole === "Management";
-  if (!isAuthorized) {
-    throw new Response("Forbidden", { status: 403 });
-  }
-
-  // Fetch data in parallel:
-  // 1. Standard helpdesk tickets
-  // 2. Dev-scoped tickets (if any) so all tickets user ever worked on are fetched
-  // 3. Agents list
-  // 4. User profile master data
-  // 5. Backend performance analytics
-  const [ticketResponse, devTicketResponse, agents, userResponse, perfResponse] = await Promise.all([
-    getTickets({ per_page: 200 }),
-    getTickets({ category: "Development", per_page: 200 }).catch(() => ({ tickets: [], total: 0 })),
-    getAgents(),
-    usersApi.getById(staffId as string),
-    usersApi.getPerformance(staffId as string).catch(() => ({ success: false, data: undefined })),
-  ]);
-
-  // Combine and deduplicate tickets by id
-  const ticketMap = new Map<number, Ticket>();
-  (ticketResponse.tickets || []).forEach((t) => ticketMap.set(t.id, t));
-  (devTicketResponse.tickets || []).forEach((t) => ticketMap.set(t.id, t));
-  const combinedTickets = Array.from(ticketMap.values());
-
-  // Find staff info from userResponse or agents
-  let staff: ProfileStaff | null = null;
-  if (userResponse.success && userResponse.data?.user) {
-    const u = userResponse.data.user;
-    staff = {
-      id: u.id,
-      name: u.full_name,
-      username: u.username,
-      email: u.email || "",
-      phone: u.phone,
-      role: u.role,
-      department: u.department,
-      avatarUrl: u.avatar_url,
-      isActive: (u as any).is_active ?? true,
-      updatedAt: (u as any).updated_at,
-      presenceStatus: (u as any).presenceStatus ?? 'online',
-      customStatusMessage: (u as any).customStatusMessage ?? null,
-      ...(((u as any).isOnBreak !== undefined) ? {
-        isOnBreak: (u as any).isOnBreak,
-        breakStartedAt: (u as any).breakStartedAt,
-        totalBreakSecondsToday: (u as any).totalBreakSecondsToday ?? 0,
-      } : {}),
-    };
-  } else {
-    const a = agents.find((ag) => String(ag.id) === String(staffId));
-    if (a) {
-      staff = {
-        id: a.id,
-        name: a.name,
-        username: a.username,
-        email: a.email,
-        phone: a.phone,
-        role: "IT Support Staff",
-        isActive: true,
-        presenceStatus: (a as any).presenceStatus ?? 'online',
-        customStatusMessage: (a as any).customStatusMessage ?? null,
-      };
+    // User can only view their own profile unless they are Admin or Management
+    const isAuthorized =
+      String(session.userId) === String(staffId) ||
+      session.userRole === "Administrator" ||
+      session.userRole === "Management";
+    if (!isAuthorized) {
+      throw new Response("Forbidden", { status: 403 });
     }
-  }
 
-  const isAgent =
-    agents.some((a) => String(a.id) === String(staffId)) ||
-    staff?.role === "Staff" ||
-    staff?.role === "Administrator";
+    // Fetch data in parallel:
+    // 1. Standard helpdesk tickets
+    // 2. Dev-scoped tickets (if any) so all tickets user ever worked on are fetched
+    // 3. Agents list
+    // 4. User profile master data
+    // 5. Backend performance analytics
+    const [ticketResponse, devTicketResponse, agents, userResponse, perfResponse] = await Promise.all([
+      getTickets({ per_page: 200 }),
+      getTickets({ category: "Development", per_page: 200 }).catch(() => ({ tickets: [], total: 0 })),
+      getAgents(),
+      usersApi.getById(staffId as string),
+      usersApi.getPerformance(staffId as string).catch(() => ({ success: false, data: undefined })),
+    ]);
 
-  return {
-    session,
-    staffId: staffId || "",
-    staff,
-    isAgent,
-    tickets: combinedTickets,
-    performance: perfResponse.success && perfResponse.data ? perfResponse.data.performance : null,
-    agents,
-  };
+    // Combine and deduplicate tickets by id
+    const ticketMap = new Map<number, Ticket>();
+    (ticketResponse.tickets || []).forEach((t) => ticketMap.set(t.id, t));
+    (devTicketResponse.tickets || []).forEach((t) => ticketMap.set(t.id, t));
+    const combinedTickets = Array.from(ticketMap.values());
+
+    // Find staff info from userResponse or agents
+    let staff: ProfileStaff | null = null;
+    if (userResponse.success && userResponse.data?.user) {
+      const u = userResponse.data.user;
+      staff = {
+        id: u.id,
+        name: u.full_name,
+        username: u.username,
+        email: u.email || "",
+        phone: u.phone,
+        role: u.role,
+        department: u.department,
+        teams: (u as any).teams || [],
+        avatarUrl: u.avatar_url,
+        isActive: (u as any).is_active ?? true,
+        updatedAt: (u as any).updated_at,
+        presenceStatus: (u as any).presenceStatus ?? 'online',
+        customStatusMessage: (u as any).customStatusMessage ?? null,
+        ...(((u as any).isOnBreak !== undefined) ? {
+          isOnBreak: (u as any).isOnBreak,
+          breakStartedAt: (u as any).breakStartedAt,
+          totalBreakSecondsToday: (u as any).totalBreakSecondsToday ?? 0,
+        } : {}),
+      };
+    } else {
+      const a = agents.find((ag) => String(ag.id) === String(staffId));
+      if (a) {
+        staff = {
+          id: a.id,
+          name: a.name,
+          username: a.username,
+          email: a.email,
+          phone: a.phone,
+          role: "IT Support Staff",
+          isActive: true,
+          presenceStatus: (a as any).presenceStatus ?? 'online',
+          customStatusMessage: (a as any).customStatusMessage ?? null,
+        };
+      }
+    }
+
+    const isAgent =
+      agents.some((a) => String(a.id) === String(staffId)) ||
+      staff?.role === "Staff" ||
+      staff?.role === "Administrator";
+
+    return {
+      session,
+      staffId: staffId || "",
+      staff,
+      isAgent,
+      tickets: combinedTickets,
+      performance: perfResponse.success && perfResponse.data ? perfResponse.data.performance : null,
+      agents,
+    };
+  });
 }
 
 // ─────────────────────────────────────────────
@@ -320,6 +333,7 @@ function getRoleQuote(role: string | undefined) {
 export default function StaffProfile({ loaderData }: Route.ComponentProps) {
   const { session, staffId, staff, isAgent, tickets, performance } = loaderData as ProfileLoaderData;
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<"all" | "in-progress" | "assigned" | "pending" | "resolved" | "breached">("all");
 
   // Break state — seeded from server data, updated optimistically on toggle
@@ -450,9 +464,12 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
     return () => { cancelled = true; };
   }, []);
 
-  // Only show break button for own profile and non-Management roles
+  // Only show break button for own profile and non-Management roles.
+  // Break adalah fitur IT-only — user team COC/Design tidak punya break.
   const isSelf = String(session.userId) === String(staffId);
-  const canToggleBreak = isSelf && staff?.role !== 'Management';
+  const sessionTeams = (session?.teams || []) as { code: string }[];
+  const isCoc = sessionTeams.some(t => t.code === 'COC') && !sessionTeams.some(t => t.code === 'IT');
+  const canToggleBreak = isSelf && staff?.role !== 'Management' && !isCoc;
 
   const handleToggleBreak = () => {
     if (breakLoading) return;
@@ -486,6 +503,12 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
         if (updated.presenceStatus) {
           setPresenceStatusState(updated.presenceStatus as PresenceStatus);
         }
+      } else if (!res.success) {
+        toast({
+          title: isOnBreak ? "Gagal mengakhiri break" : "Break tidak dapat dimulai",
+          description: res.error || "Silakan coba lagi.",
+          variant: "destructive",
+        });
       }
     } catch (e) {
       console.error('Toggle break failed:', e);
@@ -1107,7 +1130,7 @@ export default function StaffProfile({ loaderData }: Route.ComponentProps) {
                         onClick={() => {
                           setPresenceDropdownOpen(false);
                           setTempCustomStatus(customStatusMessage || "");
-                          setTempPresence(presenceStatus === 'break' ? 'online' : presenceStatus);
+                          setTempPresence(presenceStatus);
                           setTempClearAfter(null);
                           setIsCustomClearAfter(false);
                           setShowCustomStatusDialog(true);

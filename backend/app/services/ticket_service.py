@@ -2,12 +2,13 @@ from app import db
 from app.models.ticket import Ticket, TicketNote
 from app.models.user import User
 from app.models.master_data import Department, Status, Priority, Category, SLAPolicy, BreakSetting, Holiday
+from app.models.team import Team
 from app.utils.logging import log_activity
 from app.utils.security import sanitize_html, NOTE_ALLOWED_TAGS
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 from flask import current_app, has_app_context
-from app.constants import DEV_CATEGORY
+from app.constants import DEV_CATEGORY, TEAM_COC_CODE
 
 def _report_tz():
     """Zona waktu pelaporan (batas hari grafik/analytics).
@@ -218,6 +219,8 @@ class TicketService:
     @staticmethod
     def _apply_sla_pause_transition(ticket, old_status, new_status, now_utc=None):
         """Resume/extend SLA saat keluar status pausing; pause saat masuk status pausing."""
+        if TicketService.is_graphic_design_ticket(ticket):
+            return
         now_utc = now_utc or datetime.now(timezone.utc)
         if old_status and TicketService._status_pauses_sla(old_status) and ticket.sla_paused_at and ticket.sla_deadline:
             paused_at_aware = ticket.sla_paused_at if ticket.sla_paused_at.tzinfo else ticket.sla_paused_at.replace(tzinfo=timezone.utc)
@@ -233,40 +236,25 @@ class TicketService:
             ticket.sla_paused_at = None
 
     @staticmethod
-    def calculate_sla_status(sla_deadline, resolved_at=None, sla_paused_at=None, assigned_user=None):
-        """Calculate SLA status based on deadline and resolution time.
-
-        SLA clock is frozen while ticket is in a paused state (pending/hold/wait)
-        or while assigned staff is on break. Breach can only happen at the moment
-        the SLA clock was frozen (i.e. if deadline was already missed before pause),
-        never during the frozen period itself.
-        """
+    def calculate_sla_status(sla_deadline, resolved_at=None, sla_paused_at=None, assigned_user=None, is_design=False, status=None, taken_at=None):
+        """Calculate SLA status; IT pending pauses, Corcom deadlines keep running."""
         if not sla_deadline:
+            return 'good'
+        if not is_design and (not assigned_user or not taken_at or str(status or '').strip().lower() in ('new', 'baru')):
             return 'good'
 
         # Ensure sla_deadline is timezone-aware
         if sla_deadline.tzinfo is None:
             sla_deadline = sla_deadline.replace(tzinfo=timezone.utc)
 
-        # Pause SLA bila staff break — gunakan break_started_at sebagai comparison time
-        if assigned_user and assigned_user.is_on_break and assigned_user.break_started_at:
+        # Pause SLA bila staff break — gunakan break_started_at sebagai comparison time (hanya tiket IT)
+        if assigned_user and assigned_user.is_on_break and assigned_user.break_started_at and not is_design:
             comparison_time = assigned_user.break_started_at
         elif resolved_at:
             comparison_time = resolved_at
-        elif sla_paused_at:
-            # Tiket dalam status pending/paused: SLA clock beku.
-            # Gunakan sla_paused_at untuk memeriksa apakah deadline sudah terlewat
-            # SEBELUM tiket dipauskan. Jika belum terlewat saat dipauskan → 'good'
-            # (frozen). Jika sudah terlewat sebelum dipauskan → 'breached'.
-            paused_at_aware = sla_paused_at
-            if paused_at_aware.tzinfo is None:
-                paused_at_aware = paused_at_aware.replace(tzinfo=timezone.utc)
-            time_remaining_at_pause = sla_deadline - paused_at_aware
-            if time_remaining_at_pause.total_seconds() < 0:
-                return 'breached'
-            else:
-                # SLA masih valid saat dipauskan — bekukan di 'good'
-                return 'good'
+        elif sla_paused_at and not is_design:
+            paused_at = sla_paused_at if sla_paused_at.tzinfo else sla_paused_at.replace(tzinfo=timezone.utc)
+            return 'breached' if sla_deadline < paused_at else 'good'
         else:
             comparison_time = datetime.now(timezone.utc)
 
@@ -332,6 +320,44 @@ class TicketService:
         # Hardcoded defaults fallback
         sla_hours_map = {'critical': 4, 'high': 8, 'medium': 24, 'low': 48}
         return sla_hours_map.get(priority_name.lower() if priority_name else 'medium', 24)
+
+    @staticmethod
+    def is_graphic_design_ticket(ticket):
+        """Cek apakah tiket merupakan tiket Graphic Design / COC (kreatif)"""
+        if not ticket:
+            return False
+        team = getattr(ticket, 'team', None)
+        if team:
+            return team.code == TEAM_COC_CODE
+        cat = getattr(ticket, 'category', '') or ''
+        if 'design' in cat.lower():
+            return True
+        return False
+
+    @staticmethod
+    def _resolve_team(data):
+        """Resolve team pemilik ticket dari input.
+
+        Default IT hanya bila tujuan tidak diberikan; tujuan eksplisit harus aktif.
+        teamId dan teamCode harus cocok bila keduanya diberikan.
+        """
+        from app.constants import TEAM_DEFAULT_CODE
+
+        team_id = data.get('teamId')
+        team_code = data.get('teamCode') or data.get('team')
+        if team_id:
+            try:
+                team = db.session.get(Team, int(team_id))
+            except (TypeError, ValueError):
+                raise ValueError("Team tidak valid")
+            if team and team_code and team.code.upper() != str(team_code).strip().upper():
+                raise ValueError("Team ID dan kode tidak cocok")
+        else:
+            code = str(team_code).strip() if team_code else TEAM_DEFAULT_CODE
+            team = Team.query.filter(db.func.lower(Team.code) == code.lower()).first()
+        if not team or not team.is_active:
+            raise ValueError("Team tidak tersedia")
+        return team
 
     @staticmethod
     def get_response_time_minutes_for_ticket(priority_name, category_name=None):
@@ -603,6 +629,13 @@ class TicketService:
             priority = 'medium'
         category = (data.get('category') or 'Other').strip()
 
+        # 6b. Team pemilik ticket (workspace tujuan). Default IT bila kosong.
+        team = TicketService._resolve_team(data)
+        category_obj = Category.query.filter(db.func.lower(Category.name) == category.lower()).first()
+        if not category_obj or not category_obj.is_active or category_obj.team_id not in (None, team.id):
+            raise ValueError("Category tidak tersedia untuk team ini")
+        category = category_obj.name
+
         # 7. Mass Assignment Protection for unauthenticated creations
         if not is_authenticated:
             assigned_to_id = None
@@ -624,6 +657,13 @@ class TicketService:
 
         # Transaction for Atomicity
         try:
+            # SLA & Deadline Logic
+            # Untuk tiket Graphic Design / COC, deadline ditentukan oleh pembuat tiket (pasti),
+            # sedangkan tiket IT ditentukan oleh SLA priority setelah diambil/di-assign.
+            is_coc_or_design = team.code == TEAM_COC_CODE
+            deadline_input = (data.get('deadline') or data.get('slaDeadline')) if is_coc_or_design else None
+            if is_coc_or_design and not str(deadline_input or '').strip():
+                raise ValueError("Waktu deadline wajib diisi untuk tiket Corcom")
             now_utc = datetime.now(timezone.utc)
             # Response SLA starts from creation time using operational business hours
             resp_minutes = TicketService.get_response_time_minutes_for_ticket(priority, category)
@@ -633,33 +673,56 @@ class TicketService:
 
             # Resolution SLA only runs when the ticket is claimed/assigned
             sla_deadline = None
-            if assigned_to_id:
+            sla_taken_at = None
+
+            if deadline_input and str(deadline_input).strip():
+                clean_dl = str(deadline_input).strip()
+                try:
+                    dt_parsed = datetime.fromisoformat(clean_dl.replace('Z', '+00:00'))
+                    if dt_parsed.tzinfo is None:
+                        dt_parsed = dt_parsed.replace(tzinfo=timezone(timedelta(hours=7)))
+                    sla_deadline = dt_parsed.astimezone(timezone.utc).replace(tzinfo=None)
+                except (ValueError, TypeError) as e:
+                    raise ValueError(f"Format deadline tidak valid: {str(e)}")
+                if sla_deadline < (now_utc - timedelta(minutes=1)).replace(tzinfo=None):
+                    raise ValueError("Waktu deadline tidak boleh di masa lalu")
+                # BUG-3 FIX: COC tiket dengan assignee langsung set taken_at
+                if assigned_to_id:
+                    sla_taken_at = now_utc
+                    first_responded_at = now_utc
+            elif assigned_to_id and not is_coc_or_design:
                 hours = TicketService.get_sla_hours_for_ticket(priority, category)
                 sla_deadline = TicketService.calculate_business_deadline(now_utc, hours=hours)
                 sla_taken_at = now_utc
                 first_responded_at = now_utc
             else:
                 sla_taken_at = None
+                sla_deadline = None
 
-            # Fetch department info
+            # Fetch department info (identitas PEMOHON — penentu prefix kode tiket)
             dept_code = "TKT"
             dept_name = data.get('submitterDepartment')
             if dept_name:
-                dept = Department.query.filter_by(name=dept_name).first()
+                dept = Department.query.filter(Department.name.ilike(str(dept_name).strip())).first()
                 if dept and dept.code:
-                    dept_code = dept.code
-            
-            # Generate ticket code (per department counter) — fix race condition with FOR UPDATE
+                    dept_code = dept.code.strip().upper()
+
+            # Generate ticket code (per department counter) — FOR UPDATE mencegah race condition
             last_ticket = Ticket.query.filter(Ticket.ticket_code.like(f"{dept_code}-%"))\
                 .order_by(Ticket.code_counter.desc())\
                 .with_for_update()\
                 .first()
-            
+
             new_counter = 1
             if last_ticket and last_ticket.code_counter:
                 new_counter = last_ticket.code_counter + 1
-            
+
             ticket_code = f"{dept_code}-{str(new_counter).zfill(3)}"
+
+            # Cegah collision bila kode sudah pernah terpakai
+            while Ticket.query.filter_by(ticket_code=ticket_code).first():
+                new_counter += 1
+                ticket_code = f"{dept_code}-{str(new_counter).zfill(3)}"
 
             # Fetch default status from master data
             default_status = Status.query.filter_by(is_default=True).first()
@@ -686,13 +749,14 @@ class TicketService:
                 image_url=image_url,
                 idempotency_key=idempotency_key,
                 sla_deadline=sla_deadline,
-                sla_status='good',
+                sla_status=TicketService.calculate_sla_status(sla_deadline, is_design=is_coc_or_design) if sla_deadline else 'good',
                 taken_at=sla_taken_at,
                 response_deadline=response_deadline,
                 first_responded_at=first_responded_at,
                 response_sla_status=response_sla_status,
                 ticket_code=ticket_code,
                 code_counter=new_counter,
+                team_id=team.id,
                 assigned_to_id=assigned_to_id
             )
             
@@ -769,6 +833,7 @@ class TicketService:
         old_category = ticket.category
         old_priority_name = ticket.priority
         old_assigned_id = ticket.assigned_to_id
+        is_design = TicketService.is_graphic_design_ticket(ticket)
 
         # Deteksi aktor & role-nya (untuk admin override notification)
         actor = User.query.get(user_id) if user_id else None
@@ -780,12 +845,26 @@ class TicketService:
         if actor and not is_admin and ticket.assigned_to_id:
             if int(actor.id) != int(ticket.assigned_to_id):
                 forbidden = [k for k in ('status', 'category', 'priority') if k in data]
+                # PERBAIKAN (takeover senyap): perubahan assignee juga WAJIB
+                # beralasan. Sebelumnya 'assignedToId' tidak masuk daftar
+                # terlarang, sehingga staff non-pemilik bisa mengambil alih
+                # tiket milik orang lain lewat PUT /tickets/<id> TANPA alasan
+                # dan TANPA notifikasi ke pemilik lama.
+                # Alur "Admin Override" di frontend sudah mengirim 'reason',
+                # jadi permintaan beralasan tetap diterima (dan pemilik lama
+                # tetap diberi tahu - lihat blok notifikasi di bawah).
+                if 'assignedToId' in data and data['assignedToId'] != old_assigned_id:
+                    takeover_reason = data.get('reason') or data.get('adminReason')
+                    if not (takeover_reason and str(takeover_reason).strip()):
+                        forbidden.append('assignedToId')
                 if forbidden:
                     raise ValueError(
                         f"Unauthorized: tiket ini sudah dipegang/dioper ke "
                         f"'{ticket.assigned_user.full_name if ticket.assigned_user else 'staff lain'}'. "
                         "Hanya pemilik tiket atau Administrator yang bisa mengubah "
                         f"{', '.join(forbidden)}."
+                        + (" Perubahan assignee wajib disertai alasan."
+                           if 'assignedToId' in forbidden else "")
                     )
 
         # ── Kategori berubah:
@@ -975,12 +1054,12 @@ class TicketService:
                     ticket.resolved_at = TicketService.validate_resolved_at_working_hours(
                         datetime.now(timezone.utc)
                     )
-                # Auto-mark unread SLA notifications as read saat tiket selesai
+                # Auto-mark unread SLA & Deadline notifications as read saat tiket selesai
                 try:
                     from app.models.notification import Notification
                     Notification.query.filter(
                         Notification.ticket_id == ticket.id,
-                        Notification.type.in_(['sla_warning', 'sla_breached']),
+                        Notification.type.in_(['sla_warning', 'sla_breached', 'deadline_warning', 'deadline_breached']),
                         Notification.is_read == False
                     ).update({'is_read': True}, synchronize_session=False)
                 except Exception:
@@ -1017,7 +1096,12 @@ class TicketService:
                             is_internal=True
                         ))
                     ticket.priority = priority_val
-                priority_changed = True
+                    # PERBAIKAN: flag hanya di-set bila prioritas BENAR-BENAR
+                    # berubah. Sebelumnya flag ini di-set di luar blok `if`,
+                    # sehingga setiap form edit yang mengirim priority yang
+                    # sama tetap memicu recalculation SLA deadline - dan
+                    # ekstensi jam dari pause ikut hilang.
+                    priority_changed = True
 
         if 'category' in data:
             new_category_val = str(data['category']).strip()
@@ -1038,7 +1122,9 @@ class TicketService:
                             is_internal=True
                         ))
                     ticket.category = new_category_val
-                category_changed = True
+                    # PERBAIKAN: sama seperti priority - flag hanya di-set bila
+                    # kategori benar-benar berubah (lihat catatan di blok priority).
+                    category_changed = True
 
         if 'resolutionSummary' in data:
             ticket.resolution_summary = sanitize_html(str(data['resolutionSummary']).strip())
@@ -1050,6 +1136,21 @@ class TicketService:
             clean_str = str(data['resolvedAt']).replace('Z', '+00:00')
             dt_parsed = datetime.fromisoformat(clean_str)
             ticket.resolved_at = TicketService.validate_resolved_at_working_hours(dt_parsed)
+
+        if 'deadline' in data or 'slaDeadline' in data:
+            new_dl = data.get('deadline') or data.get('slaDeadline')
+            if new_dl and str(new_dl).strip():
+                clean_dl = str(new_dl).strip()
+                try:
+                    if clean_dl.endswith('Z') or '+' in clean_dl.split('T')[-1] or ('-' in clean_dl.split('T')[-1] and not clean_dl.split('T')[-1].startswith('-')):
+                        dt_parsed = datetime.fromisoformat(clean_dl.replace('Z', '+00:00'))
+                        ticket.sla_deadline = dt_parsed.astimezone(timezone.utc).replace(tzinfo=None)
+                    else:
+                        ticket.sla_deadline = datetime.fromisoformat(clean_dl)
+                except Exception as e:
+                    raise ValueError(f"Format deadline tidak valid: {str(e)}")
+            elif new_dl is None:
+                ticket.sla_deadline = None
 
         if 'assignedToId' in data:
             prev_assigned_id = ticket.assigned_to_id
@@ -1117,9 +1218,12 @@ class TicketService:
                 )
                 ticket.status = new_status_name
                 
+            is_design = TicketService.is_graphic_design_ticket(ticket)
             if ticket.assigned_to_id:
                 now_utc = datetime.now(timezone.utc)
-                if not prev_assigned_id or not ticket.sla_deadline:
+                # Untuk tiket IT, hitung SLA dari priority jika belum ada deadline.
+                # Untuk Graphic Design / COC, deadline ditentukan oleh pembuat tiket, jangan ditimpa!
+                if not is_design and (not prev_assigned_id or not ticket.sla_deadline):
                     hours = TicketService.get_sla_hours_for_ticket(ticket.priority, ticket.category)
                     ticket.sla_deadline = TicketService.calculate_business_deadline(now_utc, hours=hours)
                 # Set taken_at only on first assignment
@@ -1134,13 +1238,15 @@ class TicketService:
                     else:
                         ticket.response_sla_status = 'good'
             else:
-                ticket.sla_deadline = None
+                if not is_design:
+                    ticket.sla_deadline = None
                 ticket.taken_at = None
         elif (priority_changed or category_changed) and ticket.assigned_to_id:
-            # Recalculate deadline from taken_at preserving business hours
-            hours = TicketService.get_sla_hours_for_ticket(ticket.priority, ticket.category)
-            base_time = ticket.taken_at or ticket.created_at or datetime.now(timezone.utc)
-            ticket.sla_deadline = TicketService.calculate_business_deadline(base_time, hours=hours)
+            # Recalculate deadline from taken_at preserving business hours ONLY for IT tickets
+            if not TicketService.is_graphic_design_ticket(ticket):
+                hours = TicketService.get_sla_hours_for_ticket(ticket.priority, ticket.category)
+                base_time = ticket.taken_at or ticket.created_at or datetime.now(timezone.utc)
+                ticket.sla_deadline = TicketService.calculate_business_deadline(base_time, hours=hours)
             
         if 'collaboratorIds' in data:
             old_collab_names = set(u.full_name for u in ticket.collaborators)
@@ -1186,8 +1292,34 @@ class TicketService:
                 else:
                     ticket.response_sla_status = 'good'
 
+        # Guard: Tiket yang sudah di-assign tapi belum memiliki SLA deadline wajib diinisialisasi
+        if ticket.assigned_to_id and not ticket.sla_deadline and str(ticket.status).strip().lower() not in ('resolved', 'closed') and not is_design:
+            now_utc = datetime.now(timezone.utc)
+            if not ticket.taken_at:
+                ticket.taken_at = now_utc
+            hours = TicketService.get_sla_hours_for_ticket(ticket.priority, ticket.category)
+            ticket.sla_deadline = TicketService.calculate_business_deadline(now_utc, hours=hours)
+            if not ticket.first_responded_at:
+                ticket.first_responded_at = now_utc
+                if ticket.response_deadline:
+                    dl_aware = ticket.response_deadline if ticket.response_deadline.tzinfo else ticket.response_deadline.replace(tzinfo=timezone.utc)
+                    ticket.response_sla_status = 'breached' if now_utc > dl_aware else 'good'
+                else:
+                    ticket.response_sla_status = 'good'
+        elif not ticket.assigned_to_id and not is_design:
+            ticket.sla_deadline = None
+            ticket.taken_at = None
+
         ticket.updated_at = datetime.now(timezone.utc)
-        ticket.sla_status = TicketService.calculate_sla_status(ticket.sla_deadline, ticket.resolved_at, ticket.sla_paused_at, ticket.assigned_user)
+        ticket.sla_status = TicketService.calculate_sla_status(
+            ticket.sla_deadline,
+            ticket.resolved_at,
+            ticket.sla_paused_at,
+            ticket.assigned_user,
+            is_design=is_design,
+            status=ticket.status,
+            taken_at=ticket.taken_at
+        )
         db.session.commit()
 
         # ── Notifikasi Admin Override (best-effort, tidak memblokir update):
@@ -1237,6 +1369,25 @@ class TicketService:
             except Exception as notif_err:
                 db.session.rollback()
                 print(f"Admin override notification failed: {notif_err}")
+
+        # ── Notifikasi takeover oleh STAFF non-pemilik (alur Admin Override):
+        # staff lain yang mengambil alih tiket WAJIB memberi alasan (divalidasi
+        # di guard kepemilikan di atas). Pemilik lama harus diberi tahu supaya
+        # tiket tidak hilang diam-diam dari meja kerjanya.
+        if (not is_admin and actor and ticket.taken_at and admin_reason
+                and old_assigned_id and ticket.assigned_to_id != old_assigned_id):
+            try:
+                from app.services.notification_service import NotificationService
+
+                NotificationService.notify_admin_assignee_change(
+                    ticket, actor, old_assigned_id, ticket.assigned_to_id, admin_reason,
+                    actor_label='Staff'
+                )
+                ticket.transferred_at = datetime.now(timezone.utc)
+                db.session.commit()
+            except Exception as notif_err:
+                db.session.rollback()
+                print(f"Assignee takeover notification failed: {notif_err}")
 
         return ticket
 
@@ -1321,9 +1472,9 @@ class TicketService:
 
             ticket.assigned_to_id = user_id
 
-            # Postpone SLA deadline calculation until it is assigned (taken)
+            # Postpone SLA deadline calculation until it is assigned (taken) - IT tickets only
             now_utc = datetime.now(timezone.utc)
-            if not ticket.sla_deadline:
+            if not ticket.sla_deadline and not TicketService.is_graphic_design_ticket(ticket):
                 hours = TicketService.get_sla_hours_for_ticket(ticket.priority, ticket.category)
                 ticket.sla_deadline = TicketService.calculate_business_deadline(now_utc, hours=hours)
             # Set taken_at only on first assignment (marker "pernah diambil" —
@@ -1408,11 +1559,10 @@ class TicketService:
                 return None, "Tiket ini sudah pernah diambil dan tidak bisa dilepas kembali ke pool unassigned. Gunakan fitur oper (assign ke staff lain dengan alasan)."
             if ticket.status.lower() != 'new':
                 return None, f"Tiket dengan status '{ticket.status}' tidak bisa dilepas ke unassigned — hanya tiket New yang boleh unassigned. Kembalikan statusnya ke New dulu bila memang belum dikerjakan."
-            if ticket.status.lower() in ('resolved', 'closed', 'completed'):
-                return None, f"Ticket dengan status '{ticket.status}' tidak bisa diubah assigneenya. Ubah statusnya terlebih dahulu dari '{ticket.status}' ke status lain."
             ticket.assigned_to_id = None
-            ticket.sla_deadline = None
-            ticket.sla_status = 'good'
+            if not TicketService.is_graphic_design_ticket(ticket):
+                ticket.sla_deadline = None
+                ticket.sla_status = 'good'
             ticket.taken_at = None
             # Revert to default status
             default_status = Status.query.filter_by(is_default=True).first()
@@ -1493,10 +1643,11 @@ class TicketService:
                     "Alasan akan tercatat di Ticket History."
                 )
 
-        # Handle SLA Pausing
+        # Handle SLA Pausing - Hanya berlaku untuk tiket IT, TIDAK berlaku untuk tiket Graphic Design
         old_status_name = ticket.status
         old_status = Status.query.filter(Status.name.ilike(old_status_name)).first()
         new_status = Status.query.filter(Status.name.ilike(status)).first()
+        is_design_status = TicketService.is_graphic_design_ticket(ticket)
         
         # Handle SLA Pausing
         TicketService._apply_sla_pause_transition(ticket, old_status, new_status)
@@ -1580,13 +1731,11 @@ class TicketService:
             # Masuk (atau re-enter setelah reopen) grup done: stamp waktu selesai.
             # Custom resolvedAt dari UI dipakai bila ada, selain itu now (UTC naive)
             # juga wajib lolos validasi jam kerja.
-            if resolved_at_str:
-                dt_parsed = datetime.fromisoformat(str(resolved_at_str).replace('Z', '+00:00'))
-                ticket.resolved_at = TicketService.validate_resolved_at_working_hours(dt_parsed)
-            else:
-                ticket.resolved_at = TicketService.validate_resolved_at_working_hours(
-                    datetime.now(timezone.utc).replace(tzinfo=None)
-                )
+            dt_parsed = (
+                datetime.fromisoformat(str(resolved_at_str).replace('Z', '+00:00'))
+                if resolved_at_str else datetime.now(timezone.utc)
+            )
+            ticket.resolved_at = TicketService.validate_resolved_at_working_hours(dt_parsed)
 
         if status.lower() == 'resolved':
             if resolution_summary:
@@ -1609,7 +1758,8 @@ class TicketService:
             )
 
         # Guard: Tiket yang sudah di-assign tapi belum memiliki SLA deadline wajib diinisialisasi
-        if ticket.assigned_to_id and not ticket.sla_deadline and str(status).strip().lower() not in ('resolved', 'closed'):
+        is_design_status = TicketService.is_graphic_design_ticket(ticket)
+        if ticket.assigned_to_id and not ticket.sla_deadline and str(status).strip().lower() not in ('resolved', 'closed') and not is_design_status:
             now_utc = datetime.now(timezone.utc)
             if not ticket.taken_at:
                 ticket.taken_at = now_utc
@@ -1622,9 +1772,20 @@ class TicketService:
                     ticket.response_sla_status = 'breached' if now_utc > dl_aware else 'good'
                 else:
                     ticket.response_sla_status = 'good'
+        elif not ticket.assigned_to_id and not is_design_status:
+            ticket.sla_deadline = None
+            ticket.taken_at = None
 
         ticket.updated_at = datetime.now(timezone.utc)
-        ticket.sla_status = TicketService.calculate_sla_status(ticket.sla_deadline, ticket.resolved_at, ticket.sla_paused_at, ticket.assigned_user)
+        ticket.sla_status = TicketService.calculate_sla_status(
+            ticket.sla_deadline,
+            ticket.resolved_at,
+            ticket.sla_paused_at,
+            ticket.assigned_user,
+            is_design=is_design_status,
+            status=status,
+            taken_at=ticket.taken_at
+        )
         db.session.commit()
 
         if status.lower() == 'resolved' and old_status_name_snap.lower() != 'resolved':
@@ -1640,7 +1801,7 @@ class TicketService:
                 from app.models.notification import Notification
                 Notification.query.filter(
                     Notification.ticket_id == ticket.id,
-                    Notification.type.in_(['sla_warning', 'sla_breached']),
+                    Notification.type.in_(['sla_warning', 'sla_breached', 'deadline_warning', 'deadline_breached']),
                     Notification.is_read == False
                 ).update({'is_read': True}, synchronize_session=False)
                 db.session.commit()
@@ -1701,9 +1862,13 @@ class TicketService:
         return note
 
     @staticmethod
-    def get_stats(user_id=None, days=7, start=None, end=None):
-        """Get ticket statistics for dashboard, optionally filtered by user"""
+    def get_stats(user_id=None, days=7, start=None, end=None, team_id=None, team_ids=None):
+        """Get ticket statistics for dashboard, optionally filtered by user/team."""
         base_query = Ticket.query.filter(Ticket.category != DEV_CATEGORY)
+        if team_id is not None:
+            base_query = base_query.filter(Ticket.team_id == team_id)
+        elif team_ids is not None:
+            base_query = base_query.filter(Ticket.team_id.in_(team_ids))
         if user_id:
             base_query = base_query.filter(Ticket.assigned_to_id == user_id)
             
@@ -1771,6 +1936,10 @@ class TicketService:
         prio_query = db.session.query(
             db.func.lower(Ticket.priority), db.func.count(Ticket.id)
         ).filter(Ticket.category != DEV_CATEGORY)
+        if team_id is not None:
+            prio_query = prio_query.filter(Ticket.team_id == team_id)
+        elif team_ids is not None:
+            prio_query = prio_query.filter(Ticket.team_id.in_(team_ids))
         if user_id:
             prio_query = prio_query.filter(Ticket.assigned_to_id == user_id)
         if done_status_names:
@@ -1780,6 +1949,10 @@ class TicketService:
 
         # Category breakdown (tiket DIBUAT dalam jendela bila ada)
         cats_query = db.session.query(Ticket.category, db.func.count(Ticket.id)).filter(Ticket.category != DEV_CATEGORY)
+        if team_id is not None:
+            cats_query = cats_query.filter(Ticket.team_id == team_id)
+        elif team_ids is not None:
+            cats_query = cats_query.filter(Ticket.team_id.in_(team_ids))
         if user_id:
             cats_query = cats_query.filter(Ticket.assigned_to_id == user_id)
         cats_query = _in_window(cats_query)
@@ -1788,6 +1961,10 @@ class TicketService:
 
         # Department breakdown (tiket DIBUAT dalam jendela bila ada)
         depts_query = db.session.query(Ticket.submitter_department, db.func.count(Ticket.id)).filter(Ticket.category != DEV_CATEGORY)
+        if team_id is not None:
+            depts_query = depts_query.filter(Ticket.team_id == team_id)
+        elif team_ids is not None:
+            depts_query = depts_query.filter(Ticket.team_id.in_(team_ids))
         if user_id:
             depts_query = depts_query.filter(Ticket.assigned_to_id == user_id)
         depts_query = _in_window(depts_query)
@@ -1819,6 +1996,10 @@ class TicketService:
             ).all() if done_status_names else []
         else:
             resolved_all_q = Ticket.query.filter(Ticket.category != DEV_CATEGORY).filter(db.func.lower(Ticket.status).in_(done_status_names))
+            if team_id is not None:
+                resolved_all_q = resolved_all_q.filter(Ticket.team_id == team_id)
+            elif team_ids is not None:
+                resolved_all_q = resolved_all_q.filter(Ticket.team_id.in_(team_ids))
             if user_id:
                 resolved_all_q = resolved_all_q.filter(Ticket.assigned_to_id == user_id)
             resolved_all = resolved_all_q.all()

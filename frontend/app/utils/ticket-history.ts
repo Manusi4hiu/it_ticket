@@ -48,6 +48,8 @@ const SYSTEM_NOTE_PATTERNS = [
   /Prioritas diganti/i,
   /Priority changed/i,
   /Otomatis di-assign/i,
+  /Tiket di-reopen/i,
+  /Ticket reopened/i,
 ];
 
 /** Apakah note adalah system note (perubahan status/assignee/kategori, bukan chat staff)? */
@@ -234,6 +236,22 @@ export function parseSystemNote(note: RawNote): HistoryEntry | null {
       label: "Otomatis Di-assign",
       detail: stripHtml(m[1]),
       reason,
+      author: note.author,
+      createdAt: note.createdAt,
+    };
+  }
+
+  // 9. Reopen: "Tiket di-reopen oleh X (Reopen #Y)"
+  m = content.match(/Tiket di-reopen(?:\s+oleh\s+(.*?))?(?:<\/strong>|<\/p>|$)/i);
+  if (m) {
+    const reasonMatch = content.match(/<em>Alasan:\s*<\/em>\s*(.*?)\s*<\/p>/i) || content.match(/Alasan:\s*(.*?)(?:<\/p>|$)/i);
+    const parsedReason = reasonMatch ? stripHtml(reasonMatch[1]) : reason;
+    return {
+      id: note.id,
+      kind: "status",
+      label: "Tiket Di-reopen",
+      detail: m[1] ? stripHtml(m[1]) : undefined,
+      reason: parsedReason,
       author: note.author,
       createdAt: note.createdAt,
     };

@@ -1,5 +1,8 @@
 .container {
   height: 100vh;
+  height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  width: 100%;
+  max-width: 100vw;
   display: flex;
   flex-direction: column;
   background: linear-gradient(135deg, #050b14 0%, #0a192f 50%, #020c1b 100%);
@@ -22,6 +25,8 @@
 }
 
 .header {
+  width: 100%;
+  box-sizing: border-box;
   background: rgba(10, 25, 47, 0.75);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
@@ -35,6 +40,8 @@
 
 .headerContent {
   max-width: 1400px;
+  width: 100%;
+  min-width: 0;
   margin: 0 auto;
   display: flex;
   justify-content: space-between;
@@ -195,9 +202,12 @@
 .main {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
   min-height: 0;
+  min-width: 0;
+  width: 100%;
 }
 
 .modeToggle {
@@ -235,8 +245,39 @@
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
-/* ── Responsive Mobile & Tablet Navbar (<= 860px) ── */
-@media (max-width: 860px) {
+/* ── Compact Desktop Navbar (1025px - 1180px) ── */
+@media (max-width: 1180px) {
+  .header {
+    padding: 10px 16px;
+  }
+
+  .headerContent {
+    gap: 10px;
+  }
+
+  .headerTitle {
+    font-size: 1.05rem;
+  }
+
+  .navBar {
+    gap: 8px;
+    margin-right: 4px;
+  }
+
+  .navLink {
+    padding: 6px 9px;
+    font-size: 0.8rem;
+    gap: 5px;
+  }
+
+  .toggleBtn {
+    padding: 4px 10px;
+    font-size: 0.74rem;
+  }
+}
+
+/* ── Responsive Mobile & Tablet Navbar (<= 1024px) ── */
+@media (max-width: 1024px) {
   .header {
     padding: 10px 16px 8px;
   }
@@ -335,6 +376,10 @@
   .navIcon {
     width: 14px;
     height: 14px;
+  }
+
+  :global(html[data-pwa-banner="visible"]) .main {
+    padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px));
   }
 }
 

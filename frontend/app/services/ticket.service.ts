@@ -7,7 +7,7 @@
  * Types are imported from ~/types/*, NOT defined here.
  */
 
-import { ticketsApi, usersApi } from './api.service';
+import { ticketsApi, usersApi, setAuthToken } from './api.service';
 import type { Ticket, TicketNote, SLAStatus } from '~/types/ticket.types';
 import type { Agent } from '~/types/user.types';
 
@@ -27,6 +27,9 @@ function mapApiTicket(apiTicket: Record<string, unknown>): Ticket {
         status: apiTicket.status as string,
         priority: apiTicket.priority as string,
         category: apiTicket.category as string,
+        teamId: apiTicket.teamId as number | undefined,
+        teamCode: apiTicket.teamCode as string | undefined,
+        teamName: apiTicket.teamName as string | undefined,
         submitterName: apiTicket.submitterName as string,
         submitterEmail: apiTicket.submitterEmail as string,
         submitterPhone: apiTicket.submitterPhone as string | undefined,
@@ -57,6 +60,7 @@ function mapApiTicket(apiTicket: Record<string, unknown>): Ticket {
         })),
         resolutionSummary: apiTicket.resolutionSummary as string | undefined,
         resolutionImageUrl: apiTicket.resolutionImageUrl as string | undefined,
+        hasStaffAccess: typeof apiTicket.hasStaffAccess === 'boolean' ? apiTicket.hasStaffAccess : undefined,
     };
 }
 
@@ -79,6 +83,7 @@ export async function getTickets(filters?: {
     date?: string;
     page?: number;
     per_page?: number;
+    teamId?: number | string;
 }): Promise<{ tickets: Ticket[]; total: number }> {
     const response = await ticketsApi.getAll(filters);
 
@@ -94,7 +99,14 @@ export async function getTickets(filters?: {
 }
 
 export async function getTicketById(id: string): Promise<Ticket | null> {
-    const response = await ticketsApi.getById(id);
+    let response = await ticketsApi.getById(id);
+
+    // If request failed due to auth/token issues (e.g. revoked or expired token in SSR), retry as public tracking
+    const errStr = (response.error || '').toLowerCase();
+    if (!response.success && (errStr.includes('token') || errStr.includes('401') || errStr.includes('unauthorized'))) {
+        setAuthToken(null);
+        response = await ticketsApi.getById(id);
+    }
 
     if (!response.success || !response.data) {
         console.error('Failed to fetch ticket:', response.error);
@@ -114,12 +126,15 @@ export async function createTicket(ticket: {
     submitterPhone?: string;
     submitterDepartment?: string;
     receiveUpdates?: boolean;
+    assignedToId?: string | number;
+    teamId?: number | string;
+    teamCode?: string;
+    deadline?: string;
 }, image?: File, idempotencyKey?: string): Promise<Ticket | null> {
     const response = await ticketsApi.create(ticket, image, idempotencyKey);
 
     if (!response.success || !response.data) {
-        console.error('Failed to create ticket:', response.error);
-        return null;
+        throw new Error(response.error || 'Gagal membuat ticket.');
     }
 
     const data = response.data as { ticket: Record<string, unknown> };
@@ -209,7 +224,7 @@ export async function addTicketNote(
     };
 }
 
-export async function getTicketStats(personal: boolean = false, days?: number, opts?: { start?: string; end?: string }): Promise<{
+export async function getTicketStats(personal: boolean = false, days?: number, opts?: { start?: string; end?: string; teamId?: string | number }): Promise<{
     total: number;
     open: number;
     new: number;
@@ -266,8 +281,8 @@ export async function getTicketStats(personal: boolean = false, days?: number, o
     };
 }
 
-export async function getAgents(): Promise<Agent[]> {
-    const response = await usersApi.getAgents();
+export async function getAgents(teamId?: number): Promise<Agent[]> {
+    const response = await usersApi.getAgents(teamId);
 
     if (!response.success || !response.data) {
         console.error('Failed to fetch agents:', response.error);
@@ -277,7 +292,7 @@ export async function getAgents(): Promise<Agent[]> {
     return response.data.agents;
 }
 
-export async function getAllAgentsPerformance(opts?: { start?: string; end?: string }) {
+export async function getAllAgentsPerformance(opts?: { start?: string; end?: string; teamId?: string | number }) {
     const response = await usersApi.getAllPerformance(opts);
 
     if (!response.success || !response.data) {

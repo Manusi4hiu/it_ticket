@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useSubmit } from 'react-router';
-import { clearAuthToken } from '~/services/api.service';
+import { clearAuthToken, getAuthToken } from '~/services/api.service';
 
 /**
  * useIdleTimeout — mendeteksi inaktivitas user dan menampilkan warning
@@ -26,6 +26,10 @@ export function useIdleTimeout(
   const handleLogout = useCallback(() => {
     setShowWarning(false);
     if (countdownRef.current) clearInterval(countdownRef.current);
+    const tokenSnapshot = getAuthToken();
+    void import('~/services/push.service')
+      .then(({ cleanupClientOnLogout }) => cleanupClientOnLogout(tokenSnapshot))
+      .catch(() => {});
     clearAuthToken(); // Bersihkan token in-memory sebelum redirect
     const formData = new FormData();
     formData.append('intent', 'logout');
