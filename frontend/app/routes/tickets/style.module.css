@@ -6,6 +6,10 @@
   gap: 18px;
   color: #f3f4f6;
   height: calc(100dvh - 70px);
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
   box-sizing: border-box;
 }
 
@@ -13,6 +17,8 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .titleRow {
@@ -21,6 +27,7 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 12px;
+  min-width: 0;
 }
 
 .title {
@@ -38,9 +45,16 @@
   min-height: 38px;
   padding: 3px;
   gap: 2px;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
   background: rgba(17, 24, 39, 0.6);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 10px;
+}
+
+.seg::-webkit-scrollbar {
+  display: none;
 }
 
 .segBtn,
@@ -53,6 +67,8 @@
   border: 1.5px solid transparent;
   background: transparent;
   color: #9ca3af;
+  white-space: nowrap;
+  flex-shrink: 0;
   transition: all 0.2s ease;
 }
 
@@ -143,9 +159,10 @@
 /* Segmented Status Controls */
 .segmentedControls {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
   width: 100%;
+  min-width: 0;
 }
 
 .segmentedButton {
@@ -154,7 +171,9 @@
   justify-content: center;
   gap: 10px;
   height: 42px;
-  padding: 0 16px;
+  padding: 0 12px;
+  min-width: 0;
+  white-space: nowrap;
   border-radius: 10px;
   background: rgba(17, 24, 39, 0.6);
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -258,6 +277,10 @@
   flex-direction: column;
   flex: 1;
   min-height: 0;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .tableWrapper {
@@ -266,6 +289,8 @@
   -webkit-overflow-scrolling: touch;
   flex: 1;
   min-height: 0;
+  width: 100%;
+  max-width: 100%;
 }
 
 .table {
@@ -1044,7 +1069,23 @@
 @media (max-width: 1024px) {
   .container { padding: 16px; gap: 14px; height: auto; }
   .table { min-width: 800px; }
-  .segmentedControls { gap: 8px; }
+  .segmentedControls {
+    display: flex;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    gap: 8px;
+    padding-bottom: 2px;
+  }
+  .segmentedControls::-webkit-scrollbar {
+    display: none;
+  }
+  .segmentedButton {
+    flex-shrink: 0;
+    padding: 0 12px;
+    font-size: 0.8rem;
+    gap: 6px;
+  }
 }
 
 @media (max-width: 768px) {

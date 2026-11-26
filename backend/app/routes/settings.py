@@ -56,10 +56,25 @@ def update_team(id):
 @settings_bp.route('/teams/<int:id>', methods=['DELETE'])
 @admin_required
 def delete_team(id):
-    team = Team.query.get(id)
+    from app import db
+    from app.models.ticket import Ticket
+    team = db.session.get(Team, id)
     if not team:
         return jsonify({'success': False, 'error': 'Team not found'}), 404
-    from app import db
+    # Safety: jangan hapus team yang masih memiliki tiket
+    ticket_count = Ticket.query.filter_by(team_id=id).count()
+    if ticket_count > 0:
+        return jsonify({
+            'success': False,
+            'error': f'Team masih memiliki {ticket_count} tiket. Pindahkan atau hapus tiket terlebih dahulu.'
+        }), 409
+    # Safety: jangan hapus team yang masih memiliki anggota (cegah FK user_teams error)
+    member_count = len(team.members)
+    if member_count > 0:
+        return jsonify({
+            'success': False,
+            'error': f'Team masih memiliki {member_count} anggota. Keluarkan semua anggota terlebih dahulu.'
+        }), 409
     db.session.delete(team)
     db.session.commit()
     return jsonify({'success': True})

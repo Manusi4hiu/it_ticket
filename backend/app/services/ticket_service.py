@@ -689,6 +689,10 @@ class TicketService:
                     raise ValueError(f"Format deadline tidak valid: {str(e)}")
                 if sla_deadline < (now_utc - timedelta(minutes=1)).replace(tzinfo=None):
                     raise ValueError("Waktu deadline tidak boleh di masa lalu")
+                # BUG-3 FIX: COC tiket dengan assignee langsung set taken_at
+                if assigned_to_id:
+                    sla_taken_at = now_utc
+                    first_responded_at = now_utc
             elif assigned_to_id and not is_coc_or_design:
                 hours = TicketService.get_sla_hours_for_ticket(priority, category)
                 sla_deadline = TicketService.calculate_business_deadline(now_utc, hours=hours)
@@ -1558,8 +1562,6 @@ class TicketService:
                 return None, "Tiket ini sudah pernah diambil dan tidak bisa dilepas kembali ke pool unassigned. Gunakan fitur oper (assign ke staff lain dengan alasan)."
             if ticket.status.lower() != 'new':
                 return None, f"Tiket dengan status '{ticket.status}' tidak bisa dilepas ke unassigned — hanya tiket New yang boleh unassigned. Kembalikan statusnya ke New dulu bila memang belum dikerjakan."
-            if ticket.status.lower() in ('resolved', 'closed', 'completed'):
-                return None, f"Ticket dengan status '{ticket.status}' tidak bisa diubah assigneenya. Ubah statusnya terlebih dahulu dari '{ticket.status}' ke status lain."
             ticket.assigned_to_id = None
             if not TicketService.is_graphic_design_ticket(ticket):
                 ticket.sla_deadline = None

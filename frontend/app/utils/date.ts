@@ -290,6 +290,49 @@ export function formatTimeRemaining(
 }
 
 /**
+ * Hitung sisa waktu menuju deadline secara real-time (kalender biasa, bukan jam kerja).
+ * Dipakai untuk tiket COC/Graphic Design di mana deadline adalah wall-clock time,
+ * bukan SLA berbasis business hours.
+ */
+export function formatDeadlineRemaining(
+  deadline: Date | string | undefined,
+): string {
+  if (!deadline) return "-";
+
+  const deadlineDate = new Date(deadline);
+  if (isNaN(deadlineDate.getTime())) return "-";
+
+  const now = new Date();
+  const diffMs = deadlineDate.getTime() - now.getTime();
+
+  if (diffMs <= 0) {
+    // Sudah lewat — hitung berapa lama overdue
+    const overMs = Math.abs(diffMs);
+    const totalMins = Math.floor(overMs / 60000);
+    const hours = Math.floor(totalMins / 60);
+    const minutes = totalMins % 60;
+    if (hours >= 24) {
+      const days = Math.floor(hours / 24);
+      const remH = hours % 24;
+      return `${days}d ${remH}h overdue`;
+    }
+    return `${hours}h ${minutes}m overdue`;
+  }
+
+  const totalMins = Math.floor(diffMs / 60000);
+  const hours = Math.floor(totalMins / 60);
+  const minutes = totalMins % 60;
+
+  if (hours >= 24) {
+    const days = Math.floor(hours / 24);
+    const remH = hours % 24;
+    return `${days}d ${remH}h`;
+  }
+
+  return `${hours}h ${minutes}m`;
+}
+
+/**
  * Validasi apakah input tanggal dan jam resolusi valid sesuai aturan bisnis:
  * 1. Tidak boleh di masa depan (maksimal sekarang).
  * 2. Hanya bisa di hari kerja (Senin - Jumat).

@@ -116,6 +116,7 @@ interface PwaInstallButtonProps {
   className?: string;
   variant?: "default" | "outline" | "ghost";
   label?: string;
+  iconOnly?: boolean;
 }
 
 /**
@@ -126,6 +127,7 @@ export function PwaInstallButton({
   className,
   variant = "outline",
   label = "Download App",
+  iconOnly = false,
 }: PwaInstallButtonProps) {
   const { isStandalone, platform, isInsecureOrigin, showGuide, setShowGuide, triggerInstall } =
     usePWAInstall();
@@ -139,9 +141,11 @@ export function PwaInstallButton({
         variant={variant}
         className={className}
         onClick={() => void triggerInstall()}
+        aria-label={label}
+        title={label}
       >
-        <Download size={18} />
-        {label}
+        <Download size={iconOnly ? 20 : 18} />
+        {!iconOnly && label}
       </Button>
 
       <PwaInstallGuideDialog

@@ -7,12 +7,14 @@
  * - Untuk Administrator/assignee: bisa mengedit waktu resolved
  */
 
+import { useState, useEffect } from "react";
 import { CheckCircle, Clock, AlertTriangle } from "lucide-react";
 import { Button } from "~/components/ui/button/button";
 import {
   formatDate,
   formatDuration,
   formatTimeRemaining,
+  formatDeadlineRemaining,
   toDatetimeLocalString,
   isWithinWorkingHours,
   validateWorkingHoursDateTime,
@@ -183,6 +185,13 @@ export function SlaCard({
   const isGraphicDesign = isGraphicDesignTicket(ticket);
   const effectiveStatus = ticket.slaStatus || "good";
 
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    if (!isGraphicDesign || isResolved || !ticket.slaDeadline) return;
+    const id = setInterval(() => setTick((n) => n + 1), 60_000);
+    return () => clearInterval(id);
+  }, [isGraphicDesign, isResolved, ticket.slaDeadline]);
+
   const slaStatusKey =
     effectiveStatus.charAt(0).toUpperCase() + effectiveStatus.slice(1);
 
@@ -192,7 +201,7 @@ export function SlaCard({
     : !ticket.slaDeadline
     ? (isGraphicDesign ? "-" : "Belum Diambil")
     : isGraphicDesign
-    ? rawTimeRemaining.replace(" overdue", "")
+    ? formatDeadlineRemaining(ticket.slaDeadline)
     : rawTimeRemaining;
 
   return (
@@ -235,7 +244,7 @@ export function SlaCard({
             holidays={holidays}
           />
         ) : !ticket.slaDeadline ? (
-          <>{isGraphicDesign ? "Awaiting Assignment" : "Awaiting IT User Assignment"}</>
+          <>{isGraphicDesign ? "Awaiting Deadline" : "Awaiting IT User Assignment"}</>
         ) : (
           <>Deadline: {formatDate(ticket.slaDeadline)}</>
         )}

@@ -271,12 +271,9 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
                 <img src={publicAsset("logo/logo itani.png")} alt="Logo" className={styles.headerIcon} />
               </div>
               <h1 className={styles.headerTitle}>
-                {isDevMode ? "IT Aero Dev" : "IT Aero Support"}
+                {isDevMode ? L.headerDev : L.headerSupport}
               </h1>
             </div>
-            <h1 className={styles.headerTitle}>
-              {isDevMode ? L.headerDev : L.headerSupport}
-            </h1>
 
             {session && (
               <div className={styles.navActionGroup}>

@@ -110,8 +110,9 @@ export default function Home({ loaderData }: Route.ComponentProps) {
             </Button>
             <PwaInstallButton
               variant="outline"
-              className={styles.secondaryButton}
+              className={`${styles.secondaryButton} ${styles.iconButton}`}
               label="Download Mobile App"
+              iconOnly
             />
           </div>
         </div>
