@@ -10,21 +10,31 @@
     --portal-card-bg: #0d1524;
     --portal-tint: #0b1629;
 
+    min-height: 100%;
     padding: 28px 24px 56px;
     position: relative;
     z-index: 1;
 }
 
 .cocTheme {
-    --portal-accent: #f59e0b;
-    --portal-accent-light: #fbbf24;
-    --portal-btn-bg: #f59e0b;
-    --portal-btn-hover: #d97706;
+    --portal-accent: #c9912f;
+    --portal-accent-light: #dfb055;
+    --portal-btn-bg: #c9912f;
+    --portal-btn-hover: #b07d24;
     --portal-btn-text: #090d16;
-    --portal-border: #433219;
-    --portal-border-strong: #f59e0b;
-    --portal-card-bg: #13131b;
-    --portal-tint: #171410;
+    --portal-border: #4f3d19;
+    --portal-border-strong: #c9912f;
+    --portal-card-bg: #17140d;
+    --portal-tint: #1e190f;
+
+    background-color: #110f0a;
+}
+
+.cocTheme .input,
+.cocTheme .select,
+.cocTheme .textarea {
+    background: #110f0a !important;
+    border-color: #403216 !important;
 }
 
 /* Top Bar */

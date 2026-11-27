@@ -24,6 +24,19 @@
   pointer-events: none;
 }
 
+.containerCoc {
+  background: #110f0a;
+}
+
+.containerCoc::before {
+  display: none;
+}
+
+.headerCoc {
+  background: rgba(17, 15, 10, 0.92);
+  border-bottom-color: rgba(201, 145, 47, 0.28);
+}
+
 .header {
   width: 100%;
   box-sizing: border-box;

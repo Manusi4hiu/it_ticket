@@ -399,7 +399,7 @@ export default function SubmitTicket({ actionData, loaderData }: Route.Component
                                                     id="receiveUpdates"
                                                     name="receiveUpdates"
                                                     defaultChecked={true}
-                                                    style={{ width: '16px', height: '16px', accentColor: isGraphicDesign ? '#f59e0b' : '#2563eb', cursor: 'pointer' }}
+                                                    style={{ width: '16px', height: '16px', accentColor: isGraphicDesign ? '#c9912f' : '#2563eb', cursor: 'pointer' }}
                                                 />
                                                 <Label htmlFor="receiveUpdates" style={{ cursor: 'pointer', fontSize: '13px', color: '#94a3b8', fontWeight: 'normal', margin: 0 }}>
                                                     Receive updates and activities via email

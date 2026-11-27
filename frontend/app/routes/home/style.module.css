@@ -232,12 +232,12 @@
 }
 
 .cocCard {
-  background-color: #141210;
-  border: 1px solid #453318;
+  background-color: #14120b;
+  border: 1px solid #4f3d19;
 }
 
 .cocCard:hover {
-  border-color: #d97706;
+  border-color: #c9912f;
 }
 
 .portalCardTop {
@@ -265,9 +265,9 @@
 }
 
 .cocIcon {
-  background-color: #211a10;
-  border: 1px solid #453318;
-  color: #fbbf24;
+  background-color: #231c0f;
+  border: 1px solid #4f3d19;
+  color: #dfb055;
 }
 
 .portalBadges {
@@ -293,9 +293,9 @@
 }
 
 .cocBadge {
-  background-color: #211a10;
-  border: 1px solid #453318;
-  color: #fde68a;
+  background-color: #231c0f;
+  border: 1px solid #4f3d19;
+  color: #f3d591;
 }
 
 .modeTag {
@@ -366,12 +366,12 @@
 }
 
 .cocChip {
-  background-color: #0e0c09;
-  border: 1px solid #2e2416;
+  background-color: #0f0d08;
+  border: 1px solid #382b13;
 }
 
 .cocChip svg {
-  color: #fbbf24;
+  color: #dfb055;
   flex-shrink: 0;
 }
 
@@ -384,7 +384,7 @@
 }
 
 .cocCard .portalFooter {
-  border-top-color: #2e2416;
+  border-top-color: #382b13;
 }
 
 .workflowMeta {
@@ -439,12 +439,12 @@
 }
 
 .cocCta {
-  background-color: #f59e0b;
+  background-color: #c9912f;
   color: #090d16;
 }
 
 .cocCta:hover {
-  background-color: #d97706;
+  background-color: #b07d24;
 }
 
 .ctaArrow {

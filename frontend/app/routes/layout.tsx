@@ -259,8 +259,8 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
   }, [session?.userId]);
 
   return (
-    <div className={styles.container}>
-      <header className={styles.header}>
+    <div className={`${styles.container} ${isCoc ? styles.containerCoc : ''}`}>
+      <header className={`${styles.header} ${isCoc ? styles.headerCoc : ''}`}>
         <div className={styles.headerContent}>
           <div className={styles.headerTopRow}>
             <div
