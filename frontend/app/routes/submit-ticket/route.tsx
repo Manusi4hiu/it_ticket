@@ -11,6 +11,7 @@ import { Alert, AlertDescription } from "~/components/ui/alert/alert";
 import {
     TicketPlus,
     ArrowLeft,
+    ArrowLeftRight,
     CheckCircle,
     User,
     Mail,
@@ -23,6 +24,8 @@ import {
     Image as ImageIcon,
     X,
     Clock,
+    MonitorCog,
+    Palette,
 } from "lucide-react";
 import styles from "./style.module.css";
 
@@ -286,11 +289,20 @@ export default function SubmitTicket({ actionData, loaderData }: Route.Component
     };
 
     return (
-        <div className={styles.main}>
-            <div style={{ marginBottom: 'var(--space-6)' }}>
+        <div className={`${styles.main} ${isGraphicDesign ? styles.cocTheme : styles.itTheme}`}>
+            <div className={styles.topActionRow}>
                 <Link to={homePath} className={styles.backLink}>
-                    <ArrowLeft size={20} />
+                    <ArrowLeft size={18} />
                     Back to Home
+                </Link>
+                <Link
+                    to={isGraphicDesign ? "/submit-ticket" : "/corcom/submit-ticket"}
+                    className={styles.switchPortalLink}
+                >
+                    <ArrowLeftRight size={14} />
+                    <span>
+                        {isGraphicDesign ? "Switch to IT Support" : "Switch to Corcom"}
+                    </span>
                 </Link>
             </div>
             <div className={styles.formContainer}>
@@ -299,13 +311,18 @@ export default function SubmitTicket({ actionData, loaderData }: Route.Component
                         <div className={styles.successIcon}>
                             <CheckCircle size={64} />
                         </div>
+                        <div className={styles.successTeamPill}>
+                            {isGraphicDesign ? "CORCOM • CREATIVE REQUEST" : "IT SUPPORT • HELPDESK"}
+                        </div>
                         <h2 className={styles.successTitle}>Ticket Created Successfully!</h2>
                         <p className={styles.successMessage}>
                             Your ticket number is:
                         </p>
                         <div className={styles.ticketId}>{actionData.ticketCode || actionData.ticketId}</div>
                         <p className={styles.successHint}>
-                            Please save this ID to track your ticket status. We've also sent a confirmation to your email.
+                            {isGraphicDesign
+                                ? "Save this ID to track design progress and release schedule. Confirmation has been sent if email was provided."
+                                : "Please save this ID to track your ticket status. We've also sent a confirmation to your email."}
                         </p>
                         <div className={styles.successActions}>
                             <Button onClick={() => navigate(`/ticket/${actionData.ticketCode || actionData.ticketId}`)}>
@@ -319,12 +336,17 @@ export default function SubmitTicket({ actionData, loaderData }: Route.Component
                 ) : (
                     <Card className={styles.formCard}>
                         <CardHeader className={styles.cardHeader}>
+                            <div className={styles.headerMeta}>
+                                {isGraphicDesign ? "CORCOM • CREATIVE & DESIGN" : "IT SUPPORT • HELPDESK"}
+                            </div>
                             <CardTitle className={styles.cardTitle}>
-                                <FileText size={24} />
+                                {isGraphicDesign ? <Palette size={22} /> : <MonitorCog size={22} />}
                                 {isGraphicDesign ? "Request Corcom" : "Request IT"}
                             </CardTitle>
                             <CardDescription className={styles.cardDescription}>
-                                Please fill out the form below to submit your support request. Our team will respond as soon as possible.
+                                {isGraphicDesign
+                                    ? "Submit graphic design, publication, or event material requests with a clear target deadline."
+                                    : "Report hardware, network, account, or application issues for the IT team to handle."}
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
@@ -340,7 +362,7 @@ export default function SubmitTicket({ actionData, loaderData }: Route.Component
                                 <div className={styles.formSection}>
                                     <h3 className={styles.sectionTitle}>
                                         <User size={18} />
-                                        Contact Information
+                                        Requester Information
                                     </h3>
                                     <div className={styles.formGrid}>
                                         <div className={styles.formGroup}>
@@ -352,7 +374,7 @@ export default function SubmitTicket({ actionData, loaderData }: Route.Component
                                                 id="name"
                                                 name="name"
                                                 required
-                                                placeholder="John Doe"
+                                                placeholder="Your full name"
                                                 maxLength={100}
                                                 className={styles.input}
                                             />
@@ -367,19 +389,19 @@ export default function SubmitTicket({ actionData, loaderData }: Route.Component
                                                 id="email"
                                                 name="email"
                                                 type="email"
-                                                placeholder="john@company.com"
+                                                placeholder="name@company.com"
                                                 maxLength={120}
                                                 className={styles.input}
                                             />
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '12px' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px' }}>
                                                 <input
                                                     type="checkbox"
                                                     id="receiveUpdates"
                                                     name="receiveUpdates"
                                                     defaultChecked={true}
-                                                    style={{ width: '16px', height: '16px', accentColor: '#1e40af', cursor: 'pointer' }}
+                                                    style={{ width: '16px', height: '16px', accentColor: isGraphicDesign ? '#f59e0b' : '#2563eb', cursor: 'pointer' }}
                                                 />
-                                                <Label htmlFor="receiveUpdates" style={{ cursor: 'pointer', fontSize: '13px', color: '#4b5563', fontWeight: 'normal', margin: 0 }}>
+                                                <Label htmlFor="receiveUpdates" style={{ cursor: 'pointer', fontSize: '13px', color: '#94a3b8', fontWeight: 'normal', margin: 0 }}>
                                                     Receive updates and activities via email
                                                 </Label>
                                             </div>
@@ -423,73 +445,77 @@ export default function SubmitTicket({ actionData, loaderData }: Route.Component
                                     </div>
                                 </div>
 
-                                {/* Ticket Details */}
+                                {/* Ticket Details / Design Brief */}
                                 <div className={styles.formSection}>
                                     <h3 className={styles.sectionTitle}>
-                                        <FileText size={18} />
-                                        Ticket Details
+                                        {isGraphicDesign ? <Palette size={18} /> : <FileText size={18} />}
+                                        {isGraphicDesign ? "Creative Brief & Schedule" : "Technical Issue Details"}
                                     </h3>
 
                                     {/* Deadline field khusus tiket Graphic Design (COC) */}
                                     {isGraphicDesign && (
-                                        <div className={styles.formGroup}>
-                                            <Label htmlFor="deadline" className={styles.label}>
-                                                <Clock size={14} />
-                                                Waktu Deadline (WIB) *
-                                            </Label>
-                                            <Input
-                                                id="deadline"
-                                                name="deadline"
-                                                type="datetime-local"
-                                                required={isGraphicDesign}
-                                                min={minDeadline}
-                                                className={styles.input}
-                                            />
-                                            <p style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
-                                                Tentukan target tanggal & waktu deadline penyelesaian kebutuhan desain ini.
-                                            </p>
+                                        <div className={styles.deadlineBox}>
+                                            <div className={styles.formGroup}>
+                                                <Label htmlFor="deadline" className={styles.label}>
+                                                    <Clock size={14} />
+                                                    Target Deadline (WIB) *
+                                                </Label>
+                                                <Input
+                                                    id="deadline"
+                                                    name="deadline"
+                                                    type="datetime-local"
+                                                    required={isGraphicDesign}
+                                                    min={minDeadline}
+                                                    className={styles.input}
+                                                />
+                                                <p className={styles.fieldHint}>
+                                                    Set the target completion date and time (WIB) for the design release schedule.
+                                                </p>
+                                            </div>
                                         </div>
                                     )}
 
-                                    <div className={styles.formGroup}>
-                                        <Label htmlFor="category" className={styles.label}>
-                                            <Tag size={14} />
-                                            Category *
-                                        </Label>
-                                        <Select name="category" required>
-                                            <SelectTrigger className={styles.select}>
-                                                <SelectValue placeholder="Select Category" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {categories.map((c) => (
-                                                    <SelectItem key={c.id} value={c.name}>
-                                                        {c.name}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
+                                    <div className={styles.formGrid}>
+                                        <div className={styles.formGroup}>
+                                            <Label htmlFor="category" className={styles.label}>
+                                                <Tag size={14} />
+                                                Category *
+                                            </Label>
+                                            <Select name="category" required>
+                                                <SelectTrigger className={styles.select}>
+                                                    <SelectValue placeholder={isGraphicDesign ? "Select Design Category" : "Select IT Category"} />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {categories.map((c) => (
+                                                        <SelectItem key={c.id} value={c.name}>
+                                                            {c.name}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
 
-                                    <div className={styles.formGroup}>
-                                        <Label htmlFor="priority" className={styles.label}>
-                                            <Flag size={14} />
-                                            Priority *
-                                        </Label>
-                                        <Select name="priority" defaultValue={defaultPriority} required>
-                                            <SelectTrigger className={styles.select}>
-                                                <SelectValue placeholder="Select Priority" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {activePriorities.map((p) => (
-                                                    <SelectItem key={p.id} value={p.name.toLowerCase()}>
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                            <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: p.color }} />
-                                                            {p.name}
-                                                        </div>
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
+                                        <div className={styles.formGroup}>
+                                            <Label htmlFor="priority" className={styles.label}>
+                                                <Flag size={14} />
+                                                Priority *
+                                            </Label>
+                                            <Select name="priority" defaultValue={defaultPriority} required>
+                                                <SelectTrigger className={styles.select}>
+                                                    <SelectValue placeholder="Select Priority" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {activePriorities.map((p) => (
+                                                        <SelectItem key={p.id} value={p.name.toLowerCase()}>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                                <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: p.color }} />
+                                                                {p.name}
+                                                            </div>
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
                                     </div>
 
                                     <div className={styles.formGroup}>
@@ -501,7 +527,11 @@ export default function SubmitTicket({ actionData, loaderData }: Route.Component
                                             id="subject"
                                             name="subject"
                                             required
-                                            placeholder="Brief summary of the issue"
+                                            placeholder={
+                                                isGraphicDesign
+                                                    ? "e.g. Q4 Townhall Event Banner / Social Media Poster"
+                                                    : "e.g. Laptop cannot connect to Wi-Fi / Email account locked"
+                                            }
                                             className={styles.input}
                                             maxLength={255}
                                         />
@@ -516,7 +546,11 @@ export default function SubmitTicket({ actionData, loaderData }: Route.Component
                                             id="description"
                                             name="description"
                                             required
-                                            placeholder="Please provide detailed information about your issue..."
+                                            placeholder={
+                                                isGraphicDesign
+                                                    ? "Describe the visual concept, dimensions, required text, target channels, and any revision notes..."
+                                                    : "Describe the technical issue, error messages, desk or room location, and steps already tried..."
+                                            }
                                             rows={6}
                                             className={styles.textarea}
                                             maxLength={5000}
@@ -526,7 +560,9 @@ export default function SubmitTicket({ actionData, loaderData }: Route.Component
                                     <div className={styles.formGroup}>
                                         <Label htmlFor="image" className={styles.label}>
                                             <ImageIcon size={14} />
-                                            Attachment Image (Optional)
+                                            {isGraphicDesign
+                                                ? "Visual Reference / Draft Image (Optional)"
+                                                : "Error Screenshot / Device Photo (Optional)"}
                                         </Label>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                                             <div style={{ position: 'relative' }}>

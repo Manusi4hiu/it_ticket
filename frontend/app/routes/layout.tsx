@@ -91,9 +91,10 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
     return null;
   }, [teams, activeTeamId]);
 
+  const isCorcomRoute = location.pathname.includes('/corcom/');
   const isCoc = activeTeam
     ? activeTeam.code === 'COC'
-    : (teams.some(t => t.code === 'COC') && !teams.some(t => t.code === 'IT'));
+    : (isCorcomRoute || (teams.some(t => t.code === 'COC') && !teams.some(t => t.code === 'IT')));
 
   const L = {
     headerSupport: isCoc ? "CORCOM" : "IT Aero Support",

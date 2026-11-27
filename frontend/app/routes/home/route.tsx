@@ -12,16 +12,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "~/components/ui/dialog/dialog";
-import {
-  TicketPlus,
-  Search,
-  Clock,
-  Users,
-  BarChart3,
-  Shield,
-  Headphones,
-} from "lucide-react";
+import { Search, LogIn } from "lucide-react";
 import { PwaInstallButton } from "~/components/pwa-install-prompt";
+import { publicAsset } from "~/utils/asset";
 import styles from "./style.module.css";
 
 export async function loader({ request }: Route.LoaderArgs) {
@@ -43,164 +36,157 @@ export default function Home({ loaderData }: Route.ComponentProps) {
     }
   };
 
-  const features = [
-    {
-      icon: <TicketPlus size={32} />,
-      title: "Easy Submission",
-      description: "Submit support tickets in seconds without needing to create an account. Just provide your details and describe your issue.",
-    },
-    {
-      icon: <Search size={32} />,
-      title: "Real-Time Tracking",
-      description: "Track your ticket status in real-time using your unique ticket code. Stay informed every step of the way.",
-    },
-    {
-      icon: <Clock size={32} />,
-      title: "SLA Monitoring",
-      description: "Our system monitors service level agreements to ensure your issues are resolved within the promised timeframe.",
-    },
-    {
-      icon: <Users size={32} />,
-      title: "Expert Support",
-      description: "Our dedicated IT team is ready to help with any technical issues. Staff login for expert assistance.",
-      isLogin: true,
-    },
-    {
-      icon: <BarChart3 size={32} />,
-      title: "Analytics Dashboard",
-      description: "Comprehensive analytics and reporting for management to track performance and identify trends.",
-    },
-    {
-      icon: <Shield size={32} />,
-      title: "Secure & Reliable",
-      description: "Your data is protected with enterprise-grade security. We ensure confidentiality and data integrity.",
-    },
-  ];
-
   return (
     <div className={styles.container}>
-      {/* Hero Section */}
-      <section className={styles.heroSection}>
-        <div className={styles.heroContent}>
-          <h1 className={styles.heroTitle}>IT Aero Nusantara Indonesia</h1>
-          <p className={styles.heroSubtitle}>
-            Submit, track, and manage IT and Corcom requests with ease. Our streamlined
-            ticketing system ensures your issues are resolved quickly and efficiently.
-          </p>
-          <div className={styles.heroCta}>
-            <Button asChild className={styles.primaryButton}>
-              <Link to="/submit-ticket">
-                <TicketPlus size={20} />
-                Request IT
-              </Link>
-            </Button>
-            <Button asChild className={styles.primaryButton}>
-              <Link to="/corcom/submit-ticket">
-                <TicketPlus size={20} />
-                Request Corcom
-              </Link>
-            </Button>
-            <Button
-              variant="outline"
-              className={styles.secondaryButton}
-              onClick={() => setIsTrackDialogOpen(true)}
-            >
-              <Search size={20} />
-              Track Your Ticket
-            </Button>
-            <PwaInstallButton
-              variant="outline"
-              className={`${styles.secondaryButton} ${styles.iconButton}`}
-              label="Download Mobile App"
-              iconOnly
+      <header className={styles.topBar}>
+        <div className={styles.topBarInner}>
+          <div className={styles.brand}>
+            <img
+              src={publicAsset("logo/logo itani.png")}
+              alt="Aero Nusantara Indonesia"
+              width={28}
+              height={28}
+              className={styles.brandLogo}
             />
+            <span className={styles.brandName}>Aero Nusantara Indonesia</span>
+          </div>
+
+          <div className={styles.topBarActions}>
+            <PwaInstallButton
+              variant="ghost"
+              className={styles.installBtn}
+              label="Get App"
+            />
+            <Link to="/login" className={styles.staffLoginLink}>
+              <LogIn size={14} aria-hidden="true" />
+              <span>Staff Login</span>
+            </Link>
           </div>
         </div>
+      </header>
 
-        {/* Decorative Elements */}
-        <div className={styles.heroDecoration}>
-          <div className={styles.glowOrb1}></div>
-          <div className={styles.glowOrb2}></div>
-          <div className={styles.glowOrb3}></div>
-        </div>
-      </section>
+      <main className={styles.main}>
+        <div className={styles.pageShell}>
+          <div className={styles.pageHeader}>
+            <h1 className={styles.heroTitle}>Service Request Portal</h1>
+            <p className={styles.heroSubtitle}>
+              Choose the team that fits your request. No account is required to submit a ticket.
+            </p>
+          </div>
 
-      {/* Features Section */}
-      <section className={styles.featuresSection}>
-        <div className={styles.featuresGrid}>
-          {features.map((feature, index) => (
-            <div
-              key={index}
-              className={`${styles.featureCard} ${feature.isLogin ? styles.loginCard : ""}`}
-              onClick={() => feature.isLogin && navigate("/login")}
-              role={feature.isLogin ? "button" : undefined}
-              tabIndex={feature.isLogin ? 0 : undefined}
-              onKeyDown={(e) => {
-                if (feature.isLogin && (e.key === "Enter" || e.key === " ")) {
-                  navigate("/login");
-                }
-              }}
-            >
-              <div className={styles.featureIcon}>{feature.icon}</div>
-              <h3 className={styles.featureTitle}>{feature.title}</h3>
-              <p className={styles.featureDescription}>{feature.description}</p>
+          <div className={styles.workspaceGrid}>
+            {/* Left: Two Distinct Request Channels */}
+            <div className={styles.channelsColumn}>
+              {/* IT Support Channel */}
+              <section className={styles.itBand} aria-labelledby="it-portal-title">
+                <div className={styles.bandHeader}>
+                  <span className={styles.itCode}>IT SUPPORT</span>
+                  <span className={styles.bandSchedule}>Working-Hours SLA</span>
+                </div>
+                <h2 id="it-portal-title" className={styles.bandTitle}>
+                  Technical &amp; System Helpdesk
+                </h2>
+                <p className={styles.bandDesc}>
+                  For daily technical issues, hardware repairs, account access, and internal application bugs.
+                </p>
 
+                <div className={styles.itScopeRow}>
+                  <span>Hardware &amp; Printers</span>
+                  <span>Wi-Fi, VPN &amp; Email</span>
+                  <span>Software &amp; System Access</span>
+                </div>
+
+                <div className={styles.bandActionRow}>
+                  <Link to="/submit-ticket" className={styles.itCta}>
+                    Request IT
+                  </Link>
+                  <span className={styles.bandNote}>Handled by priority queue</span>
+                </div>
+              </section>
+
+              {/* Corcom Channel */}
+              <section className={styles.cocBand} aria-labelledby="coc-portal-title">
+                <div className={styles.bandHeader}>
+                  <span className={styles.cocCode}>CORCOM</span>
+                  <span className={styles.bandSchedule}>Release Calendar</span>
+                </div>
+                <h2 id="coc-portal-title" className={styles.bandTitle}>
+                  Corporate Comm &amp; Design
+                </h2>
+                <p className={styles.bandDesc}>
+                  For visual design, internal publications, event collaterals, and company communication assets.
+                </p>
+
+                <div className={styles.cocRequirement}>
+                  <strong>Deadline (WIB) Required:</strong> Set your target completion date and time in the brief so it is scheduled on the release calendar.
+                </div>
+
+                <div className={styles.bandActionRow}>
+                  <Link to="/corcom/submit-ticket" className={styles.cocCta}>
+                    Request Corcom
+                  </Link>
+                  <span className={styles.bandNote}>Posters, banners, social media &amp; events</span>
+                </div>
+              </section>
             </div>
-          ))}
-        </div>
-      </section>
 
-      {/* Stats Section */}
-      {/* <section className={styles.statsSection}>
-        <div className={styles.statsGrid}>
-          <div className={styles.statCard}>
-            <div className={styles.statValue}>8/5</div>
-            <div className={styles.statLabel}>Support Available</div>
-          </div>
-          <div className={styles.statCard}>
-            <div className={styles.statValue}>&lt;1hr</div>
-            <div className={styles.statLabel}>Avg Response Time</div>
-          </div>
-          <div className={styles.statCard}>
-            <div className={styles.statValue}>99%</div>
-            <div className={styles.statLabel}>SLA Compliance</div>
-          </div>
-          <div className={styles.statCard}>
-            <div className={styles.statValue}>500+</div>
-            <div className={styles.statLabel}>Tickets Resolved</div>
+            {/* Right: Tracking & Workflow Comparison */}
+            <aside className={styles.sideColumn}>
+              <div className={styles.trackPanel}>
+                <h2 className={styles.sideTitle}>Track Existing Ticket</h2>
+                <p className={styles.sideDesc}>
+                  Already submitted a request? Check current status and team updates using your ticket code.
+                </p>
+                <button
+                  type="button"
+                  className={styles.trackTriggerBtn}
+                  onClick={() => setIsTrackDialogOpen(true)}
+                >
+                  <Search size={15} aria-hidden="true" />
+                  Track Your Ticket
+                </button>
+              </div>
+            </aside>
           </div>
         </div>
-      </section> */}
+      </main>
 
-      {/* Footer */}
       <footer className={styles.footer}>
         <div className={styles.footerContent}>
-          <div className={styles.footerBrand}>
-            <span>Aero Nusantara Indonesia</span>
+          <span className={styles.footerText}>
+            © 2026 Aero Nusantara Indonesia
+          </span>
+          <div className={styles.footerLinks}>
+            <button
+              type="button"
+              className={styles.footerAction}
+              onClick={() => setIsTrackDialogOpen(true)}
+            >
+              Track Ticket
+            </button>
+            <Link to="/login" className={styles.footerLink}>
+              Staff Portal
+            </Link>
           </div>
-          <p className={styles.footerText}>
-            © 2026 IT Department. All rights reserved.
-          </p>
         </div>
       </footer>
 
-      {/* Track Ticket Dialog */}
       <Dialog open={isTrackDialogOpen} onOpenChange={setIsTrackDialogOpen}>
         <DialogContent className={styles.dialogContent}>
           <DialogHeader>
             <DialogTitle className={styles.dialogTitle}>
-              <div className={styles.dialogIconWrapper}>
-                <Search size={24} />
-              </div>
+              <Search size={18} aria-hidden="true" />
               Track Your Ticket
             </DialogTitle>
             <DialogDescription className={styles.dialogDescription}>
-              Enter the Ticket ID you received via email to check its current status.
+              Enter the ticket code from your confirmation page or email (e.g. FIN-001).
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleTrackTicket} className={styles.dialogForm}>
             <div className={styles.formGroup}>
-              <Label htmlFor="ticket-id" className={styles.label}>Ticket ID</Label>
+              <Label htmlFor="ticket-id" className={styles.label}>
+                Ticket ID
+              </Label>
               <Input
                 id="ticket-id"
                 placeholder="e.g. FIN-001"
@@ -209,9 +195,6 @@ export default function Home({ loaderData }: Route.ComponentProps) {
                 className={styles.input}
                 autoFocus
               />
-              <p className={styles.inputHint}>
-                You can find your ticket ID in the confirmation email we sent you.
-              </p>
             </div>
             <DialogFooter className={styles.dialogFooter}>
               <Button
@@ -223,7 +206,6 @@ export default function Home({ loaderData }: Route.ComponentProps) {
                 Cancel
               </Button>
               <Button type="submit" disabled={!cleanTrackCode} className={styles.trackButton}>
-                <Search size={16} />
                 Track Ticket
               </Button>
             </DialogFooter>
