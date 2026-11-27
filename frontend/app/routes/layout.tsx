@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Outlet, useNavigate, Form, redirect, NavLink, useLocation } from "react-router";
 import {
   User,
@@ -12,10 +12,12 @@ import {
 } from "lucide-react";
 import { NotificationBell } from "~/components/notification-bell";
 import { getUserSession, logout } from "~/services/session.service";
-import { setAuthToken, usersApi } from "~/services/api.service";
+import { clearAuthToken, getAuthToken, setAuthToken, usersApi } from "~/services/api.service";
 import { settingsApi } from "~/services/settings.service";
 import { setWorkingHours } from "~/utils/date";
+import { publicAsset } from "~/utils/asset";
 import type { Route } from "./+types/layout";
+import { getActiveTeamIdFromRequest, setActiveTeamId, getActiveTeamIdClient } from "~/utils/team-cookie";
 import styles from "./layout.module.css";
 import { useIdleTimeout } from "~/hooks/use-idle-timeout";
 import { SessionWarningModal } from "~/components/session-warning-modal";
@@ -24,7 +26,8 @@ import { GlobalBreakModal } from "~/components/global-break-modal";
 
 export async function loader({ request }: Route.LoaderArgs) {
   const session = await getUserSession(request);
-  return { session };
+  const activeTeamId = getActiveTeamIdFromRequest(request);
+  return { session, activeTeamId };
 }
 
 export async function action({ request }: Route.ActionArgs) {
@@ -43,13 +46,66 @@ export async function action({ request }: Route.ActionArgs) {
 }
 
 export default function AppLayout({ loaderData }: Route.ComponentProps) {
-  const { session } = loaderData;
+  const { session, activeTeamId: initialActiveTeamId } = loaderData;
   const navigate = useNavigate();
   const location = useLocation();
   const isAdministrator = session?.userRole === 'Administrator';
 
-  // Role yang boleh melihat Dev Board (Management view-only)
-  const canAccessDevBoard = isAdministrator || session?.userRole === 'Staff' || session?.userRole === 'Management';
+  // ── Team branding: ikuti team yang aktif dipilih (IT -> IT Aero Support, COC -> CORCOM) ──
+  const teams = (session?.teams || []) as { id: string | number; name: string; code: string }[];
+  const [storedTeamId, setStoredTeamId] = useState<string | null>(initialActiveTeamId || null);
+
+  useEffect(() => {
+    const saved = getActiveTeamIdClient();
+    if (saved) {
+      setStoredTeamId(saved);
+      setActiveTeamId(saved);
+    }
+    const handler = (e: any) => {
+      const newId = e.detail?.teamId;
+      if (newId) {
+        setStoredTeamId(newId);
+      }
+    };
+    window.addEventListener("app-team-changed", handler);
+    return () => window.removeEventListener("app-team-changed", handler);
+  }, []);
+
+  const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const urlTeamId = searchParams.get('teamId');
+
+  useEffect(() => {
+    if (urlTeamId) {
+      setActiveTeamId(urlTeamId);
+      setStoredTeamId(urlTeamId);
+    }
+  }, [urlTeamId]);
+
+  const activeTeamId = urlTeamId || storedTeamId || initialActiveTeamId;
+  const teamQuery = activeTeamId ? `?teamId=${activeTeamId}` : "";
+  const isPathActive = (p: string) => location.pathname === p || (p !== "/" && location.pathname.startsWith(p + "/"));
+  const activeTeam = useMemo(() => {
+    if (activeTeamId) {
+      return teams.find(t => String(t.id) === String(activeTeamId));
+    }
+    return null;
+  }, [teams, activeTeamId]);
+
+  const isCoc = activeTeam
+    ? activeTeam.code === 'COC'
+    : (teams.some(t => t.code === 'COC') && !teams.some(t => t.code === 'IT'));
+
+  const L = {
+    headerSupport: isCoc ? "CORCOM" : "IT Aero Support",
+    headerDev: isCoc ? "CORCOM" : "IT Aero Dev",
+    helpdeskToggle: isCoc ? "Ticket" : "Helpdesk",
+    devToggle: isCoc ? "Board" : "Dev Team",
+    devBoardNav: isCoc ? "Board" : "Dev Board",
+  };
+
+  // Role yang boleh melihat Dev Board (Management view-only) — HANYA jika workspace IT aktif
+  const isInIT = activeTeam ? activeTeam.code === 'IT' : teams.some(t => t.code === 'IT');
+  const canAccessDevBoard = isAdministrator || ((session?.userRole === 'Staff' || session?.userRole === 'Management') && isInIT && !isCoc);
 
   const [isDevMode, setIsDevMode] = useState(false);
   const [, forceWorkHoursUpdate] = useState(0);
@@ -80,13 +136,11 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
   // `getUserSession()` hanya berjalan di server. Setelah browser hydration,
   // `authToken` di api.service.ts kembali null. Sync secara sinkron saat render
   // agar child fetch di render pertama sudah dapat token (hindari race 401).
-  if (typeof window !== "undefined" && session?.authToken) {
-    setAuthToken(session.authToken);
+  if (typeof window !== "undefined") {
+    setAuthToken(session?.authToken ?? null);
   }
   useEffect(() => {
-    if (session?.authToken) {
-      setAuthToken(session.authToken);
-    }
+    setAuthToken(session?.authToken ?? null);
   }, [session]);
 
   // Sinkronkan jam kerja operasional (Settings > Break) ke utils tanggal
@@ -214,17 +268,28 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
               style={{ cursor: "pointer" }}
             >
               <div className={styles.logoContainer}>
-                <img src="/logo/logo itani.png" alt="Logo" className={styles.headerIcon} />
+                <img src={publicAsset("logo/logo itani.png")} alt="Logo" className={styles.headerIcon} />
               </div>
               <h1 className={styles.headerTitle}>
-                {isDevMode ? "IT Aero Dev" : "IT Aero Support"}
+                {isDevMode ? L.headerDev : L.headerSupport}
               </h1>
             </div>
 
             {session && (
               <div className={styles.navActionGroup}>
                 <NotificationBell userId={session.userId} />
-                <Form method="post" action="/dashboard" className={styles.logoutForm}>
+                <Form
+                  method="post"
+                  action="/dashboard"
+                  className={styles.logoutForm}
+                  onSubmit={() => {
+                    const tokenSnapshot = getAuthToken();
+                    clearAuthToken();
+                    void import('~/services/push.service')
+                      .then(({ cleanupClientOnLogout }) => cleanupClientOnLogout(tokenSnapshot))
+                      .catch(() => {});
+                  }}
+                >
                   <input type="hidden" name="intent" value="logout" />
                   <button className={styles.logoutBtn} type="submit" title="Logout">
                     <LogOut className={styles.navIcon} />
@@ -245,14 +310,14 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
                     className={`${styles.toggleBtn} ${!isDevMode ? styles.toggleBtnActive : ''}`}
                     onClick={() => handleToggleMode(false)}
                   >
-                    Helpdesk
+                    {L.helpdeskToggle}
                   </button>
                   <button
                     type="button"
                     className={`${styles.toggleBtn} ${isDevMode ? styles.toggleBtnActive : ''}`}
                     onClick={() => handleToggleMode(true)}
                   >
-                    Dev Team
+                    {L.devToggle}
                   </button>
                 </div>
               )}
@@ -263,30 +328,30 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
                 {!isDevMode ? (
                   <>
                     <NavLink
-                      to="/tickets"
-                      className={({ isActive }) => `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`}
+                      to={`/tickets${teamQuery}`}
+                      className={() => `${styles.navLink} ${isPathActive('/tickets') ? styles.navLinkActive : ''}`}
                     >
                       <Inbox className={styles.navIcon} />
                       <span className={styles.navLabel}>Tickets</span>
                     </NavLink>
                     <NavLink
                       to={`/profile/${session.userId}`}
-                      className={({ isActive }) => `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`}
+                      className={() => `${styles.navLink} ${isPathActive('/profile') ? styles.navLinkActive : ''}`}
                     >
                       <User className={styles.navIcon} />
                       <span className={styles.navLabel}>Profile</span>
                     </NavLink>
                     <NavLink
-                      to="/staff-performance"
-                      className={({ isActive }) => `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`}
+                      to={`/staff-performance${teamQuery}`}
+                      className={() => `${styles.navLink} ${isPathActive('/staff-performance') ? styles.navLinkActive : ''}`}
                     >
                       <Users className={styles.navIcon} />
                       <span className={styles.navLabel}>Performance</span>
                     </NavLink>
                     {(isAdministrator || session.userRole === 'Management') && (
                       <NavLink
-                        to="/analytics"
-                        className={({ isActive }) => `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`}
+                        to={`/analytics${teamQuery}`}
+                        className={() => `${styles.navLink} ${isPathActive('/analytics') ? styles.navLinkActive : ''}`}
                       >
                         <BarChart3 className={styles.navIcon} />
                         <span className={styles.navLabel}>Analytics</span>
@@ -306,21 +371,21 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
                   <>
                     <NavLink
                       to="/dev-dashboard"
-                      className={({ isActive }) => `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`}
+                      className={() => `${styles.navLink} ${isPathActive('/dev-dashboard') ? styles.navLinkActive : ''}`}
                     >
                       <Kanban className={styles.navIcon} />
-                      <span className={styles.navLabel}>Dev Board</span>
+                      <span className={styles.navLabel}>{L.devBoardNav}</span>
                     </NavLink>
                     <NavLink
-                      to="/staff-performance"
-                      className={({ isActive }) => `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`}
+                      to={`/staff-performance${teamQuery}`}
+                      className={() => `${styles.navLink} ${isPathActive('/staff-performance') ? styles.navLinkActive : ''}`}
                     >
                       <Users className={styles.navIcon} />
                       <span className={styles.navLabel}>Performance</span>
                     </NavLink>
                     <NavLink
-                      to="/calendar"
-                      className={({ isActive }) => `${styles.navLink} ${isActive ? styles.navLinkActive : ''}`}
+                      to={`/calendar${teamQuery}`}
+                      className={() => `${styles.navLink} ${isPathActive('/calendar') ? styles.navLinkActive : ''}`}
                     >
                       <Calendar className={styles.navIcon} />
                       <span className={styles.navLabel}>Calendar</span>
@@ -356,7 +421,7 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
       )}
 
       {session && <StaffStatusWidget />}
-      {session?.userId && <GlobalBreakModal userId={session.userId} />}
+      {session?.userId && !isCoc && <GlobalBreakModal userId={session.userId} />}
     </div>
   );
 }

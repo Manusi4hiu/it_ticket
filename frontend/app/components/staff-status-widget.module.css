@@ -3,6 +3,7 @@
   bottom: 24px;
   right: 24px;
   z-index: 9000;
+  transition: bottom 0.22s ease;
 }
 
 .floatingBtn {
@@ -68,5 +69,12 @@
     bottom: 56px;
     width: min(300px, calc(100vw - 32px));
     right: 0;
+  }
+}
+
+/* Lift floating staff status button above the mobile PWA install banner while visible */
+@media (max-width: 860px) {
+  :global(html[data-pwa-banner="visible"]) .widgetWrapper {
+    bottom: calc(86px + env(safe-area-inset-bottom, 0px));
   }
 }

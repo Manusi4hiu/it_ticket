@@ -13,9 +13,12 @@ import styles from "../style.module.css";
 // Props
 // ─────────────────────────────────────────────
 
+import { formatDate } from "~/utils/date";
+
 interface PublicSidebarProps {
   /** Status ticket saat ini */
   status: string;
+  deadline?: Date | string;
 }
 
 // ─────────────────────────────────────────────
@@ -31,7 +34,7 @@ interface PublicSidebarProps {
  * @example
  * {isPublic && <PublicSidebar status={ticket.status} />}
  */
-export function PublicSidebar({ status }: PublicSidebarProps) {
+export function PublicSidebar({ status, deadline }: PublicSidebarProps) {
   return (
     <div className={styles.publicSidebar}>
       <div className={`${styles.slaCard} ${styles.slaInfoOnly}`}>
@@ -51,6 +54,14 @@ export function PublicSidebar({ status }: PublicSidebarProps) {
             {status.replace("-", " ")}
           </div>
         </div>
+        {deadline && (
+          <div style={{ marginTop: '16px', borderTop: '1px solid rgba(0,0,0,0.08)', paddingTop: '12px' }}>
+            <strong style={{ fontSize: '13px', color: '#4b5563', display: 'block', marginBottom: '4px' }}>Target Deadline</strong>
+            <div style={{ fontSize: '14px', fontWeight: 600, color: '#111827' }}>
+              {formatDate(deadline)}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

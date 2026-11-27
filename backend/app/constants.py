@@ -39,3 +39,18 @@ ROLE_MANAGEMENT = "Management"
 ROLE_STAFF = "Staff"
 
 ROLES_ALL = [ROLE_ADMINISTRATOR, ROLE_MANAGEMENT, ROLE_STAFF]
+
+# ---------------------------------------------------------------------------
+# Teams (workspace/board pemilik ticket — BUKAN department submitter)
+# ---------------------------------------------------------------------------
+# `code` adalah identitas team (IT / COC) untuk penanda kolom Ticket.team_id.
+# TIDAK dipakai untuk membuat ticket_code (ticket_code = counter global).
+TEAM_IT_CODE = "IT"
+TEAM_COC_CODE = "COC"   # graphic design team
+TEAM_DEFAULT_CODE = TEAM_IT_CODE
+
+# ---------------------------------------------------------------------------
+# Ticket Code — Menggunakan prefix kode department pemohon ({dept_code}-{counter}).
+# ---------------------------------------------------------------------------
+TICKET_CODE_FALLBACK_PREFIX = "TKT"
+TICKET_CODE_PADDING = 3

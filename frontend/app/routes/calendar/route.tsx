@@ -1,7 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-
-import { useLoaderData, useNavigate } from "react-router";
-
+import { useLoaderData, useNavigate, useSearchParams } from "react-router";
 import type { Route } from "./+types/route";
 
 import {
@@ -24,6 +22,7 @@ import {
   Flame,
   CalendarClock,
   ExternalLink,
+  Sparkles,
 } from "lucide-react";
 
 import { Button } from "~/components/ui/button/button";
@@ -58,57 +57,60 @@ import {
 
 import { settingsApi } from "~/services/settings.service";
 
-import { requireAuth } from "~/services/session.service";
+import { runWithAuth } from "~/services/session.service";
 
 import { ReasonDialog } from "~/routes/ticket.$id/components/ReasonDialog";
 
 import { ResolveDialog } from "~/routes/ticket.$id/components/ResolveDialog";
-
 import { isWorkingDay, validateWorkingHoursDateTime, getInitialWorkingDateTime, getSpecialHoliday } from "~/utils/date";
-
+import { getActiveTeamIdFromRequest, setActiveTeamId, getActiveTeamIdClient } from "~/utils/team-cookie";
 import styles from "./style.module.css";
 
 export async function loader({ request }: Route.LoaderArgs) {
-  const session = await requireAuth(request);
+  return runWithAuth(request, async (session) => {
+  const url = new URL(request.url);
+  const teamIdParam = getActiveTeamIdFromRequest(request, url);
 
-  // Fetch tickets, agents, statuses, categories, priorities, holidays (semua master-driven)
-
-  const [ticketsRes, agents, statusesRes, categoriesRes, prioritiesRes, holidaysRes] = await Promise.all([
-    getTickets({ per_page: 500 }),
-
+  // Fetch tickets, agents, statuses, categories, priorities, teams, holidays (semua master-driven)
+  const [ticketsRes, agents, statusesRes, categoriesRes, prioritiesRes, teamsRes, holidaysRes] = await Promise.all([
+    getTickets({ per_page: 1000 }),
     getAgents(),
-
     settingsApi.getStatuses(),
-
     settingsApi.getCategories(),
-
     settingsApi.getPriorities(),
-
+    settingsApi.getTeams().catch(() => ({ success: false, data: [] })),
     settingsApi.getHolidays(),
   ]);
 
-  return Response.json({
+  return {
     session,
-
     initialTickets: ticketsRes.tickets,
-
     agents,
-
     statuses: (statusesRes.data?.data || []).filter((s: any) => s.showOnItHelpdesk !== false),
-
     categories: categoriesRes.data?.data || [],
-
     priorities: (prioritiesRes.data?.data || []).filter((p: any) => p.isActive !== false),
-
+    teams: ((teamsRes as any)?.data || []) as any[],
+    activeTeamId: teamIdParam || session.lastActiveTeamId || null,
     holidays: holidaysRes.data?.data || [],
+  };
   });
 }
 
 export default function TicketCalendar() {
-  const { session, initialTickets, agents, statuses, categories, priorities, holidays } =
-    useLoaderData() as typeof loader extends (...args: any[]) => Promise<infer T> ? T : any;
-
+  const {
+    session,
+    initialTickets,
+    agents,
+    statuses,
+    categories,
+    priorities,
+    teams = [],
+    activeTeamId,
+    holidays = [],
+  } = useLoaderData() as typeof loader extends (...args: any[]) => Promise<infer T> ? T : any;
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlTeam = searchParams.get("teamId");
 
   // Tickets state
 
@@ -116,19 +118,72 @@ export default function TicketCalendar() {
 
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Filters state (strictly for IT Helpdesk - no team workspace dropdown)
+  // Filters state: default to urlTeam if present, else activeTeamId, else "all"
+  const [selectedTeam, setSelectedTeam] = useState<string>(() => {
+    if (urlTeam) return urlTeam;
+    return activeTeamId ? String(activeTeamId) : "all";
+  });
 
+  // Sync tickets with incoming loader data
+  useEffect(() => {
+    setTickets(initialTickets);
+  }, [initialTickets]);
+
+  // Sync selectedTeam whenever urlTeam changes (including when removed -> "all")
+  useEffect(() => {
+    const current = urlTeam || "all";
+    if (current !== selectedTeam) {
+      setSelectedTeam(current);
+    }
+  }, [urlTeam]);
+
+  // Sync when another page/header dispatches app-team-changed
+  useEffect(() => {
+    const handleExternalTeamChange = (e: any) => {
+      const newId = e.detail?.teamId;
+      if (newId === "all" || !newId) {
+        setSelectedTeam("all");
+      } else {
+        setSelectedTeam(String(newId));
+      }
+    };
+    window.addEventListener("app-team-changed", handleExternalTeamChange);
+    return () => window.removeEventListener("app-team-changed", handleExternalTeamChange);
+  }, []);
+
+  const handleTeamChange = (val: string) => {
+    setSelectedTeam(val);
+    if (val === "all") {
+      setActiveTeamId(null);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("app-team-changed", { detail: { teamId: "all" } }));
+      }
+      navigate("/calendar", { replace: true });
+    } else {
+      setActiveTeamId(val);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("app-team-changed", { detail: { teamId: val } }));
+      }
+      navigate(`/calendar?teamId=${val}`, { replace: true });
+    }
+  };
+  const selectedTeamCode = teams.find((team: any) => String(team.id) === selectedTeam)?.code;
   const [selectedCategory, setSelectedCategory] = useState("all");
 
   const [selectedPriority, setSelectedPriority] = useState("all");
 
   const [selectedStatus, setSelectedStatus] = useState("all");
-
-  const [dateField, setDateField] = useState<"deadline" | "created">("deadline"); // "deadline" (SLA Target) or "created" (Created Date)
+  const [dateField, setDateField] = useState<"deadline" | "created">("deadline"); // "deadline" (Target Deadline) or "created" (Created Date)
 
   // Current calendar month view state
 
   const [currentDate, setCurrentDate] = useState(new Date());
+
+  // Mobile agenda selection state (used on <= 768px compact calendar + agenda panel)
+
+  const [selectedMobileDay, setSelectedMobileDay] = useState<Date>(() => new Date());
+
+  const [mobileAgendaMode, setMobileAgendaMode] = useState<"day" | "month">("day");
 
   // Ticket Detail Modal State
 
@@ -214,16 +269,40 @@ export default function TicketCalendar() {
     "December",
   ];
 
+  const syncMobileDayToMonth = (targetYear: number, targetMonth: number) => {
+    const today = new Date();
+    if (today.getFullYear() === targetYear && today.getMonth() === targetMonth) {
+      setSelectedMobileDay(today);
+    } else {
+      setSelectedMobileDay(new Date(targetYear, targetMonth, 1));
+    }
+  };
+
   const handlePrevMonth = () => {
-    setCurrentDate(new Date(year, month - 1, 1));
+    const next = new Date(year, month - 1, 1);
+    setCurrentDate(next);
+    syncMobileDayToMonth(next.getFullYear(), next.getMonth());
   };
 
   const handleNextMonth = () => {
-    setCurrentDate(new Date(year, month + 1, 1));
+    const next = new Date(year, month + 1, 1);
+    setCurrentDate(next);
+    syncMobileDayToMonth(next.getFullYear(), next.getMonth());
   };
 
   const handleToday = () => {
-    setCurrentDate(new Date());
+    const today = new Date();
+    setCurrentDate(today);
+    setSelectedMobileDay(today);
+    setMobileAgendaMode("day");
+  };
+
+  const handleSelectMobileDay = (date: Date) => {
+    setSelectedMobileDay(date);
+    setMobileAgendaMode("day");
+    if (date.getFullYear() !== year || date.getMonth() !== month) {
+      setCurrentDate(new Date(date.getFullYear(), date.getMonth(), 1));
+    }
   };
 
   // Build grid of 42 cells (6 rows * 7 columns) for the calendar
@@ -276,6 +355,9 @@ export default function TicketCalendar() {
 
   const filteredTickets = useMemo(() => {
     return tickets.filter((t) => {
+      // Team filter
+      if (selectedTeam !== "all" && String(t.teamId) !== selectedTeam) return false;
+
       // Search text filter
 
       const matchesSearch =
@@ -299,7 +381,7 @@ export default function TicketCalendar() {
 
       return matchesSearch && matchesCategory && matchesPriority && matchesStatus;
     });
-  }, [tickets, searchQuery, selectedCategory, selectedPriority, selectedStatus]);
+  }, [tickets, selectedTeam, searchQuery, selectedCategory, selectedPriority, selectedStatus]);
 
   // Map tickets to calendar days and sort chronologically by deadline/created time
 
@@ -307,33 +389,30 @@ export default function TicketCalendar() {
     const map: Record<string, Ticket[]> = {};
 
     filteredTickets.forEach((ticket) => {
+      const isDesign =
+        ticket.teamCode === "COC";
+
       // Di mode deadline: gunakan slaDeadline.
-
       // Tiket IT tanpa deadline tidak boleh ditampilkan di kalender target deadline.
-
       // Di mode created: gunakan createdAt.
-
       const dateToCompare = dateField === "deadline" ? ticket.slaDeadline : ticket.createdAt;
 
       if (!dateToCompare) return;
 
       const dateObj = new Date(dateToCompare);
-
       if (isNaN(dateObj.getTime())) return;
 
       // Aturan bisnis: Jika melihat SLA Target Deadline, tanggal akhir pekan (Sabtu/Minggu)
-
       // dan hari libur nasional harus kosong untuk tiket IT (tidak boleh ada deadline IT di hari libur).
-
       if (dateField === "deadline") {
-        const dayOfWeek = dateObj.getDay();
-
-        if (dayOfWeek === 0 || dayOfWeek === 6) {
-          return;
-        }
-
-        if (!isWorkingDay(dateObj, holidays)) {
-          return;
+        if (!isDesign) {
+          const dayOfWeek = dateObj.getDay();
+          if (dayOfWeek === 0 || dayOfWeek === 6) {
+            return;
+          }
+          if (!isWorkingDay(dateObj, holidays)) {
+            return;
+          }
         }
       }
 
@@ -347,13 +426,12 @@ export default function TicketCalendar() {
     });
 
     // Urutkan tiket di tiap tanggal secara kronologis berdasarkan jam deadline
-
     Object.keys(map).forEach((k) => {
       map[k].sort((a, b) => {
-        const timeA = new Date(dateField === "deadline" ? a.slaDeadline! : a.createdAt).getTime();
-
-        const timeB = new Date(dateField === "deadline" ? b.slaDeadline! : b.createdAt).getTime();
-
+        const strA = dateField === "deadline" ? a.slaDeadline : a.createdAt;
+        const strB = dateField === "deadline" ? b.slaDeadline : b.createdAt;
+        const timeA = strA ? new Date(strA).getTime() : 0;
+        const timeB = strB ? new Date(strB).getTime() : 0;
         return timeA - timeB;
       });
     });
@@ -361,26 +439,19 @@ export default function TicketCalendar() {
     return map;
   }, [filteredTickets, dateField, holidays]);
 
-  // Ringkasan beban kerja bulanan untuk visualisasi metrik SLA
-
+  // Ringkasan beban kerja dan target rilis bulanan (untuk visualisasi hari padat vs longgar)
   const monthSummary = useMemo(() => {
     const inMonth = filteredTickets.filter((t) => {
+      const isDesign = t.teamCode === "COC";
       const d = dateField === "deadline" ? t.slaDeadline : t.createdAt;
-
       if (!d) return false;
-
       const dt = new Date(d);
-
       if (isNaN(dt.getTime())) return false;
-
-      if (dateField === "deadline") {
+      if (dateField === "deadline" && !isDesign) {
         const dayOfWeek = dt.getDay();
-
         if (dayOfWeek === 0 || dayOfWeek === 6) return false;
-
         if (!isWorkingDay(dt, holidays)) return false;
       }
-
       return dt.getFullYear() === year && dt.getMonth() === month;
     });
 
@@ -462,6 +533,32 @@ export default function TicketCalendar() {
       date.getFullYear() === today.getFullYear()
     );
   };
+
+  const isSameDay = (a: Date, b: Date) =>
+    a.getDate() === b.getDate() && a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear();
+
+  const selectedDayKey = `${selectedMobileDay.getFullYear()}-${selectedMobileDay.getMonth()}-${selectedMobileDay.getDate()}`;
+  const selectedDayTickets = ticketsByDay[selectedDayKey] || [];
+  const selectedDayHoliday = getSpecialHoliday(selectedMobileDay, holidays);
+
+  const monthAgendaTickets = useMemo(() => {
+    const list: { date: Date; ticket: Ticket }[] = [];
+    filteredTickets.forEach((t) => {
+      const d = dateField === "deadline" ? t.slaDeadline : t.createdAt;
+      if (!d) return;
+      const dt = new Date(d);
+      if (isNaN(dt.getTime())) return;
+      if (dateField === "deadline") {
+        const dow = dt.getDay();
+        if (dow === 0 || dow === 6 || !isWorkingDay(dt, holidays)) return;
+      }
+      if (dt.getFullYear() === year && dt.getMonth() === month) {
+        list.push({ date: dt, ticket: t });
+      }
+    });
+    list.sort((a, b) => a.date.getTime() - b.date.getTime());
+    return list;
+  }, [filteredTickets, dateField, year, month, holidays]);
 
   // Helper to color priorities — warna diambil dari master, fallback ke peta lama
 
@@ -708,9 +805,9 @@ export default function TicketCalendar() {
 
         category: addTaskCategory,
 
-        submitterName: session?.name || "IT Staff",
+        submitterName: session?.userName || "IT Staff",
 
-        submitterEmail: session?.email || "staff@internal.corp",
+        submitterEmail: session?.userEmail || "staff@internal.corp",
 
         assignedToId: addTaskAssigneeId === "unassigned" ? undefined : addTaskAssigneeId,
       });
@@ -755,6 +852,75 @@ export default function TicketCalendar() {
     }).format(new Date(date));
   };
 
+  const formatSelectedAgendaDate = (date: Date) =>
+    new Intl.DateTimeFormat("id-ID", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    }).format(date);
+
+  const renderTicketCard = (t: Ticket, dateBadge?: string) => {
+    const isDone = ["resolved", "closed", "completed"].includes((t.status || "").toLowerCase());
+    const isOverdue = t.slaDeadline && new Date(t.slaDeadline).getTime() < Date.now() && !isDone;
+    const isDueToday = t.slaDeadline && isToday(new Date(t.slaDeadline)) && !isDone;
+    const targetDateStr = dateField === "deadline" ? t.slaDeadline : t.createdAt;
+    const timeStr = targetDateStr
+      ? new Date(targetDateStr).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })
+      : null;
+
+    return (
+      <div
+        key={`${dateBadge || "cell"}-${t.id}`}
+        className={`${styles.ticketItem} ${dateBadge !== undefined ? styles.agendaTicketItem : ""}`}
+        style={{ borderLeftColor: getPriorityColor(t.priority) }}
+        onClick={(e) => {
+          e.stopPropagation();
+          handleOpenDetail(t);
+        }}
+        title={`${t.ticketCode || t.id}: ${t.title} (${t.status})`}
+      >
+        <div className={styles.ticketCardHeader}>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
+            {dateBadge && <span className={styles.agendaDateChip}>{dateBadge}</span>}
+            {timeStr ? (
+              <span className={styles.ticketTime}>
+                <Clock size={10} />
+                {timeStr}
+              </span>
+            ) : (
+              <span style={{ fontSize: "0.65rem", color: "rgba(255,255,255,0.45)" }}>
+                {t.ticketCode || `#${t.id}`}
+              </span>
+            )}
+          </div>
+
+          {isDone ? (
+            <span className={styles.badgeDone}>✓ Selesai</span>
+          ) : isOverdue ? (
+            <span className={styles.badgeOverdue}>⚠️ Overdue</span>
+          ) : isDueToday ? (
+            <span className={styles.badgeDueToday}>🎯 Hari Ini</span>
+          ) : null}
+        </div>
+
+        <span className={styles.ticketTitleText}>
+          {t.ticketCode ? `[${t.ticketCode}] ` : ""}
+          {t.title}
+        </span>
+
+        <div className={styles.ticketFooter}>
+          <span className={styles.ticketAssignee}>
+            <User size={10} />
+            {t.assignedTo || "Unassigned"}
+          </span>
+
+          <span style={{ opacity: 0.6 }}>{t.category}</span>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className={styles.container}>
       {/* Banner / Title Header */}
@@ -763,17 +929,25 @@ export default function TicketCalendar() {
         <div>
           <h2 className={styles.bannerTitle}>
             <CalendarClock size={22} className={styles.bannerIcon} />
-            Kalender Jadwal SLA IT Helpdesk
+            {selectedTeamCode === "COC"
+              ? "Kalender Jadwal Rilis & Deadline Graphic Design"
+              : selectedTeamCode === "IT"
+                ? "Kalender Jadwal SLA IT Helpdesk"
+                : "Kalender Jadwal & Deadline (Semua Tim)"}
           </h2>
 
           <p className={styles.bannerSubtitle}>
-            Pantau jadwal SLA penanganan tiket IT helpdesk secara visual berdasarkan Target Deadline dan Tanggal Dibuat
+            {selectedTeamCode === "COC"
+              ? "Pantau jadwal rilis desain dan beban kerja kreatif secara visual berdasarkan Target Deadline"
+              : selectedTeamCode === "IT"
+                ? "Pantau jadwal SLA penanganan tiket IT helpdesk secara visual"
+                : "Pantau seluruh jadwal kerja, target deadline desain, dan SLA helpdesk dari seluruh tim"}
           </p>
         </div>
 
         <Button
           onClick={() => setIsAddDialogOpen(true)}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
+          className={`${styles.createTaskBtn} flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg`}
         >
           <Plus size={16} />
           Create Task
@@ -787,16 +961,14 @@ export default function TicketCalendar() {
           <div className={styles.summaryIconBox} style={{ background: "rgba(59, 130, 246, 0.2)", color: "#60a5fa" }}>
             <CalendarClock size={22} />
           </div>
-
           <div className={styles.summaryContent}>
             <span className={styles.summaryLabel}>
-              {dateField === "deadline" ? "Target SLA Bulan Ini" : "Tiket Dibuat Bulan Ini"}
+              {dateField === "deadline" ? "Target Rilis Bulan Ini" : "Tiket Dibuat Bulan Ini"}
             </span>
-
             <span className={styles.summaryValue}>{monthSummary.total}</span>
-
             <span className={styles.summarySubtext}>
-              {monthNames[month]} {year} • IT Helpdesk
+              {monthNames[month]} {year} •{" "}
+              {selectedTeamCode === "COC" ? "Tim Graphic Design" : selectedTeamCode === "IT" ? "Tim IT" : "Semua Tim"}
             </span>
           </div>
         </div>
@@ -845,16 +1017,13 @@ export default function TicketCalendar() {
           <div className={styles.summaryIconBox} style={{ background: "rgba(239, 68, 68, 0.2)", color: "#ef4444" }}>
             <AlertTriangle size={22} />
           </div>
-
           <div className={styles.summaryContent}>
-            <span className={styles.summaryLabel}>Lewat Deadline (SLA Overdue)</span>
-
+            <span className={styles.summaryLabel}>Lewat Deadline (Overdue)</span>
             <span className={styles.summaryValue} style={{ color: monthSummary.overdue > 0 ? "#f87171" : "#ffffff" }}>
               {monthSummary.overdue}
             </span>
-
             <span className={styles.summarySubtext}>
-              {monthSummary.overdue > 0 ? "⚠️ Melebihi batas SLA resolusi" : "Semua SLA terkendali"}
+              {monthSummary.overdue > 0 ? "⚠️ Melebihi target deadline pembuat" : "Semua deadline terkendali"}
             </span>
           </div>
         </div>
@@ -888,7 +1057,7 @@ export default function TicketCalendar() {
           <span>
             Mode:{" "}
             <strong>
-              {dateField === "deadline" ? "Berdasarkan Target Waktu SLA" : "Berdasarkan Waktu Tiket Dibuat"}
+              {dateField === "deadline" ? "Berdasarkan Target Waktu Deadline" : "Berdasarkan Waktu Tiket Dibuat"}
             </strong>
           </span>
         </div>
@@ -915,6 +1084,13 @@ export default function TicketCalendar() {
             {/* 3 Dropdown Filters (Category, Priority, Status) */}
 
             <div className={styles.filterDropdownsRow}>
+              <Select value={selectedTeam} onValueChange={handleTeamChange}>
+                <SelectTrigger className={styles.selectTriggerCompact}><SelectValue placeholder="Semua Tim" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Semua Tim</SelectItem>
+                  {teams.map((team: any) => <SelectItem key={team.id} value={String(team.id)}>{team.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
               {/* Category Select */}
 
               <Select value={selectedCategory} onValueChange={setSelectedCategory}>
@@ -983,7 +1159,7 @@ export default function TicketCalendar() {
                 type="button"
                 className={`${styles.toggleBtn} ${dateField === "deadline" ? styles.toggleBtnActive : ""}`}
                 onClick={() => setDateField("deadline")}
-                title="Tampilkan berdasarkan Target Waktu SLA"
+                title="Tampilkan berdasarkan Target Deadline penyelesaian desain / SLA"
               >
                 🎯 Target Deadline
               </button>
@@ -1002,7 +1178,7 @@ export default function TicketCalendar() {
           {/* Calendar Month Navigation */}
 
           <div className={styles.calendarNav}>
-            <button onClick={handlePrevMonth} className={styles.navBtn} title="Previous Month">
+            <button onClick={handlePrevMonth} className={styles.navBtn} title="Previous Month" aria-label="Bulan sebelumnya">
               <ChevronLeft size={16} />
             </button>
 
@@ -1019,6 +1195,27 @@ export default function TicketCalendar() {
             </button>
           </div>
         </div>
+
+        {filteredTickets.length === 0 && (
+          <div
+            role="status"
+            aria-live="polite"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.75rem",
+              padding: "1rem 1.25rem",
+              marginBottom: "1rem",
+              borderRadius: "0.75rem",
+              background: "rgba(148, 163, 184, 0.08)",
+              border: "1px dashed rgba(148, 163, 184, 0.35)",
+              color: "#cbd5e1",
+            }}
+          >
+            <Inbox size={20} aria-hidden="true" />
+            <span>Tidak ada ticket yang cocok dengan filter ini. Ubah filter atau buat ticket baru.</span>
+          </div>
+        )}
 
         {/* Calendar Grid wrapper */}
 
@@ -1048,14 +1245,10 @@ export default function TicketCalendar() {
               const isCurr = day.isCurrentMonth;
 
               const isTodayCell = isToday(day.date);
-
               const count = dayTickets.length;
-
               const specialHoliday = getSpecialHoliday(day.date, holidays);
-
-              const isSunday = day.date.getDay() === 0;
-              const isSaturday = day.date.getDay() === 6;
-              const isWeekend = isSunday || isSaturday;
+              const isWeekend = day.date.getDay() === 0 || day.date.getDay() === 6;
+              const isNonWorking = isWeekend || !!specialHoliday;
 
               const densityClass =
                 count >= 5
@@ -1066,10 +1259,13 @@ export default function TicketCalendar() {
                       ? styles.dayCellLonggar
                       : "";
 
+              const isSelectedMobile = isSameDay(day.date, selectedMobileDay);
+
               return (
                 <div
                   key={idx}
-                  className={`${styles.dayCell} ${!isCurr ? styles.dayCellOutside : ""} ${isTodayCell ? styles.dayCellToday : ""} ${specialHoliday ? styles.dayCellSpecialHoliday : ""} ${densityClass}`}
+                  onClick={() => handleSelectMobileDay(day.date)}
+                  className={`${styles.dayCell} ${!isCurr ? styles.dayCellOutside : ""} ${isTodayCell ? styles.dayCellToday : ""} ${isSelectedMobile ? styles.dayCellSelected : ""} ${specialHoliday ? styles.dayCellSpecialHoliday : ""} ${densityClass}`}
                 >
                   <div className={styles.cellHeader}>
                     <span
@@ -1093,6 +1289,24 @@ export default function TicketCalendar() {
                     ) : null}
                   </div>
 
+                  {/* Mobile compact indicators inside 7-col date cell */}
+                  <div className={styles.mobileDayIndicators}>
+                    {specialHoliday && <span className={styles.mobileHolidayDot} title={specialHoliday.name} />}
+                    {count > 0 && (
+                      <span
+                        className={`${styles.mobileCountPill} ${
+                          count >= 5
+                            ? styles.mobileCountPadat
+                            : count >= 3
+                              ? styles.mobileCountSedang
+                              : styles.mobileCountLonggar
+                        }`}
+                      >
+                        {count}
+                      </span>
+                    )}
+                  </div>
+
                   {specialHoliday && (
                     <div
                       className={styles.holidayBanner}
@@ -1105,74 +1319,75 @@ export default function TicketCalendar() {
                   )}
 
                   <div className={styles.cellTickets}>
-                    {dayTickets.map((t) => {
-                      const isDone = ["resolved", "closed", "completed"].includes((t.status || "").toLowerCase());
-
-                      const isOverdue = t.slaDeadline && new Date(t.slaDeadline).getTime() < Date.now() && !isDone;
-
-                      const isDueToday = t.slaDeadline && isToday(new Date(t.slaDeadline)) && !isDone;
-
-                      const targetDateStr = dateField === "deadline" ? t.slaDeadline : t.createdAt;
-
-                      const timeStr = targetDateStr
-                        ? new Date(targetDateStr).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })
-                        : null;
-
-                      return (
-                        <div
-                          key={t.id}
-                          className={styles.ticketItem}
-                          style={{ borderLeftColor: getPriorityColor(t.priority) }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-
-                            handleOpenDetail(t);
-                          }}
-                          title={`${t.ticketCode || t.id}: ${t.title} (${t.status})`}
-                        >
-                          <div className={styles.ticketCardHeader}>
-                            {timeStr ? (
-                              <span className={styles.ticketTime}>
-                                <Clock size={10} />
-
-                                {timeStr}
-                              </span>
-                            ) : (
-                              <span style={{ fontSize: "0.65rem", color: "rgba(255,255,255,0.45)" }}>
-                                {t.ticketCode || `#${t.id}`}
-                              </span>
-                            )}
-
-                            {isDone ? (
-                              <span className={styles.badgeDone}>✓ Selesai</span>
-                            ) : isOverdue ? (
-                              <span className={styles.badgeOverdue}>⚠️ Overdue</span>
-                            ) : isDueToday ? (
-                              <span className={styles.badgeDueToday}>🎯 Hari Ini</span>
-                            ) : null}
-                          </div>
-
-                          <span className={styles.ticketTitleText}>
-                            {t.ticketCode ? `[${t.ticketCode}] ` : ""}
-                            {t.title}
-                          </span>
-
-                          <div className={styles.ticketFooter}>
-                            <span className={styles.ticketAssignee}>
-                              <User size={10} />
-
-                              {t.assignedTo || "Unassigned"}
-                            </span>
-
-                            <span style={{ opacity: 0.6 }}>{t.category}</span>
-                          </div>
-                        </div>
-                      );
-                    })}
+                    {dayTickets.map((t) => renderTicketCard(t))}
                   </div>
                 </div>
               );
             })}
+          </div>
+        </div>
+
+        {/* Mobile Agenda Panel (replaces cramped 7-col card lists on <= 768px) */}
+        <div className={styles.mobileAgendaSection}>
+          <div className={styles.mobileAgendaHeader}>
+            <div className={styles.mobileAgendaTitleWrap}>
+              <span className={styles.mobileAgendaEyebrow}>
+                {mobileAgendaMode === "day" ? "Agenda Tanggal Dipilih" : `Agenda ${monthNames[month]} ${year}`}
+              </span>
+              <h3 className={styles.mobileAgendaTitle}>
+                {mobileAgendaMode === "day"
+                  ? formatSelectedAgendaDate(selectedMobileDay)
+                  : `${monthAgendaTickets.length} Tiket Terjadwal`}
+              </h3>
+              {mobileAgendaMode === "day" && selectedDayHoliday && (
+                <div className={styles.mobileAgendaHolidayBadge}>
+                  <span className={styles.holidayBannerDot} />
+                  <span>{selectedDayHoliday.name}</span>
+                </div>
+              )}
+            </div>
+
+            <div className={styles.mobileAgendaModeToggle}>
+              <button
+                type="button"
+                className={`${styles.mobileAgendaModeBtn} ${mobileAgendaMode === "day" ? styles.toggleBtnActive : ""}`}
+                onClick={() => setMobileAgendaMode("day")}
+              >
+                Tanggal ({selectedDayTickets.length})
+              </button>
+              <button
+                type="button"
+                className={`${styles.mobileAgendaModeBtn} ${mobileAgendaMode === "month" ? styles.toggleBtnActive : ""}`}
+                onClick={() => setMobileAgendaMode("month")}
+              >
+                Bulan ({monthAgendaTickets.length})
+              </button>
+            </div>
+          </div>
+
+          <div className={styles.mobileAgendaList}>
+            {mobileAgendaMode === "day" ? (
+              selectedDayTickets.length > 0 ? (
+                selectedDayTickets.map((t) => renderTicketCard(t, ""))
+              ) : (
+                <div className={styles.mobileAgendaEmpty}>
+                  <Calendar size={24} style={{ opacity: 0.35 }} />
+                  <span>Tidak ada tiket terjadwal pada tanggal ini.</span>
+                </div>
+              )
+            ) : monthAgendaTickets.length > 0 ? (
+              monthAgendaTickets.map(({ date, ticket }) =>
+                renderTicketCard(
+                  ticket,
+                  new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "short" }).format(date),
+                ),
+              )
+            ) : (
+              <div className={styles.mobileAgendaEmpty}>
+                <Calendar size={24} style={{ opacity: 0.35 }} />
+                <span>Tidak ada tiket terjadwal pada bulan ini.</span>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -1459,7 +1674,7 @@ export default function TicketCalendar() {
       {/* Add Dev Task Dialog */}
 
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-        <DialogContent className="max-w-md bg-slate-900 text-white border border-slate-700 rounded-xl p-6">
+        <DialogContent className="w-[calc(100vw-24px)] max-w-md max-h-[90dvh] overflow-y-auto bg-slate-900 text-white border border-slate-700 rounded-xl p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold text-white flex items-center gap-2">
               <Plus size={18} />
@@ -1508,7 +1723,7 @@ export default function TicketCalendar() {
               </select>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div className={styles.formGroup}>
                 <span className={styles.formLabel}>Priority</span>
 

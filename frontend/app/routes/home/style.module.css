@@ -102,6 +102,12 @@
   box-shadow: 0 8px 25px rgba(59, 130, 246, 0.3) !important;
 }
 
+.iconButton {
+  padding: 16px !important;
+  min-width: 54px;
+  justify-content: center !important;
+}
+
 /* Decorative Elements */
 .heroDecoration {
   position: absolute;
@@ -522,5 +528,11 @@
 
   .statsGrid {
     grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 860px) {
+  :global(html[data-pwa-banner="visible"]) .container {
+    padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px));
   }
 }

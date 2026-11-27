@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { usersApi } from "~/services/api.service";
 import { Coffee, Clock } from "lucide-react";
@@ -8,13 +8,22 @@ export function GlobalBreakModal({ userId }: { userId: string | number }) {
   const [breakStartedAt, setBreakStartedAt] = useState<string | null>(null);
   const [isToggling, setIsToggling] = useState(false);
   const [nowTick, setNowTick] = useState<number>(Date.now());
+  // Lacak transisi break -> tidak break agar halaman lain ikut sinkron saat
+  // sesi diakhiri otomatis oleh server (bukan oleh klik user).
+  const wasOnBreakRef = useRef(false);
 
   const checkBreakStatus = async () => {
     if (!userId) return;
     try {
       const res = await usersApi.getById(String(userId));
       if (res.success && res.data?.user) {
-        setIsOnBreak(res.data.user.isOnBreak || res.data.user.presenceStatus === 'break');
+        const nextIsOnBreak =
+          res.data.user.isOnBreak || res.data.user.presenceStatus === 'break';
+        if (wasOnBreakRef.current && !nextIsOnBreak) {
+          window.dispatchEvent(new CustomEvent('break-toggled'));
+        }
+        wasOnBreakRef.current = nextIsOnBreak;
+        setIsOnBreak(nextIsOnBreak);
         setBreakStartedAt(res.data.user.breakStartedAt || null);
       }
     } catch (e) {

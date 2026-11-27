@@ -37,7 +37,7 @@ import {
   type Ticket,
 } from "~/services/ticket.service";
 import { settingsApi } from "~/services/settings.service";
-import { requireAuth, logout } from "~/services/session.service";
+import { runWithAuth, logout } from "~/services/session.service";
 import { setAuthToken } from "~/services/api.service";
 import { getTicketStats } from "~/services/ticket.service";
 import { isResolvedStatus, inferFilterGroup } from "~/utils/ticket-ui";
@@ -49,32 +49,32 @@ import styles from "./style.module.css";
 // ─────────────────────────────────────────────
 
 export async function loader({ request }: Route.LoaderArgs) {
-  const session = await requireAuth(request);
+  return runWithAuth(request, async (session) => {
+    // Fetch data personal secara paralel
+    const [activeResponse, pendingResponse, completedResponse, agents, statusResponse, prioritiesResponse, stats] =
+      await Promise.all([
+        getTickets({ assignedTo: session.userId, is_resolved: false, is_pending: false, page: 1, per_page: 15 }),
+        getTickets({ assignedTo: session.userId, is_resolved: false, is_pending: true, page: 1, per_page: 15 }),
+        getTickets({ assignedTo: session.userId, is_resolved: true, page: 1, per_page: 15 }),
+        getAgents(),
+        settingsApi.getStatuses(),
+        settingsApi.getPriorities(),
+        getTicketStats(true), // Personal stats
+      ]);
 
-  // Fetch data personal secara paralel
-  const [activeResponse, pendingResponse, completedResponse, agents, statusResponse, prioritiesResponse, stats] =
-    await Promise.all([
-      getTickets({ assignedTo: session.userId, is_resolved: false, is_pending: false, page: 1, per_page: 15 }),
-      getTickets({ assignedTo: session.userId, is_resolved: false, is_pending: true, page: 1, per_page: 15 }),
-      getTickets({ assignedTo: session.userId, is_resolved: true, page: 1, per_page: 15 }),
-      getAgents(),
-      settingsApi.getStatuses(),
-      settingsApi.getPriorities(),
-      getTicketStats(true), // Personal stats
-    ]);
-
-  return Response.json({
-    session,
-    activeTickets: activeResponse.tickets,
-    activeTotal: activeResponse.total,
-    pendingTickets: pendingResponse.tickets,
-    pendingTotal: pendingResponse.total,
-    completedTickets: completedResponse.tickets,
-    completedTotal: completedResponse.total,
-    agents,
-    statuses: (statusResponse.data?.data || []).filter((s: any) => s.showOnItHelpdesk !== false),
-    priorities: (prioritiesResponse.data?.data || []).filter((p: any) => p.isActive !== false),
-    stats,
+    return {
+      session,
+      activeTickets: activeResponse.tickets,
+      activeTotal: activeResponse.total,
+      pendingTickets: pendingResponse.tickets,
+      pendingTotal: pendingResponse.total,
+      completedTickets: completedResponse.tickets,
+      completedTotal: completedResponse.total,
+      agents,
+      statuses: (statusResponse.data?.data || []).filter((s: any) => s.showOnItHelpdesk !== false),
+      priorities: (prioritiesResponse.data?.data || []).filter((p: any) => p.isActive !== false),
+      stats,
+    };
   });
 }
 
@@ -145,6 +145,9 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
 
   // Sync JWT token dari SSR session ke in-memory (untuk client-side API call)
+  if (typeof window !== "undefined" && session?.authToken) {
+    setAuthToken(session.authToken);
+  }
   useEffect(() => {
     if (session?.authToken) setAuthToken(session.authToken);
   }, [session]);
@@ -345,6 +348,7 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
                 year: "numeric",
                 month: "long",
                 day: "numeric",
+                timeZone: "Asia/Jakarta",
               })}
             </span>
           </div>

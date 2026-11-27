@@ -21,6 +21,7 @@ import {
   Shield,
   Headphones,
 } from "lucide-react";
+import { PwaInstallButton } from "~/components/pwa-install-prompt";
 import styles from "./style.module.css";
 
 export async function loader({ request }: Route.LoaderArgs) {
@@ -32,11 +33,13 @@ export default function Home({ loaderData }: Route.ComponentProps) {
   const [isTrackDialogOpen, setIsTrackDialogOpen] = React.useState(false);
   const navigate = useNavigate();
 
+  const cleanTrackCode = trackId.trim().replace(/^#+/, "").trim();
+
   const handleTrackTicket = (e: React.FormEvent) => {
     e.preventDefault();
-    if (trackId.trim()) {
+    if (cleanTrackCode) {
       setIsTrackDialogOpen(false);
-      navigate(`/ticket/${trackId.trim()}`);
+      navigate(`/ticket/${encodeURIComponent(cleanTrackCode)}`);
     }
   };
 
@@ -81,16 +84,22 @@ export default function Home({ loaderData }: Route.ComponentProps) {
         <div className={styles.heroContent}>
           <h1 className={styles.heroTitle}>IT Aero Nusantara Indonesia</h1>
           <p className={styles.heroSubtitle}>
-            Submit, track, and manage IT support tickets with ease. Our streamlined
+            Submit, track, and manage IT and Corcom requests with ease. Our streamlined
             ticketing system ensures your issues are resolved quickly and efficiently.
           </p>
           <div className={styles.heroCta}>
-            <Link to="/submit-ticket">
-              <Button className={styles.primaryButton}>
+            <Button asChild className={styles.primaryButton}>
+              <Link to="/submit-ticket">
                 <TicketPlus size={20} />
-                Submit a Ticket
-              </Button>
-            </Link>
+                Request IT
+              </Link>
+            </Button>
+            <Button asChild className={styles.primaryButton}>
+              <Link to="/corcom/submit-ticket">
+                <TicketPlus size={20} />
+                Request Corcom
+              </Link>
+            </Button>
             <Button
               variant="outline"
               className={styles.secondaryButton}
@@ -99,6 +108,12 @@ export default function Home({ loaderData }: Route.ComponentProps) {
               <Search size={20} />
               Track Your Ticket
             </Button>
+            <PwaInstallButton
+              variant="outline"
+              className={`${styles.secondaryButton} ${styles.iconButton}`}
+              label="Download Mobile App"
+              iconOnly
+            />
           </div>
         </div>
 
@@ -207,7 +222,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={!trackId.trim()} className={styles.trackButton}>
+              <Button type="submit" disabled={!cleanTrackCode} className={styles.trackButton}>
                 <Search size={16} />
                 Track Ticket
               </Button>

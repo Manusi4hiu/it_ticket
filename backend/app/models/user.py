@@ -77,6 +77,8 @@ class User(db.Model):
             'full_name': self.full_name,
             'role': self.role,
             'department': self.department,
+            'teams': [t.to_dict() for t in self.teams],
+            'teamIds': [t.id for t in self.teams],
             'phone': self.phone,
             'avatar_url': self.avatar_url,
             'is_active': self.is_active if self.is_active is not None else True,

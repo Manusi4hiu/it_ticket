@@ -16,8 +16,10 @@ import {
   LabelList,
 } from "recharts";
 import { getTicketStats, getAllAgentsPerformance } from "~/services/ticket.service";
-import { settingsApi, type Category, type Priority, type Status, type Department } from "~/services/settings.service";
-import { requireRole } from "~/services/session.service";
+import { usersApi } from "~/services/api.service";
+import { settingsApi, type Category, type Priority, type Status, type Department, type Team } from "~/services/settings.service";
+import { runWithRole } from "~/services/session.service";
+import { getActiveTeamIdFromRequest, setActiveTeamId, getActiveTeamIdClient } from "~/utils/team-cookie";
 import type { Route } from "./+types/route";
 import styles from "./style.module.css";
 
@@ -95,7 +97,7 @@ function customBounds(startRaw: string | null, endRaw: string | null, now: Date)
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
-  const session = await requireRole(request, ["Administrator", "Management"]);
+  return runWithRole(request, ["Administrator", "Management"], async (session) => {
 
   const params = new URL(request.url).searchParams;
   const raw = params.get("range") || "7d";
@@ -120,14 +122,47 @@ export async function loader({ request }: Route.LoaderArgs) {
       : quarterBounds(Number(range.slice(1)), now);
   }
 
-  const [stats, statsAll, agentsPerformance, categoriesRes, prioritiesRes, statusesRes, departmentsRes] = await Promise.all([
-    getTicketStats(false, undefined, window),
-    getTicketStats(),
-    getAllAgentsPerformance(),
+  // Fetch teams & master data
+  const [teamsRes, categoriesRes, prioritiesRes, statusesRes, departmentsRes] = await Promise.all([
+    settingsApi.getTeams(),
     settingsApi.getCategories(),
     settingsApi.getPriorities(),
     settingsApi.getStatuses(),
     settingsApi.getDepartments(),
+  ]);
+
+  const allTeams = ((teamsRes.data?.data || []) as Team[]).filter((t) => t.isActive !== false);
+
+  const isAdmin = session.userRole === "Administrator";
+  let userTeams = ((session as any)?.teams || []) as Team[];
+  if (!isAdmin && session.userId) {
+    try {
+      const userRes = await usersApi.getById(session.userId);
+      if (userRes.success && (userRes.data as any)?.user?.teams) {
+        userTeams = (userRes.data as any).user.teams;
+      }
+    } catch {
+      // fallback ke session teams
+    }
+  }
+
+  // Admin melihat semua tim. Non-admin hanya melihat tim yang diikutinya (misal IT & Graphic Design).
+  const teams = isAdmin
+    ? allTeams
+    : allTeams.filter((t) => userTeams.some((ut) => String(ut.id) === String(t.id)));
+
+  // Team scoping: dari query param, fallback ke team IT atau team pertama yang diizinkan
+  const requestedTeamId = getActiveTeamIdFromRequest(request, new URL(request.url));
+  let selectedTeamId = requestedTeamId;
+  if (!selectedTeamId || !teams.some((t) => String(t.id) === selectedTeamId)) {
+    const itTeam = teams.find((t) => t.code === "IT");
+    selectedTeamId = itTeam ? String(itTeam.id) : teams[0] ? String(teams[0].id) : "";
+  }
+
+  const [stats, statsAll, agentsPerformance] = await Promise.all([
+    getTicketStats(false, undefined, { ...window, teamId: selectedTeamId || undefined }),
+    getTicketStats(false, undefined, { teamId: selectedTeamId || undefined }),
+    getAllAgentsPerformance({ teamId: selectedTeamId || undefined }),
   ]);
 
   // Master hanya yang aktif (isActive !== false) — sama dengan aturan dropdown Tickets.
@@ -137,7 +172,7 @@ export async function loader({ request }: Route.LoaderArgs) {
   const statuses = ((statusesRes.data?.data || []) as Status[]).filter((s) => s.showOnItHelpdesk !== false);
   const departments = ((departmentsRes.data?.data || []) as Department[]).filter((d) => d.isActive !== false);
 
-  return Response.json({
+  return {
     session,
     range,
     start: window.start,
@@ -148,7 +183,11 @@ export async function loader({ request }: Route.LoaderArgs) {
     categories,
     priorities,
     statuses,
-    departments
+    departments,
+    teams,
+    selectedTeamId,
+    isAdmin,
+  };
   });
 }
 
@@ -199,11 +238,28 @@ function Ledger({ rows, total }: { rows: { name: string; value: number; color: s
 }
 
 export default function Analytics({ loaderData }: Route.ComponentProps) {
-  const { stats, statsAll, agentsPerformance, categories, priorities, statuses, departments, range, start, end } = loaderData;
+  const { stats, statsAll, agentsPerformance, categories, priorities, statuses, departments, range, start, end, teams, selectedTeamId, isAdmin } = loaderData;
   const [activeTab, setActiveTab] = useState<"overview" | "distribution" | "staff">("overview");
-  const [, setParams] = useSearchParams();
+  const [params, setParams] = useSearchParams();
 
-  if (!stats) return <div className="p-12 text-center text-slate-400">Loading analytics...</div>;
+  useEffect(() => {
+    const saved = getActiveTeamIdClient();
+    const currentParam = params.get("teamId");
+    if (!currentParam && saved && Array.isArray(teams) && teams.some((t: any) => String(t.id) === saved)) {
+      const next = new URLSearchParams(params);
+      next.set("teamId", saved);
+      setParams(next, { replace: true });
+    }
+  }, []);
+
+  if (!stats) {
+    return (
+      <div className="p-12 text-center text-slate-400" role="status" aria-live="polite">
+        <span className="sr-only">Memuat data analytics</span>
+        Loading analytics...
+      </div>
+    );
+  }
 
   return (
     <AnalyticsBody
@@ -219,15 +275,41 @@ export default function Analytics({ loaderData }: Route.ComponentProps) {
       range={range as TrendRange}
       rangeStart={start}
       rangeEnd={end}
-      onRangeChange={(r, custom) =>
-        setParams(r === "7d" ? {} : custom ? { range: r, start: custom.start, end: custom.end } : { range: r })
-      }
+      teams={teams}
+      selectedTeamId={selectedTeamId}
+      isAdmin={isAdmin}
+      onTeamChange={(tId) => {
+        setActiveTeamId(tId);
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("app-team-changed", { detail: { teamId: tId } }));
+        }
+        const next = new URLSearchParams(params);
+        next.set("teamId", tId);
+        setParams(next);
+      }}
+      onRangeChange={(r, custom) => {
+        const next = new URLSearchParams(params);
+        if (r === "7d") {
+          next.delete("range");
+          next.delete("start");
+          next.delete("end");
+        } else if (custom) {
+          next.set("range", r);
+          next.set("start", custom.start);
+          next.set("end", custom.end);
+        } else {
+          next.set("range", r);
+          next.delete("start");
+          next.delete("end");
+        }
+        setParams(next);
+      }}
     />
   );
 }
 
 function AnalyticsBody({
-  stats, statsAll, agentsPerformance, categories, priorities, statuses, departments, activeTab, setActiveTab, range, rangeStart, rangeEnd, onRangeChange,
+  stats, statsAll, agentsPerformance, categories, priorities, statuses, departments, activeTab, setActiveTab, range, rangeStart, rangeEnd, onRangeChange, teams, selectedTeamId, onTeamChange, isAdmin,
 }: {
   stats: any;
   statsAll: any;
@@ -242,6 +324,10 @@ function AnalyticsBody({
   rangeStart: string;
   rangeEnd: string;
   onRangeChange: (r: TrendRange, custom?: { start: string; end: string }) => void;
+  teams: Team[];
+  selectedTeamId: string;
+  onTeamChange: (teamId: string) => void;
+  isAdmin: boolean;
 }) {
   const resolvedTickets = stats.resolved;
   const avgResolutionTime = `${stats.avgResolutionTime}h`;
@@ -323,13 +409,15 @@ function AnalyticsBody({
   // Lookup case-insensitive supaya nilai tiket berbeda kapitalisasi tetap
   // terhitung ke master-nya tanpa memunculkan label duplikat.
   const categoryData = useMemo(() => {
-    const countByLower = new Map(
-      Object.entries(statsAll.byCategory).map(([k, v]) => [k.toLowerCase(), v])
+    const countByLower = new Map<string, number>(
+      Object.entries(statsAll.byCategory).map(
+        ([k, v]): [string, number] => [k.toLowerCase(), Number(v) || 0]
+      )
     );
     return categories
       .map((c, index) => ({
         name: c.name,
-        value: countByLower.get(c.name.toLowerCase()) || 0,
+        value: (countByLower.get(c.name.toLowerCase()) as number) || 0,
         color: autoColor(index),
       }))
       .filter((c) => c.value > 0);
@@ -341,7 +429,7 @@ function AnalyticsBody({
     const activeNames = new Set(categories.map((c) => c.name.toLowerCase()));
     return Object.entries(statsAll.byCategory)
       .filter(([name]) => !activeNames.has(name.toLowerCase()))
-      .sort((a, b) => b[1] - a[1]);
+      .sort((a, b) => Number(b[1]) - Number(a[1]));
   }, [statsAll.byCategory, categories]);
 
   // Department: sinkron master seperti Category — iterasi master departments
@@ -349,13 +437,15 @@ function AnalyticsBody({
   // Department baru yang ditambah admin otomatis muncul begitu ada tiketnya,
   // tanpa edit kode. Nilai di luar master jadi catatan, bukan batang palsu.
   const departmentData = useMemo(() => {
-    const countByLower = new Map(
-      Object.entries(statsAll.byDepartment).map(([k, v]) => [k.toLowerCase(), v])
+    const countByLower = new Map<string, number>(
+      Object.entries(statsAll.byDepartment).map(
+        ([k, v]): [string, number] => [k.toLowerCase(), Number(v) || 0]
+      )
     );
     return departments
       .map((d, index) => ({
         name: d.name,
-        count: countByLower.get(d.name.toLowerCase()) || 0,
+        count: (countByLower.get(d.name.toLowerCase()) as number) || 0,
         color: autoColor(index),
       }))
       .filter((d) => d.count > 0);
@@ -367,7 +457,7 @@ function AnalyticsBody({
     const activeNames = new Set(departments.map((d) => d.name.toLowerCase()));
     return Object.entries(statsAll.byDepartment)
       .filter(([name]) => !activeNames.has(name.toLowerCase()))
-      .sort((a, b) => b[1] - a[1]);
+      .sort((a, b) => Number(b[1]) - Number(a[1]));
   }, [statsAll.byDepartment, departments]);
 
   // Staff dinilai hanya jika punya tiket. Angka rata-rata hanya muncul bila
@@ -467,20 +557,39 @@ function AnalyticsBody({
         <div>
           <p className={styles.kicker}>{activeTab === "overview" ? rangeKicker : "Helpdesk · All time"}</p>
           <h1 className={styles.title}>System analytics</h1>
-          <p className={styles.sub}>Throughput, backlog shape and SLA health across IT support.</p>
+          <p className={styles.sub}>
+            Throughput, backlog shape and SLA health for {teams.find((t) => String(t.id) === String(selectedTeamId))?.name || "Team"}.
+          </p>
         </div>
-        <div className={styles.seg} role="tablist" aria-label="Analytics views">
-          {(["overview", "distribution", "staff"] as const).map((t) => (
-            <button
-              key={t}
-              role="tab"
-              aria-selected={activeTab === t}
-              className={activeTab === t ? styles.segOn : styles.segBtn}
-              onClick={() => setActiveTab(t)}
-            >
-              {t === "overview" ? "Overview" : t === "distribution" ? "Distribution" : "Staff"}
-            </button>
-          ))}
+        <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "center" }}>
+          {teams.length > 1 && (
+            <div className={styles.seg} role="tablist" aria-label="Team workspace">
+              {teams.map((t) => (
+                <button
+                  key={t.id}
+                  role="tab"
+                  aria-selected={String(t.id) === String(selectedTeamId)}
+                  className={String(t.id) === String(selectedTeamId) ? styles.segOn : styles.segBtn}
+                  onClick={() => onTeamChange(String(t.id))}
+                >
+                  {t.name}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className={styles.seg} role="tablist" aria-label="Analytics views">
+            {(["overview", "distribution", "staff"] as const).map((t) => (
+              <button
+                key={t}
+                role="tab"
+                aria-selected={activeTab === t}
+                className={activeTab === t ? styles.segOn : styles.segBtn}
+                onClick={() => setActiveTab(t)}
+              >
+                {t === "overview" ? "Overview" : t === "distribution" ? "Distribution" : "Staff"}
+              </button>
+            ))}
+          </div>
         </div>
       </header>
 

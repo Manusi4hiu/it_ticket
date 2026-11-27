@@ -4,6 +4,7 @@
 
 import type { Ticket, TicketNote, TicketStats, CreateTicketPayload } from '~/types/ticket.types';
 import type { User, Agent, UserPerformanceSummary, UserPerformanceDetail, CreateUserPayload } from '~/types/user.types';
+import { getBaseUrl } from '~/utils/asset';
 
 // ---------------------------------------------------------------------------
 // Environment detection
@@ -37,30 +38,64 @@ const logger = {
 };
 
 // ---------------------------------------------------------------------------
-// Auth token — held in memory only.
-//
-// The JWT is stored in an httpOnly cookie (managed by the React Router SSR
-// session layer in session.service.ts).  We keep a transient in-memory copy
-// so that client-side fetch calls made after SSR hydration can attach the
-// Authorization header without re-reading the cookie (which is httpOnly and
-// therefore inaccessible to JS anyway).
-//
-// ⚠️  Do NOT persist the token in localStorage or sessionStorage —
-//     those APIs are accessible to any JS running on the page and are
-//     therefore vulnerable to XSS attacks.
+// Auth token management:
+// - Browser client: kept in tab memory (no localStorage/sessionStorage for XSS defense).
+// - Node SSR server: ALWAYS resolved via AsyncLocalStorage provider registered by
+//   ssr-auth.server.ts — never a shared module-level mutable singleton.
 // ---------------------------------------------------------------------------
-let authToken: string | null = null;
+let clientAuthToken: string | null = null;
+let serverTokenGetter: (() => string | null) | null = null;
+
+export function registerServerTokenGetter(getter: () => string | null) {
+    serverTokenGetter = getter;
+}
 
 export function setAuthToken(token: string | null) {
-    authToken = token;
+    if (isServer) return;
+    clientAuthToken = token;
 }
 
 export function getAuthToken(): string | null {
-    return authToken;
+    if (isServer) {
+        return serverTokenGetter ? serverTokenGetter() : null;
+    }
+    return clientAuthToken;
 }
 
 export function clearAuthToken() {
-    authToken = null;
+    if (isServer) return;
+    clientAuthToken = null;
+}
+
+// ---------------------------------------------------------------------------
+// Client session expiry guard & connection helpers
+// ---------------------------------------------------------------------------
+const DEFAULT_TIMEOUT_MS = 15000;
+const UPLOAD_TIMEOUT_MS = 30000;
+const RETRYABLE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+let redirectingToLogin = false;
+
+function isPublicFrontendPath(pathname: string): boolean {
+    const base = getBaseUrl().replace(/\/$/, '');
+    const route = base && pathname.startsWith(base) ? pathname.slice(base.length) || '/' : pathname;
+    return (
+        route === '/' ||
+        route.startsWith('/login') ||
+        route.startsWith('/submit-ticket') ||
+        route.startsWith('/ticket/') ||
+        route.startsWith('/unauthorized') ||
+        route.startsWith('/forbidden')
+    );
+}
+
+function handleClientUnauthorized(hadAuthToken: boolean) {
+    if (isServer || typeof window === 'undefined') return;
+    clearAuthToken();
+    if (redirectingToLogin) return;
+    if (!hadAuthToken && isPublicFrontendPath(window.location.pathname)) return;
+    if (isPublicFrontendPath(window.location.pathname) && window.location.pathname.endsWith('/login')) return;
+    redirectingToLogin = true;
+    window.location.replace(`${getBaseUrl()}login?expired=1`);
 }
 
 // ---------------------------------------------------------------------------
@@ -70,19 +105,35 @@ interface ApiResponse<T = unknown> {
     success: boolean;
     data?: T;
     error?: string;
+    status?: number;
 }
 
 interface ApiRequestOptions extends RequestInit {
     idempotencyKey?: string;
     maxRetries?: number;
+    timeoutMs?: number;
+    token?: string | null;
 }
 
 export async function apiRequest<T>(
     endpoint: string,
     options: ApiRequestOptions = {}
 ): Promise<ApiResponse<T>> {
-    const { idempotencyKey, maxRetries = 3, ...fetchOptions } = options;
-    const token = getAuthToken();
+    const {
+        idempotencyKey,
+        maxRetries,
+        timeoutMs,
+        token: explicitToken,
+        ...fetchOptions
+    } = options;
+    const token = explicitToken !== undefined ? explicitToken : getAuthToken();
+
+    if (!isServer && typeof navigator !== 'undefined' && navigator.onLine === false) {
+        return {
+            success: false,
+            error: 'Koneksi internet terputus (offline). Periksa Wi-Fi atau data seluler Anda.',
+        };
+    }
 
     const headers: Record<string, string> = {
         'Content-Type': 'application/json',
@@ -108,27 +159,61 @@ export async function apiRequest<T>(
     // Ensure endpoint starts with /
     const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
     const fullUrl = `${API_BASE_URL}${normalizedEndpoint}`;
+    const method = (fetchOptions.method || 'GET').toUpperCase();
+    // Only auto-retry idempotent methods or explicitly idempotent requests
+    const canRetry = RETRYABLE_METHODS.has(method) || Boolean(idempotencyKey);
+    const retryLimit = canRetry ? Math.min(maxRetries ?? 2, 3) : 0;
+    const effectiveTimeout = timeoutMs ?? (fetchOptions.body instanceof FormData ? UPLOAD_TIMEOUT_MS : DEFAULT_TIMEOUT_MS);
 
-    logger.log(`[API] ${fetchOptions.method || 'GET'} ${fullUrl}`);
+    logger.log(`[API] ${method} ${fullUrl}`);
 
     let retries = 0;
     const executeRequest = async (): Promise<ApiResponse<T>> => {
+        const controller = new AbortController();
+        const externalSignal = fetchOptions.signal;
+        let timedOut = false;
+
+        const onExternalAbort = () => controller.abort();
+        if (externalSignal) {
+            if (externalSignal.aborted) {
+                controller.abort();
+            } else {
+                externalSignal.addEventListener('abort', onExternalAbort, { once: true });
+            }
+        }
+
+        const timer = effectiveTimeout > 0
+            ? setTimeout(() => {
+                  timedOut = true;
+                  controller.abort();
+              }, effectiveTimeout)
+            : undefined;
+
         try {
             const response = await fetch(fullUrl, {
                 ...fetchOptions,
+                signal: controller.signal,
                 cache: fetchOptions.cache || 'no-store',
                 headers,
             });
 
             logger.log(`[API] Response: ${response.status} ${response.statusText}`);
 
-            // Retry on transient server errors
-            if ([502, 503, 504].includes(response.status) && retries < maxRetries) {
+            // Retry idempotent requests on transient gateway errors
+            if ([502, 503, 504].includes(response.status) && retries < retryLimit) {
                 retries++;
-                const delay = Math.pow(2, retries) * 1000;
+                const delay = retries * 750;
                 logger.warn(`[API] Retry ${retries} in ${delay}ms…`);
                 await new Promise(resolve => setTimeout(resolve, delay));
                 return executeRequest();
+            }
+
+            if (
+                response.status === 401 &&
+                !normalizedEndpoint.startsWith('/auth/login') &&
+                !normalizedEndpoint.startsWith('/auth/logout')
+            ) {
+                handleClientUnauthorized(Boolean(token));
             }
 
             let data: unknown;
@@ -138,12 +223,12 @@ export async function apiRequest<T>(
                     data = await response.json();
                 } catch (parseError) {
                     logger.error('[API] JSON parse error:', parseError);
-                    return { success: false, error: 'Invalid JSON response from server' };
+                    return { success: false, error: 'Invalid JSON response from server', status: response.status };
                 }
             } else {
                 const text = await response.text();
                 logger.warn('[API] Non-JSON response:', text.substring(0, 100));
-                return { success: false, error: `Server returned ${response.status} (Non-JSON)` };
+                return { success: false, error: `Server returned ${response.status} (Non-JSON)`, status: response.status };
             }
 
             if (!response.ok) {
@@ -152,25 +237,37 @@ export async function apiRequest<T>(
                 return {
                     success: false,
                     error: (errData?.error || errData?.msg || `HTTP error ${response.status}`) as string,
+                    status: response.status,
                 };
             }
 
-            return { success: true, data: data as T };
+            return { success: true, data: data as T, status: response.status };
         } catch (error) {
             logger.error(`[API] Fetch error for ${fullUrl}:`, error);
 
-            if (retries < maxRetries) {
+            const callerAborted = Boolean(externalSignal?.aborted);
+            if (!callerAborted && retries < retryLimit) {
                 retries++;
-                const delay = Math.pow(2, retries) * 1000;
+                const delay = retries * 750;
                 logger.warn(`[API] Network retry ${retries}…`);
                 await new Promise(resolve => setTimeout(resolve, delay));
                 return executeRequest();
+            }
+
+            if (timedOut) {
+                return {
+                    success: false,
+                    error: 'Koneksi ke server timeout. Periksa jaringan Anda lalu coba lagi.',
+                };
             }
 
             return {
                 success: false,
                 error: error instanceof Error ? `Network error: ${error.message}` : 'Network error',
             };
+        } finally {
+            if (timer !== undefined) clearTimeout(timer);
+            if (externalSignal) externalSignal.removeEventListener('abort', onExternalAbort);
         }
     };
 
@@ -211,6 +308,7 @@ export const ticketsApi = {
         date?: string;
         page?: number;
         per_page?: number;
+        teamId?: number | string;
     }) => {
         const params = new URLSearchParams();
         if (filters) {
@@ -299,12 +397,15 @@ export const ticketsApi = {
         });
     },
 
-    getStats: async (personal: boolean = false, days?: number, opts?: { start?: string; end?: string }) => {
+    getStats: async (personal: boolean = false, days?: number, opts?: { start?: string; end?: string; teamId?: string | number }) => {
         const params = new URLSearchParams();
         if (personal) params.set("personal", "true");
         if (days) params.set("days", String(days));
         if (opts?.start) params.set("start", opts.start);
         if (opts?.end) params.set("end", opts.end);
+        if (opts?.teamId !== undefined && opts?.teamId !== null && opts?.teamId !== '') {
+            params.set("teamId", String(opts.teamId));
+        }
         const qs = params.toString();
         return apiRequest<{ success: boolean; stats: TicketStats }>(
             `/tickets/stats${qs ? `?${qs}` : ''}`
@@ -319,8 +420,8 @@ export const usersApi = {
     getAll: async () =>
         apiRequest<{ success: boolean; users: User[]; total: number }>('/users'),
 
-    getAgents: async () =>
-        apiRequest<{ success: boolean; agents: Agent[] }>('/users/agents'),
+    getAgents: async (teamId?: number) =>
+        apiRequest<{ success: boolean; agents: Agent[] }>(`/users/agents${teamId != null ? `?teamId=${teamId}` : ''}`),
 
     getById: async (id: string) =>
         apiRequest<{ success: boolean; user: User }>(`/users/${id}`),
@@ -337,10 +438,13 @@ export const usersApi = {
     delete: async (id: string) =>
         apiRequest(`/users/${id}`, { method: 'DELETE' }),
 
-    getAllPerformance: async (opts?: { start?: string; end?: string }) => {
+    getAllPerformance: async (opts?: { start?: string; end?: string; teamId?: string | number }) => {
         const params = new URLSearchParams();
         if (opts?.start) params.set("start", opts.start);
         if (opts?.end) params.set("end", opts.end);
+        if (opts?.teamId !== undefined && opts?.teamId !== null && opts?.teamId !== '') {
+            params.set("teamId", String(opts.teamId));
+        }
         const qs = params.toString();
         return apiRequest<{ success: boolean; performance: UserPerformanceSummary[] }>(
             `/users/performance${qs ? `?${qs}` : ''}`
@@ -405,4 +509,41 @@ export const usersApi = {
             }>;
         }>(`/users/break-logs${suffix}`);
     },
+};
+
+// ---------------------------------------------------------------------------
+// Notifications & Web Push API
+// ---------------------------------------------------------------------------
+export interface NotificationItemDto {
+    id: number;
+    ticketId?: number | null;
+    ticketCode?: string | null;
+    type: string;
+    title: string;
+    message: string;
+    reason?: string | null;
+    createdAt: string;
+    isRead: boolean;
+}
+
+export const notificationsApi = {
+    getAll: async (limit: number = 50, unreadOnly: boolean = false) =>
+        apiRequest<{ success: boolean; notifications: NotificationItemDto[]; unreadCount: number }>(
+            `/notifications?limit=${limit}&unread_only=${unreadOnly}`
+        ),
+
+    markRead: async (ids: number[]) =>
+        apiRequest<{ success: boolean; updated: number; unreadCount: number }>('/notifications/read', {
+            method: 'PUT',
+            body: JSON.stringify({ ids }),
+        }),
+
+    deleteItems: async (payload: { ids?: number[]; all?: boolean }) =>
+        apiRequest<{ success: boolean; deleted: number; unreadCount: number }>('/notifications/delete', {
+            method: 'PUT',
+            body: JSON.stringify(payload),
+        }),
+
+    getVapidPublicKey: async () =>
+        apiRequest<{ success: boolean; publicKey: string }>('/notifications/vapid-public-key'),
 };

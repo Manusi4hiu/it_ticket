@@ -33,14 +33,64 @@ from app.constants import (
 
 
 def get_current_user():
-    """Return User object dari JWT identity, atau None."""
+    """Return User object dari JWT identity, atau None.
+
+    Akun yang dinonaktifkan (is_active=False) atau sudah dihapus dianggap
+    TIDAK ADA, sehingga tokennya tidak bisa dipakai. Ini lapisan kedua:
+    guard global di app/__init__.py sudah menolak lebih dulu dengan 401.
+    """
     user_id = get_jwt_identity()
     if user_id is None:
         return None
+
     try:
-        return User.query.get(int(user_id))
+        user = User.query.get(int(user_id))
     except (TypeError, ValueError):
-        return User.query.get(user_id)
+        user = User.query.get(user_id)
+
+    if not user or not user.is_active:
+        return None
+
+    return user
+
+
+def get_user_team_ids(user):
+    """Set team id milik user (membership user_teams)."""
+    if not user:
+        return set()
+    return {t.id for t in user.teams}
+
+
+def is_admin(user):
+    return is_administrator(user)
+
+
+# ── Team scoping ────────────────────────────────────────────────────
+# Single source of truth untuk pemisahan workspace (team).
+# Admin lintas team; Staff/Management hanya team tempat mereka anggota.
+
+def scoped_ticket_query(user, base_query):
+    """Batasi query Ticket ke team yang boleh diakses user.
+
+    Admin -> semua team. Non-admin -> hanya ticket di team membership user.
+    """
+    if is_administrator(user):
+        return base_query
+    team_ids = get_user_team_ids(user)
+    from app.models.ticket import Ticket
+    if team_ids:
+        return base_query.filter(Ticket.team_id.in_(team_ids))
+    # Non-admin tanpa team: tidak melihat apa pun.
+    return base_query.filter(Ticket.team_id == -1)
+
+
+def can_access_ticket(user, ticket):
+    """Apakah user boleh melihat/mengelola ticket ini."""
+    if not user or not ticket:
+        return False
+    if is_administrator(user):
+        return True
+    return ticket.team_id in get_user_team_ids(user)
 
 
 def has_role(user, *roles):

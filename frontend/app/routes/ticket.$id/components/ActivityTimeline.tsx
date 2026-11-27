@@ -10,13 +10,8 @@ import { MessageSquare } from "lucide-react";
 import type { TicketNote } from "~/services/ticket.service";
 import { formatDate } from "~/utils/date";
 import { isSystemNote } from "~/utils/ticket-history";
+import { backendAsset } from "~/utils/asset";
 import styles from "../style.module.css";
-
-// ─────────────────────────────────────────────
-// Constants
-// ─────────────────────────────────────────────
-
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:5000";
 
 // ─────────────────────────────────────────────
 // Props
@@ -127,12 +122,12 @@ function TimelineItem({ note }: { note: TicketNote }) {
         {note.imageUrl && (
           <div className={styles.noteImageContainer}>
             <a
-              href={`${BACKEND_URL}${note.imageUrl}`}
+              href={backendAsset(note.imageUrl)}
               target="_blank"
               rel="noopener noreferrer"
             >
               <img
-                src={`${BACKEND_URL}${note.imageUrl}`}
+                src={backendAsset(note.imageUrl)}
                 alt="Documentation"
                 className={styles.noteImage}
               />

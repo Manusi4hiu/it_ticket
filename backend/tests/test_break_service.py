@@ -11,10 +11,10 @@ from app.services.master_data_service import MasterDataService
 @pytest.fixture
 def app():
     """Create and configure a test app."""
-    app = create_app()
-    app.config['TESTING'] = True
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///:memory:'
-    
+    app = create_app('development', config_overrides={
+        'TESTING': True, 'SQLALCHEMY_DATABASE_URI': 'sqlite://', 'SQLALCHEMY_ECHO': False,
+    })
+
     with app.app_context():
         db.create_all()
         yield app
@@ -23,9 +23,14 @@ def app():
 
 
 @pytest.fixture
-def client(app):
-    """Test client."""
-    return app.test_client()
+def client(app, create_user):
+    """Authenticated client; real break endpoints require a JWT."""
+    from flask_jwt_extended import create_access_token
+    with app.app_context():
+        token = create_access_token(identity=str(User.query.filter_by(username='break-test').one().id))
+    client = app.test_client()
+    client.environ_base['HTTP_AUTHORIZATION'] = f'Bearer {token}'
+    return client
 
 
 @pytest.fixture
@@ -52,6 +57,7 @@ def create_user(app):
     """Create test user."""
     with app.app_context():
         user = User(
+            username='break-test', password_hash='unused',
             full_name='Test User',
             email='test@example.com',
             role='Staff',
@@ -72,7 +78,7 @@ class TestAutoEndExpiredBreaks:
             setting = BreakSetting.query.first()
             setting.auto_end_on_shift_end = False
             db.session.commit()
-            
+
             result = UserService.auto_end_expired_breaks()
             assert result == 0
 
@@ -86,29 +92,29 @@ class TestAutoEndExpiredBreaks:
         """When user break started before shift end and now > shift end, should auto-end."""
         with app.app_context():
             user = User.query.first()
-            
+
             # Simulate break that started at 16:00 WIB (09:00 UTC, since UTC+7)
             wib_tz = timezone(timedelta(hours=7))
             now_wib = datetime.now(wib_tz)
-            
+
             # Set break start to 16:00 WIB today (before shift end at 17:00)
             break_start_wib = now_wib.replace(hour=16, minute=0, second=0, microsecond=0)
             break_start_utc = break_start_wib.astimezone(timezone.utc)
-            
+
             user.is_on_break = True
             user.break_started_at = break_start_utc
             user.break_pre_status = 'online'
             db.session.commit()
-            
+
             # Mock current time to 17:30 WIB (after shift end at 17:00)
             # This is tricky with real datetime, so we'll just verify the logic
             # by checking if the break would be auto-ended
-            
+
             result = UserService.auto_end_expired_breaks()
-            
+
             # Refresh user to check state
             db.session.refresh(user)
-            
+
             # If current time >= shift end, break should be ended
             # This depends on actual time, so we just verify no errors
             assert result >= 0
@@ -118,25 +124,25 @@ class TestAutoEndExpiredBreaks:
         """When auto-ending a break, should create BreakLog entry."""
         with app.app_context():
             user = User.query.first()
-            
+
             wib_tz = timezone(timedelta(hours=7))
             now_wib = datetime.now(wib_tz)
-            
+
             # Set break start to before shift end
             break_start_wib = now_wib.replace(hour=16, minute=0, second=0, microsecond=0)
             break_start_utc = break_start_wib.astimezone(timezone.utc)
-            
+
             user.is_on_break = True
             user.break_started_at = break_start_utc
             user.break_pre_status = 'online'
             db.session.commit()
-            
+
             initial_log_count = BreakLog.query.count()
-            
+
             UserService.auto_end_expired_breaks()
-            
+
             final_log_count = BreakLog.query.count()
-            
+
             # Log count should be same or increased (depending on timing)
             assert final_log_count >= initial_log_count
 
@@ -146,7 +152,7 @@ class TestAutoEndExpiredBreaks:
             setting = BreakSetting.query.first()
             setting.work_end_time = '17:0a'  # Invalid format
             db.session.commit()
-            
+
             # Should not raise exception, fallback to 17:00
             result = UserService.auto_end_expired_breaks()
             assert isinstance(result, int)
@@ -161,11 +167,11 @@ class TestBreakToggleEndpoint:
         with app.app_context():
             user = User.query.first()
             user_id = user.id
-        
+
         # This test assumes current time is during work hours
         # In real scenario, mock datetime or use time-aware tests
         response = client.post(f'/api/users/{user_id}/break', json={})
-        
+
         # Expect 200 or 400 depending on current time
         assert response.status_code in [200, 400]
 
@@ -177,13 +183,15 @@ class TestBreakToggleEndpoint:
             user.break_total_date = datetime.now(timezone.utc).date() - timedelta(days=1)
             db.session.commit()
             user_id = user.id
-        
+
         response = client.post(f'/api/users/{user_id}/break', json={})
-        
+
         with app.app_context():
-            db.session.refresh(user)
-            # Daily total should be reset to 0 on new day
+            user = db.session.get(User, user_id)
+            # Daily total is persisted when the toggle succeeds.
             assert response.status_code in [200, 400]
+            if response.status_code == 200:
+                assert user.total_break_seconds_today == 0
 
 
 class TestBreakSettingModel:
@@ -202,7 +210,7 @@ class TestBreakSettingModel:
         with app.app_context():
             setting = BreakSetting.query.first()
             data = setting.to_dict()
-            
+
             assert 'workStartTime' in data
             assert 'workEndTime' in data
             assert 'autoEndOnShiftEnd' in data

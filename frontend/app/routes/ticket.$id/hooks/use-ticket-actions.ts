@@ -8,7 +8,7 @@
  * di ticket.$id hanya fokus pada rendering.
  */
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useToast } from "~/hooks/use-toast";
 import { useNavigate } from "react-router";
 import {
@@ -76,6 +76,17 @@ export function useTicketActions({
   const [collaboratorIds, setCollaboratorIds] = useState<string[]>(
     (initialTicket?.collaboratorIds || []).map(String)
   );
+
+  useEffect(() => {
+    if (!initialTicket) return;
+    setTicket(initialTicket);
+    setStatus(initialTicket.status || "New");
+    setPriority(initialTicket.priority || "medium");
+    setCategory(initialTicket.category || "Uncategorized");
+    setAssignedTo(initialTicket.assignedTo || "");
+    setCollaborators(initialTicket.collaborators || []);
+    setCollaboratorIds((initialTicket.collaboratorIds || []).map(String));
+  }, [initialTicket]);
 
   // ── Note State ──
   const [newNote, setNewNote] = useState("");
@@ -161,6 +172,11 @@ export function useTicketActions({
     const newNames = [...collaborators, agent.name];
     setCollaboratorIds(newIds);
     setCollaborators(newNames);
+    setTicket((prev) => ({
+      ...prev,
+      collaborators: newNames,
+      collaboratorIds: newIds.map(Number),
+    }));
 
     try {
       const updated = await updateTicket(String(ticket.id), { collaboratorIds: newIds.map(Number) });
@@ -193,6 +209,11 @@ export function useTicketActions({
     const newNames = collaborators.filter((name) => name !== targetName && name !== identifier);
     setCollaboratorIds(newIds);
     setCollaborators(newNames);
+    setTicket((prev) => ({
+      ...prev,
+      collaborators: newNames,
+      collaboratorIds: newIds.map(Number),
+    }));
 
     try {
       const updated = await updateTicket(String(ticket.id), { collaboratorIds: newIds.map(Number) });
