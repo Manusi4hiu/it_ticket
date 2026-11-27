@@ -1,7 +1,7 @@
-/* Landing Page - Clean Operational Dual Portal */
+/* Landing Page - Centered Dual Portal with Solid Anti-Slop Surfaces */
 .container {
   min-height: 100vh;
-  background-color: #080e1a;
+  background-color: #070d18;
   color: #e2e8f0;
   display: flex;
   flex-direction: column;
@@ -9,14 +9,14 @@
 
 /* Top Navigation */
 .topBar {
-  background-color: #080e1a;
+  background-color: #070d18;
   border-bottom: 1px solid #1b2538;
 }
 
 .topBarInner {
-  max-width: 1080px;
+  max-width: 1120px;
   margin: 0 auto;
-  padding: 12px 24px;
+  padding: 13px 24px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -26,220 +26,406 @@
 .brand {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 11px;
   min-width: 0;
 }
 
 .brandLogo {
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   object-fit: contain;
   flex-shrink: 0;
 }
 
+.brandText {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+
 .brandName {
-  font-size: 0.92rem;
+  font-size: 0.96rem;
   font-weight: 700;
   color: #f8fafc;
+}
+
+.brandTag {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: #94a3b8;
 }
 
 .topBarActions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   flex-shrink: 0;
 }
 
 .installBtn {
-  height: 34px !important;
-  padding: 0 12px !important;
-  font-size: 0.8rem !important;
+  height: 36px !important;
+  padding: 0 14px !important;
+  font-size: 0.8125rem !important;
   font-weight: 600 !important;
-  border-radius: 6px !important;
-  background: transparent !important;
+  border-radius: 8px !important;
+  background: #0d1524 !important;
   border: 1px solid #293548 !important;
-  color: #cbd5e1 !important;
+  color: #e2e8f0 !important;
   box-shadow: none !important;
+  backdrop-filter: none !important;
   transform: none !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 7px !important;
 }
 
 .installBtn:hover {
-  background: #111b2e !important;
-  color: #f8fafc !important;
+  background: #152136 !important;
+  border-color: #3b4b63 !important;
 }
 
 .staffLoginLink {
-  height: 34px;
-  padding: 0 12px;
-  border-radius: 6px;
-  background: #111b2e;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 8px;
+  background-color: #0d1524;
   border: 1px solid #293548;
   color: #e2e8f0;
-  font-size: 0.8rem;
+  font-size: 0.8125rem;
   font-weight: 600;
   text-decoration: none;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
 .staffLoginLink:hover {
-  background: #19263e;
+  background-color: #152136;
+  border-color: #3b4b63;
   color: #ffffff;
 }
 
-/* Main Shell */
+/* Main Content */
 .main {
   flex: 1;
 }
 
-.pageShell {
-  max-width: 1080px;
+.heroSection {
+  max-width: 1120px;
   margin: 0 auto;
-  padding: 36px 24px 56px;
+  padding: 40px 24px 32px;
 }
 
-.pageHeader {
-  margin-bottom: 28px;
+.heroHeader {
+  text-align: center;
+  max-width: 680px;
+  margin: 0 auto 32px;
+}
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 13px;
+  border-radius: 8px;
+  background-color: #0d1524;
+  border: 1px solid #1e293b;
+  color: #cbd5e1;
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin-bottom: 16px;
 }
 
 .heroTitle {
-  font-size: clamp(1.75rem, 3vw, 2.25rem);
+  font-size: clamp(2rem, 4.2vw, 3rem);
   font-weight: 800;
   color: #f8fafc;
-  margin: 0 0 8px;
-  letter-spacing: -0.02em;
+  margin: 0 0 12px;
+  line-height: 1.12;
+  letter-spacing: -0.025em;
+}
+
+.heroTitleAccent {
+  color: #60a5fa;
 }
 
 .heroSubtitle {
-  font-size: 0.95rem;
+  font-size: 1rem;
   color: #94a3b8;
-  line-height: 1.5;
-  margin: 0;
+  line-height: 1.6;
+  margin: 0 0 22px;
 }
 
-/* Asymmetric Workspace Grid */
-.workspaceGrid {
+/* Track Bar */
+.trackBar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 7px 14px 7px 7px;
+  border-radius: 10px;
+  background-color: #0d1524;
+  border: 1px solid #1e293b;
+}
+
+.trackTriggerBtn {
+  height: 38px;
+  padding: 0 16px;
+  border-radius: 7px;
+  background-color: #162238;
+  border: 1px solid #2b3f5e;
+  color: #f8fafc;
+  font-size: 0.875rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.trackTriggerBtn:hover {
+  background-color: #1d2d4a;
+  border-color: #425f8c;
+}
+
+.trackHint {
+  font-size: 0.8125rem;
+  color: #94a3b8;
+}
+
+.trackHint code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.78rem;
+  color: #e2e8f0;
+  background-color: #162032;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+/* Dual Portal Comparison Grid */
+.portalGrid {
   display: grid;
-  grid-template-columns: 1.45fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 24px;
-  align-items: start;
+  align-items: stretch;
 }
 
-.channelsColumn {
+.portalCard {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  justify-content: space-between;
+  border-radius: 14px;
+  padding: 26px;
+  transition: border-color 0.2s ease;
 }
 
-/* Distinct Bands (no top-border stripe, no corner icon box) */
-.itBand,
-.cocBand {
-  border-radius: 10px;
-  padding: 24px;
-}
-
-.itBand {
-  background-color: #0d1626;
+.itCard {
+  background-color: #0d1524;
   border: 1px solid #1e3a5f;
 }
 
-.cocBand {
+.itCard:hover {
+  border-color: #2563eb;
+}
+
+.cocCard {
   background-color: #141210;
   border: 1px solid #453318;
 }
 
-.bandHeader {
+.cocCard:hover {
+  border-color: #d97706;
+}
+
+.portalCardTop {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 8px;
+  margin-bottom: 18px;
 }
 
-.itCode,
-.cocCode {
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
+.portalIcon {
+  width: 46px;
+  height: 46px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
-.itCode {
+.itIcon {
+  background-color: #112240;
+  border: 1px solid #1e3a5f;
   color: #60a5fa;
 }
 
-.cocCode {
+.cocIcon {
+  background-color: #211a10;
+  border: 1px solid #453318;
   color: #fbbf24;
 }
 
-.bandSchedule {
-  font-size: 0.76rem;
-  font-weight: 600;
-  color: #94a3b8;
-}
-
-.bandTitle {
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: #f8fafc;
-  margin: 0 0 6px;
-}
-
-.bandDesc {
-  font-size: 0.9rem;
-  color: #94a3b8;
-  line-height: 1.5;
-  margin: 0 0 16px;
-}
-
-/* IT Scopes: crisp inline text list */
-.itScopeRow {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 18px;
-  padding: 10px 0;
-  margin-bottom: 18px;
-  border-top: 1px solid #1b2c46;
-  border-bottom: 1px solid #1b2c46;
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: #cbd5e1;
-}
-
-/* Corcom Requirement Callout */
-.cocRequirement {
-  padding: 10px 12px;
-  margin-bottom: 18px;
-  border-radius: 6px;
-  background-color: #1c1710;
-  border: 1px solid #3a2b16;
-  font-size: 0.83rem;
-  color: #e2e8f0;
-  line-height: 1.45;
-}
-
-.cocRequirement strong {
-  color: #fbbf24;
-}
-
-.bandActionRow {
+.portalBadges {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 8px;
   flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
-.itCta,
-.cocCta {
+.teamBadge {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  padding: 4px 10px;
+  border-radius: 6px;
+}
+
+.itBadge {
+  background-color: #112240;
+  border: 1px solid #1e3a5f;
+  color: #93c5fd;
+}
+
+.cocBadge {
+  background-color: #211a10;
+  border: 1px solid #453318;
+  color: #fde68a;
+}
+
+.modeTag {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  height: 40px;
-  padding: 0 20px;
+  gap: 5px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #cbd5e1;
+  padding: 4px 9px;
   border-radius: 6px;
-  font-size: 0.9rem;
+  background-color: #111927;
+  border: 1px solid #243044;
+}
+
+.cocCard .modeTag {
+  background-color: #1b1712;
+  border-color: #362917;
+}
+
+.portalBody {
+  flex: 1;
+}
+
+.portalTitle {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: #f8fafc;
+  margin: 0 0 8px;
+  letter-spacing: -0.015em;
+}
+
+.portalDesc {
+  font-size: 0.92rem;
+  color: #94a3b8;
+  line-height: 1.55;
+  margin: 0 0 20px;
+}
+
+.scopeGrid {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 22px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.scopeChip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.itChip {
+  background-color: #09101d;
+  border: 1px solid #1b2c46;
+}
+
+.itChip svg {
+  color: #60a5fa;
+  flex-shrink: 0;
+}
+
+.cocChip {
+  background-color: #0e0c09;
+  border: 1px solid #2e2416;
+}
+
+.cocChip svg {
+  color: #fbbf24;
+  flex-shrink: 0;
+}
+
+.portalFooter {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #1e293b;
+}
+
+.cocCard .portalFooter {
+  border-top-color: #2e2416;
+}
+
+.workflowMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.metaRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.8125rem;
+}
+
+.metaLabel {
+  color: #64748b;
+  font-weight: 600;
+}
+
+.metaValue {
+  color: #cbd5e1;
+  font-weight: 600;
+  text-align: right;
+}
+
+/* Solid Distinct Portal CTAs */
+.itCta,
+.cocCta {
+  width: 100%;
+  height: 44px;
+  padding: 0 20px;
+  border-radius: 8px;
+  font-size: 0.94rem;
   font-weight: 700;
   text-decoration: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
   transition: background-color 0.15s ease;
 }
 
@@ -261,77 +447,103 @@
   background-color: #d97706;
 }
 
-.bandNote {
-  font-size: 0.8rem;
-  color: #94a3b8;
+.ctaArrow {
+  margin-left: auto;
+  opacity: 0.85;
 }
 
-/* Right Column: Tracking & Comparison */
-.sideColumn {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+/* How It Works Section */
+.workflowSection {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 12px 24px 56px;
 }
 
-.trackPanel {
-  background-color: #0c1320;
+.workflowGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.workflowCard {
+  background-color: #0b1220;
   border: 1px solid #1b2538;
-  border-radius: 10px;
+  border-radius: 12px;
   padding: 20px;
 }
 
-.sideTitle {
-  font-size: 1rem;
+.workflowTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.workflowIcon {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background-color: #111b2e;
+  border: 1px solid #22304a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+}
+
+.workflowStep {
+  font-size: 0.7rem;
   font-weight: 700;
-  color: #f8fafc;
+  letter-spacing: 0.08em;
+  color: #64748b;
+}
+
+.workflowTitle {
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: #f1f5f9;
   margin: 0 0 6px;
 }
 
-.sideDesc {
-  font-size: 0.85rem;
+.workflowDesc {
+  font-size: 0.84rem;
   color: #94a3b8;
-  line-height: 1.5;
-  margin: 0 0 14px;
-}
-
-.trackTriggerBtn {
-  width: 100%;
-  height: 40px;
-  padding: 0 16px;
-  border-radius: 6px;
-  background-color: #131e33;
-  border: 1px solid #2c3c57;
-  color: #f8fafc;
-  font-size: 0.88rem;
-  font-weight: 600;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  cursor: pointer;
-  transition: background-color 0.15s ease, border-color 0.15s ease;
-}
-
-.trackTriggerBtn:hover {
-  background-color: #1b2a44;
-  border-color: #475d82;
+  line-height: 1.55;
+  margin: 0;
 }
 
 /* Footer */
 .footer {
-  padding: 18px 24px;
-  background-color: #080e1a;
+  padding: 20px 24px;
+  background-color: #070d18;
   border-top: 1px solid #1b2538;
 }
 
 .footerContent {
-  max-width: 1080px;
+  max-width: 1120px;
   margin: 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 12px;
+}
+
+.footerLeft {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.footerBrand {
+  color: #e2e8f0;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.footerDivider {
+  color: #475569;
 }
 
 .footerText {
@@ -364,9 +576,9 @@
 
 /* Dialog */
 .dialogContent {
-  background: #0d1626 !important;
+  background: #0d1524 !important;
   border: 1px solid #293548 !important;
-  border-radius: 10px !important;
+  border-radius: 12px !important;
   padding: 0 !important;
   overflow: hidden !important;
   box-shadow: 0 20px 48px rgba(0, 0, 0, 0.55) !important;
@@ -413,10 +625,10 @@
 }
 
 .input {
-  background: #080e1a !important;
+  background: #070d18 !important;
   border: 1px solid #334155 !important;
   color: #f8fafc !important;
-  border-radius: 6px !important;
+  border-radius: 8px !important;
   padding: 11px 13px !important;
   font-size: 0.95rem !important;
 }
@@ -428,6 +640,12 @@
 .input:focus {
   border-color: #3b82f6 !important;
   outline: none !important;
+}
+
+.inputHint {
+  font-size: 0.78rem;
+  color: #64748b;
+  margin: 2px 0 0;
 }
 
 .dialogFooter {
@@ -459,8 +677,12 @@
 }
 
 /* Responsive */
-@media (max-width: 860px) {
-  .workspaceGrid {
+@media (max-width: 900px) {
+  .portalGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .workflowGrid {
     grid-template-columns: 1fr;
   }
 }
@@ -470,24 +692,39 @@
     padding: 12px 16px;
   }
 
-  .pageShell {
-    padding: 24px 16px 40px;
+  .brandTag {
+    display: none;
   }
 
-  .itBand,
-  .cocBand,
-  .trackPanel {
-    padding: 18px;
+  .heroSection {
+    padding: 28px 16px 24px;
   }
 
-  .bandActionRow {
-    flex-direction: column;
-    align-items: stretch;
+  .heroHeader {
+    margin-bottom: 24px;
   }
 
-  .itCta,
-  .cocCta {
+  .trackBar {
     width: 100%;
+    padding: 10px;
+    flex-direction: column;
+  }
+
+  .trackTriggerBtn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .portalCard {
+    padding: 20px 18px;
+  }
+
+  .scopeGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .workflowSection {
+    padding: 8px 16px 44px;
   }
 
   .footerContent {
